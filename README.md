@@ -1,3 +1,16 @@
+# 타코 · 인스레드 치트키 전용 브라우저
+
+2026-10-12 개발 소스 인수인계 스냅샷입니다. 완성 배포본이 아닙니다.
+
+- 개발 시작: [ANTIGRAVITY-START.md](ANTIGRAVITY-START.md)
+- 확인된 상태와 한계: [CURRENT-STATE.md](CURRENT-STATE.md)
+- 최종 계획: [DEVELOPMENT-GOALS.md](studio-browser/DEVELOPMENT-GOALS.md)
+- 실행 소스: `studio-browser` (Electron), `downloader` (Python helper)
+- 기존 관련 확장: `reference-studio`
+
+아래 내용은 과거 개발 이력입니다. 현재 전용 브라우저의 실서비스 완료 증거로 해석하지 마세요.
+
+---
 # 인스레드 치트키 by TAKOH
 
 제품 영상 선택·분석·대본 작성·제휴 링크 연결·Threads 게시를 위한 통합 개발 저장소입니다.
@@ -99,3 +112,4 @@ Python 회귀 테스트: `python -m unittest test_helper_regressions.py`.
 EXE, FFmpeg/aria2c 바이너리, 이전 배포 ZIP, 수집 영상, 브라우저 프로필과 쿠키는 소스 Git 이력에 포함하지 않습니다. Windows 배포 시 공식 도구 바이너리를 준비하고 `build_helper.py`로 도우미를 만든 다음 `build.py`를 실행합니다. 소스 업로드만으로 Windows 통합 배포 ZIP이 만들어지지는 않습니다.
 
 API 키·액세스 토큰·제휴 비밀키는 커밋하지 않습니다.
+
