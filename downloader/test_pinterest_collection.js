@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const {JSDOM}=require(process.env.STUDIO_JSDOM||'jsdom');
+const id='300404237670215552',mp4='https://v1.pinimg.com/videos/exact.mp4';
+const dom=new JSDOM(`<div data-test-id="pin" data-test-pin-id="${id}"><video src="blob:https://kr.pinterest.com/fixture" poster="https://i.pinimg.com/poster.jpg"></video><a href="/pin/999/">다른 링크</a></div><button id="save">저장</button><div id="controls"><button>다운로드</button></div><script type="application/ld+json">${JSON.stringify({'@type':'VideoObject','@id':`https://www.pinterest.com/pin/${id}/`,contentUrl:mp4,thumbnailUrl:"https://i.pinimg.com/structured.jpg"})}</script>`,{url:`https://kr.pinterest.com/pin/${id}/`,runScripts:'outside-only'});
+const w=dom.window,d=w.document;
+w.chrome={runtime:{getURL:x=>x,onMessage:{addListener(){}}},storage:{local:{get:(k,cb)=>cb({})},onChanged:{addListener(){}}}};
+w.eval(fs.readFileSync('content-studio.js','utf8'));w.eval(fs.readFileSync('content-core.js','utf8'));w.eval(fs.readFileSync('content-pinterest.js','utf8'));
+const media=d.querySelector('video'),control=d.getElementById('controls');
+const ref=w.TAKStudio.reference(media);
+assert.equal(ref.permalink,`https://www.pinterest.com/pin/${id}/`);
+assert.equal(ref.videoUrls[0],mp4);assert.equal(ref.mediaKind,'video');assert.equal(w.TAKPinterest.structuredThumbnailUrl(d,id),'https://i.pinimg.com/structured.jpg');assert.equal(ref.poster,'https://i.pinimg.com/poster.jpg');
+media.getBoundingClientRect=()=>({left:100,top:100,right:500,bottom:500,width:400,height:400});
+d.getElementById('save').getBoundingClientRect=()=>({left:100,top:100,right:500,bottom:180,width:400,height:80});
+Object.defineProperty(control,'offsetWidth',{value:110});Object.defineProperty(control,'offsetHeight',{value:34});
+w.TAKCore.anchorMediaControls(control,media,true);w.TAKCore.updateMediaControlPositions();
+assert.ok(parseFloat(control.style.top)>=180,'must avoid save/back header outside media parent');
+assert.equal(control.querySelectorAll('.takoh-collect-reference').length,1);
+dom.window.close();console.log('Pinterest collection: exact pin, blob to MP4, thumbnail, and global save/back obstacles passed.');

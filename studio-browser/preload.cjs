@@ -1,0 +1,2 @@
+const {contextBridge,ipcRenderer}=require('electron');
+contextBridge.exposeInMainWorld('studioBrowser',{navigate:url=>ipcRenderer.invoke('site-navigate',url),work:name=>ipcRenderer.invoke('work-select',name),location:()=>ipcRenderer.invoke('site-location'),status:()=>ipcRenderer.invoke('helper-status'),select:key=>ipcRenderer.send('site-select',key),action:action=>ipcRenderer.send('site-action',action)});

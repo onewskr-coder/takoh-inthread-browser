@@ -1,0 +1,103 @@
+{
+  "manifest_version": 3,
+  "name": "인스레드 치트키 by TAKOH - 레퍼런스 수집",
+  "description": "스레드 쇼핑/추천 피드를 1클릭으로 레퍼런스(텍스트·고화질 이미지·상품 링크)하고 바로 내 스레드에 업로드/발행하는 치트키 확장프로그램",
+  "version": "1.1.0",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "cookies",
+    "scripting",
+    "downloads",
+    "clipboardWrite",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.threads.net/*",
+    "https://*.threads.net/*",
+    "https://www.threads.com/*",
+    "https://*.threads.com/*",
+    "https://www.coupang.com/*",
+    "https://cmapi.coupang.com/*",
+    "https://*.coupangcdn.com/*",
+    "https://link.coupang.com/*",
+    "https://coupa.ng/*"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    },
+    "default_title": "인스레드 치트 (InThread Cheat)",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.threads.net/*",
+        "https://*.threads.net/*",
+        "https://www.threads.com/*",
+        "https://*.threads.com/*"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": [
+        "content-scripts/threads-interceptor.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.threads.net/*",
+        "https://*.threads.net/*",
+        "https://www.threads.com/*",
+        "https://*.threads.com/*"
+      ],
+      "run_at": "document_idle",
+      "js": [
+        "content-scripts/threads-content.js"
+      ],
+      "css": [
+        "content-scripts/threads-content.css"
+      ]
+    },
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*",
+        "https://*.vercel.app/*",
+        "https://*.netlify.app/*"
+      ],
+      "run_at": "document_start",
+      "js": [
+        "content-scripts/inthread-bridge.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/*",
+        "content-scripts/*"
+      ],
+      "matches": [
+        "https://www.threads.net/*",
+        "https://*.threads.net/*",
+        "https://www.threads.com/*",
+        "https://*.threads.com/*",
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
+      ]
+    }
+  ]
+}

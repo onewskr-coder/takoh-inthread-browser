@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {JSDOM}=require(process.env.STUDIO_JSDOM||'jsdom');
+const dom=new JSDOM(fs.readFileSync(path.join(__dirname,'popup.html'),'utf8'),{runScripts:'outside-only',url:'https://extension.invalid/popup.html'});
+const w=dom.window,d=w.document,opened=[];
+w.chrome={tabs:{create:options=>opened.push(options)}};
+w.eval(fs.readFileSync(path.join(__dirname,'popup-workspace.js'),'utf8'));
+d.dispatchEvent(new w.Event('DOMContentLoaded'));
+assert.ok(d.querySelector('#license-panel').closest('#panel-download'));
+assert.ok(d.querySelector('#panel-create').contains(d.querySelector('#studio-references')));
+d.querySelector('[data-panel-workspace=create]').click();
+assert.equal(d.querySelector('#panel-download').hidden,true);
+assert.equal(d.querySelector('#panel-create').hidden,false);
+d.querySelector('[data-panel-workspace=download]').click();
+assert.equal(d.querySelector('#panel-download').hidden,false);
+d.querySelector('#open-download-workspace').click();assert.ok(opened[0].url.endsWith('#workspace=download'));
+dom.window.close();console.log('Panel: download settings preserved, separate creation tab and full workspace navigation passed.');

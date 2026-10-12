@@ -1,0 +1,273 @@
+{
+  "manifest_version": 3,
+  "name": "인스레드 치트키 by TAKOH",
+  "description": "Threads, Instagram, Facebook, TikTok, X(Twitter), Naver Clip, Coupang, YouTube, Reddit에서 동영상과 이미지를 쉽게 다운로드하는 확장프로그램입니다.",
+  "version": "3.5.4",
+  "permissions": [
+    "scripting",
+    "downloads",
+    "storage",
+    "webRequest",
+    "declarativeNetRequest",
+    "sidePanel",
+    "notifications",
+    "cookies",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://threads.net/*",
+        "https://*.threads.net/*",
+        "https://threads.com/*",
+        "https://*.threads.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-threads.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://instagram.com/*",
+        "https://*.instagram.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-instagram.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://facebook.com/*",
+        "https://*.facebook.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-facebook.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://tiktok.com/*",
+        "https://*.tiktok.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-tiktok.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.naver.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-naver-clip.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.coupang.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-coupang.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-youtube.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://*.twitter.com/*",
+        "https://x.com/*",
+        "https://*.x.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-twitter.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://pinterest.com/*",
+        "https://*.pinterest.com/*",
+        "https://pinterest.co.kr/*",
+        "https://*.pinterest.co.kr/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-pinterest.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://douyin.com/*",
+        "https://*.douyin.com/*",
+        "https://*.iesdouyin.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-douyin.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://xiaohongshu.com/*",
+        "https://*.xiaohongshu.com/*",
+        "https://xhslink.com/*",
+        "https://*.xhslink.com/*",
+        "https://rednote.com/*",
+        "https://*.rednote.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-xhs.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.1688.com/*",
+        "https://1688.com/*",
+        "https://*.aliexpress.com/*",
+        "https://*.aliexpress.us/*",
+        "https://aliexpress.com/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-1688.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://reddit.com/*",
+        "https://*.reddit.com/*",
+        "https://redd.it/*",
+        "https://*.redd.it/*"
+      ],
+      "js": [
+        "content-core.js",
+        "content-studio.js",
+        "content-reddit.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://127.0.0.1:5005/studio/*",
+        "http://localhost:5005/studio/*"
+      ],
+      "js": [
+        "studio-local-bridge.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content-meta-main.js",
+        "content-youtube-main.js",
+        "content-xhs-main.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

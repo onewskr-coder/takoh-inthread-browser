@@ -1,0 +1,762 @@
+/* Threads Media Downloader Injected CSS */
+
+/* Keep actions compact and in the visible media area, clear of the lower playback rail. */
+.takoh-positioned-controls {
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: flex-start !important;
+  gap: 4px !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
+}
+.takoh-positioned-controls button,
+button.takoh-positioned-controls {
+  pointer-events: auto !important;
+  min-height: 32px !important;
+  padding: 6px 10px !important;
+  transform: none !important;
+  backdrop-filter: none !important;
+}
+.takoh-compact-controls button span,
+button.takoh-compact-controls span { display: none !important; }
+.takoh-compact-controls .yt-shorts-meta-badge { display: none !important; }
+
+/* Ensure parent container is relative for absolute positioning of the buttons wrapper */
+/* NOTE: z-index intentionally omitted here — adding z-index on a positioned element creates a new
+   stacking context that traps child <video> elements and corrupts Instagram's video compositing
+   layers (causing black screens on /explore and feed grids). The btn-container manages its own
+   z-index independently via absolute positioning. */
+.threads-download-container {
+  position: relative !important;
+}
+
+/* Flex Container to hold download buttons in the top-right corner of the media container */
+/* NOTE: translate3d(0,0,9999px) removed — it forces a GPU compositing layer that conflicts
+   with Instagram's video compositor on /explore and feed grids, pushing the video element
+   to a different render layer and causing black frames. z-index alone is sufficient. */
+.threads-download-btn-container {
+  position: absolute !important;
+  right: 12px !important;
+  top: 12px !important;
+  left: auto !important;
+  bottom: auto !important;
+  display: flex !important;
+  flex-direction: column !important; /* Stack vertically if multiple buttons */
+  gap: 6px !important;
+  z-index: 2147483647 !important; /* Maximum 32-bit integer z-index to stay on top */
+  pointer-events: auto !important;
+}
+
+/* Download Button Overlay - Premium Pill style */
+/* CRITICAL: backdrop-filter and z-index are intentionally NOT set here (in the always-active rule).
+   backdrop-filter forces GPU compositing layer creation on the element AND its backdrop
+   (the video behind it), even when visibility:hidden. This is the root cause of black
+   video screens on Instagram /explore. They are applied only on hover (when visible).
+   z-index is also moved to hover-only to avoid stacking context participation when hidden. */
+.threads-download-btn {
+  position: relative !important; /* Flow naturally inside the flex container */
+  padding: 8px 14px !important;
+  border-radius: 20px !important;
+  background: rgba(10, 10, 10, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  letter-spacing: 0.3px !important;
+  transition: all 0.2s ease-in-out !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 0.95 !important;
+  z-index: 2147483647 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  user-select: none !important;
+}
+
+.threads-download-btn[data-media-type="image"],
+.threads-download-btn[data-media-type="thumbnail"] {
+  border-left: 4px solid #10b981 !important; /* Green left border indicator */
+}
+
+.threads-download-btn[data-media-type="video"] {
+  background: rgba(20, 20, 23, 0.92) !important;
+  border: 1px solid rgba(139, 92, 246, 0.5) !important;
+  border-left: 4px solid #8b5cf6 !important; /* Purple left border indicator */
+}
+
+/* Hover highlights */
+.threads-download-btn:hover {
+  opacity: 1 !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.threads-download-btn[data-media-type="image"]:hover,
+.threads-download-btn[data-media-type="thumbnail"]:hover {
+  background: rgba(16, 185, 129, 0.95) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.5) !important;
+}
+
+.threads-download-btn[data-media-type="video"]:hover {
+  background: rgba(139, 92, 246, 0.95) !important;
+  border-color: rgba(139, 92, 246, 0.2) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.6) !important;
+  /* transform: scale(1.05) intentionally removed — applying transform creates a new GPU
+     compositing layer that can corrupt Instagram's video renderer. Scale effect
+     replaced by box-shadow glow which achieves a similar premium hover feeling. */
+}
+
+.threads-download-btn:active {
+  opacity: 0.75 !important;
+  /* transform: scale(0.95) removed to avoid GPU compositing layer creation */
+}
+
+/* SVG icon sizing & layout inside button */
+.threads-download-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+  fill: currentColor !important;
+  transition: transform 0.2s ease !important;
+  flex-shrink: 0 !important;
+}
+
+/* Text alignment */
+.threads-download-btn span {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  color: inherit !important;
+}
+
+/* Hover micro-animation for SVG */
+.threads-download-btn:hover svg {
+  transform: translateY(1px) !important;
+}
+
+/* Progress / Toast Notification Styling */
+.threads-download-toast-container {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  z-index: 100000 !important;
+  pointer-events: none !important;
+}
+
+.threads-download-toast {
+  pointer-events: auto !important;
+  min-width: 280px !important;
+  max-width: 360px !important;
+  padding: 14px 18px !important;
+  border-radius: 12px !important;
+  background: rgba(20, 20, 23, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transform: translateX(120%) !important;
+  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.1) !important;
+}
+
+.threads-download-toast.show {
+  transform: translateX(0) !important;
+}
+
+.threads-download-toast.success {
+  border-left: 4px solid #10b981 !important;
+}
+
+.threads-download-toast.error {
+  border-left: 4px solid #ef4444 !important;
+}
+
+.threads-download-toast.info {
+  border-left: 4px solid #3b82f6 !important;
+}
+
+/* Spinner for Loading Toast */
+.threads-toast-spinner {
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  border-top-color: #3b82f6 !important;
+  border-radius: 50% !important;
+  animation: threads-spin 0.8s linear infinite !important;
+}
+
+@keyframes threads-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Toast Message details */
+.threads-toast-content {
+  flex-grow: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.threads-toast-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+}
+
+.threads-toast-desc {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.threads-toast-icon-check {
+  color: #10b981 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.threads-toast-icon-error {
+  color: #ef4444 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* ==========================================================================
+   YouTube Special Force Display & Positioning Overrides
+   ========================================================================== */
+.youtube-watch-download-btn-container {
+  display: none !important;
+}
+
+.youtube-shorts-download-btn-container .threads-download-btn,
+.takoh-yt-btn,
+.takoh-yt-action-btn {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+.youtube-shorts-download-btn-container {
+  position: absolute !important;
+  top: 16px !important;
+  left: 16px !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  pointer-events: auto !important;
+}
+
+/* Shorts Right Action Bar Custom Circle Button */
+.takoh-yt-shorts-action-btn {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 0, 0, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  margin-bottom: 8px !important;
+  pointer-events: auto !important;
+}
+
+.takoh-yt-shorts-action-btn:hover {
+  background: rgba(220, 0, 0, 1) !important;
+  transform: scale(1.1) !important;
+  box-shadow: 0 6px 18px rgba(255, 0, 0, 0.6) !important;
+}
+
+.takoh-yt-shorts-action-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+  fill: currentColor !important;
+}
+
+.takoh-yt-shorts-action-btn span {
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  margin-top: 1px !important;
+  line-height: 1 !important;
+}
+
+/* ==========================================================================
+   Instagram Reels Sorting Toolbar & View Badges
+   ========================================================================== */
+.takoh-reels-sort-toolbar {
+  position: fixed !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2147483640 !important;
+  background: rgba(24, 24, 27, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 40px !important;
+  padding: 8px 16px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  animation: takohFadeInUp 0.3s ease-out !important;
+}
+
+@keyframes takohFadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.takoh-reels-sort-inner {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.takoh-reels-sort-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #10b981 !important;
+  padding-right: 8px !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
+  white-space: nowrap !important;
+}
+
+.takoh-reels-sort-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.takoh-sort-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #d1d5db !important;
+  padding: 6px 12px !important;
+  border-radius: 20px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+  outline: none !important;
+}
+
+.takoh-sort-btn:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.takoh-sort-btn.active {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4) !important;
+}
+
+.takoh-btn-collect {
+  background: rgba(139, 92, 246, 0.2) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+  color: #c4b5fd !important;
+}
+
+.takoh-btn-collect:hover {
+  background: rgba(139, 92, 246, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.takoh-btn-collect.loading {
+  background: rgba(239, 68, 68, 0.3) !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+  animation: takohPulse 1.5s infinite !important;
+}
+
+@keyframes takohPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Reels Card View Badge */
+.takoh-reel-view-badge {
+  position: absolute !important;
+  top: 8px !important;
+  left: 8px !important;
+  z-index: 100 !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  padding: 3px 8px !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  pointer-events: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* ==========================================================================
+   Instant Sorted Reels Fullscreen Modal Grid Dashboard
+   ========================================================================== */
+.takoh-sorted-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483645 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+.takoh-modal-backdrop {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0, 0, 0, 0.82) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.takoh-modal-dialog {
+  position: relative !important;
+  width: 90vw !important;
+  max-width: 1280px !important;
+  height: 88vh !important;
+  background: #121214 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8) !important;
+  z-index: 10 !important;
+  overflow: hidden !important;
+  animation: takohScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes takohScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.takoh-modal-header {
+  padding: 16px 24px !important;
+  background: #18181b !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.takoh-modal-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.takoh-modal-title h2 {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+}
+
+.takoh-count-badge {
+  font-size: 12px !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+}
+
+.takoh-modal-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.takoh-modal-sort-tabs {
+  display: flex !important;
+  gap: 6px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  padding: 4px !important;
+  border-radius: 20px !important;
+}
+
+.takoh-tab-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #9ca3af !important;
+  padding: 5px 12px !important;
+  border-radius: 16px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.takoh-tab-btn.active {
+  background: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.takoh-modal-close-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: none !important;
+  color: #ffffff !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  font-size: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.takoh-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.8) !important;
+  color: #ffffff !important;
+}
+
+.takoh-modal-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 20px 24px !important;
+}
+
+.takoh-reels-cards-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 18px !important;
+}
+
+.takoh-reel-card {
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.takoh-reel-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.takoh-reel-card.rank-1 {
+  border: 2px solid #eab308 !important;
+  box-shadow: 0 0 16px rgba(234, 179, 8, 0.3) !important;
+}
+
+.takoh-reel-card.rank-2 {
+  border: 2px solid #94a3b8 !important;
+}
+
+.takoh-reel-card.rank-3 {
+  border: 2px solid #b45309 !important;
+}
+
+.takoh-card-thumb-wrap {
+  position: relative !important;
+  width: 100% !important;
+  padding-top: 150% !important; /* 9:16 aspect ratio */
+  background: #09090b !important;
+  overflow: hidden !important;
+}
+
+.takoh-card-thumb-wrap a {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+.takoh-card-thumb-wrap img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transition: transform 0.3s ease !important;
+}
+
+.takoh-reel-card:hover .takoh-card-thumb-wrap img {
+  transform: scale(1.04) !important;
+}
+
+.takoh-card-rank-badge {
+  position: absolute !important;
+  top: 8px !important;
+  left: 8px !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  padding: 3px 8px !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.rank-1 .takoh-card-rank-badge {
+  background: linear-gradient(135deg, #eab308, #ca8a04) !important;
+  color: #000000 !important;
+  border: none !important;
+}
+
+.takoh-card-view-count {
+  position: absolute !important;
+  bottom: 8px !important;
+  right: 8px !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+  color: #ffffff !important;
+  padding: 3px 8px !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.takoh-card-meta {
+  padding: 10px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  flex: 1 !important;
+  justify-content: space-between !important;
+}
+
+.takoh-card-stats {
+  display: flex !important;
+  gap: 10px !important;
+  font-size: 11px !important;
+  color: #9ca3af !important;
+  font-weight: 600 !important;
+}
+
+.takoh-card-caption {
+  font-size: 11px !important;
+  color: #d1d5db !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+.takoh-card-buttons {
+  display: flex !important;
+  gap: 6px !important;
+  margin-top: 4px !important;
+}
+
+.takoh-card-link-btn {
+  flex: 1 !important;
+  text-align: center !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e5e7eb !important;
+  text-decoration: none !important;
+  padding: 6px 0 !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+}
+
+.takoh-card-link-btn:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+}
+
+.takoh-card-down-btn {
+  background: #10b981 !important;
+  border: none !important;
+  color: #ffffff !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.takoh-card-down-btn:hover {
+  background: #059669 !important;
+}
+
+/* Reddit Download Button Wrapper Overlay */
+.takoh-reddit-btn-wrap {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  gap: 6px !important;
+  pointer-events: auto !important;
+}
+
+/* Threads: one row below post media, never a fixed overlay. */
+.takoh-threads-toolbar{position:static!important;inset:auto!important;display:flex;flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;gap:6px!important;width:fit-content!important;max-width:100%!important;margin:8px 0!important;opacity:1!important;visibility:visible!important;transform:none!important;pointer-events:auto!important;z-index:auto!important}
+.takoh-threads-toolbar button{position:static!important;inset:auto!important;display:inline-flex!important;align-items:center!important;gap:5px!important;min-height:30px!important;padding:5px 9px!important;border-radius:7px!important;font-size:12px!important;line-height:18px!important;opacity:1!important;visibility:visible!important;transform:none!important;pointer-events:auto!important;box-shadow:none!important;margin:0!important}
+.takoh-threads-toolbar button span{display:inline!important}
+.takoh-threads-toolbar button svg{width:14px!important;height:14px!important}
+
+/* Keep host-site flex/grid rules from shrinking our labels into vertical text. */
+.threads-download-btn,.takoh-collect-reference{flex-shrink:0!important;width:auto!important;min-width:max-content!important;white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important;writing-mode:horizontal-tb!important}
+.threads-download-btn span{white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important}
+.takoh-threads-toolbar{width:100%!important;min-width:0!important;box-sizing:border-box!important;clear:both!important;grid-column:1 / -1!important;align-self:stretch!important;justify-self:stretch!important}
+.takoh-threads-toolbar button{flex:0 0 auto!important;max-width:none!important}
+.threads-download-btn-container.takoh-positioned-controls{flex-direction:row!important;flex-wrap:wrap!important;justify-content:flex-start!important}
+
+.takoh-threads-media-controls{flex-direction:row!important;flex-wrap:nowrap!important;gap:4px!important;width:max-content!important}
+.takoh-threads-media-controls button{padding:4px 7px!important;min-height:28px!important;font-size:11px!important;border-radius:7px!important}
+.takoh-threads-media-controls button span{display:inline!important}
+
+.takoh-instagram-media-controls{flex-direction:row!important;flex-wrap:nowrap!important;gap:4px!important;width:max-content!important}
+.takoh-instagram-media-controls button{padding:4px 7px!important;min-height:28px!important;font-size:11px!important;border-radius:7px!important}
+.takoh-instagram-media-controls button span{display:inline!important}

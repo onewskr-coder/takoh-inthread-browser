@@ -1,0 +1,7 @@
+node_modules/
+dist/
+runtime-error.log
+stage1-screen.png
+.restart-test-*/
+.profile-lock-test-*/
+collection-check.png
