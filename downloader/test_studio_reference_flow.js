@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const {JSDOM}=require(process.env.STUDIO_JSDOM||'jsdom');
+const flush=()=>new Promise(r=>setImmediate(r));
+(async()=>{
+ const dom=new JSDOM(fs.readFileSync('studio_web/index.html','utf8'),{url:'http://127.0.0.1:5005/studio/',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ const ref={permalink:'https://www.threads.com/@owner/post/test',previewUrl:'/studio/references/test/thumbnail',videoUrls:['https://cdn.test/one.mp4','https://cdn.test/two.mp4'],imageUrls:[]};
+ w.fetch=async url=>({ok:url!='/studio/acquire',json:async()=>url==='/studio/acquire'?{error:'접근 제한'}:url==='/studio/references'?[ref]:[]});
+ w.eval(fs.readFileSync('studio_web/studio.js','utf8')+'\nwindow.reviewRefresh=refreshReferences;');
+ await flush();await flush();
+ assert.equal(d.querySelectorAll('.ref-thumb-wrap').length,1);
+ assert.equal(d.querySelectorAll('.ref-card-body').length,1);
+ assert.equal(d.querySelector('.ref-thumb-img').getAttribute('src'),ref.previewUrl);
+ const select=d.querySelector('#references select');select.value='1';select.dispatchEvent(new w.Event('change'));
+ await d.querySelector('#references .btn-prepare-ref').onclick(new w.Event('click'));
+ assert.match(d.querySelector('.ref-status-text').textContent,/획득 실패.*접근 제한/);
+ assert.equal(d.getElementById('source').value,ref.permalink);
+ await w.reviewRefresh();
+ assert.equal(d.querySelector('#references select').value,'1');
+ assert.match(d.querySelector('.ref-status-text').textContent,/획득 실패/);
+ dom.window.close();console.log('Reference flow: acquisition failure, source and selected media survive refresh.');
+})();

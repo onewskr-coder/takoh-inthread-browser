@@ -1,0 +1,26 @@
+{
+  "name": "inthread-cheat",
+  "version": "1.0.0",
+  "description": "스레드 쇼핑 피드 레퍼런스 & 내 스레드 즉시 발행 치트 프로그램",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && npx esbuild src/background/index.ts --bundle --outfile=dist/background.js --format=esm"
+  },
+  "dependencies": {
+    "lucide-react": "^1.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  },
+  "type": "module"
+}

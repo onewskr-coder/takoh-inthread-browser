@@ -1,0 +1,97 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {JSDOM}=require(process.env.STUDIO_JSDOM||'jsdom');
+const flush=()=>new Promise(resolve=>setImmediate(resolve));
+(async()=>{
+ const dom=new JSDOM(fs.readFileSync(path.join(__dirname,'studio_web/index.html'),'utf8'),{url:'http://127.0.0.1:5005/studio/#workspace=download',runScripts:'outside-only'});
+ const w=dom.window,d=w.document,calls=[];
+ const job={id:'b'.repeat(32),name:'exact-file.mp4',source:'https://www.threads.com/@owner/post/ONE',status:'media_ready',
+  media:{duration:2,width:320,height:240,has_audio:true},evidence:{description:'실제 프레임',audio_seconds:2,frames:[{file:'frame-0.jpg',timestamp:0}]},publication:{status:'not_published'}};
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ const refs=[{permalink:'https://www.threads.com/@owner/post/ONE',username:'owner',text:'선택한 콘텐츠',imageUrls:[],videoUrls:['https://cdn.test/one.mp4']}];
+ w.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>url==='/studio/downloads'?[{name:job.name,path:'C:/Users/test/Downloads/exact-file.mp4',thumbnail_url:'/studio/downloads/thumbnail?path=test',completed:true},{name:job.name,path:'C:/Users/test/Downloads/other/exact-file.mp4',thumbnail_url:'/studio/downloads/thumbnail?path=other',completed:true}]:url==='/studio/jobs'||url==='/studio/references'?[]:url==='/studio/styles'?Array.from({length:12},(_,i)=>({id:i===0?'observation':'style'+i,name:'스타일'+i,builtin:true})):job};};
+ let bridgeReady=false;
+ w.postMessage=message=>queueMicrotask(()=>{
+  if(!bridgeReady)return;
+  if(message.source!=='takoh-studio-ui')return;
+  const item={downloadId:7,name:job.name,platform:'threads',type:'video',completed:true,source:job.source,path:'C:/Users/test/Downloads/exact-file.mp4'};
+  w.dispatchEvent(new w.MessageEvent('message',{source:w,origin:w.location.origin,data:{source:'takoh-studio-bridge',requestId:message.requestId,success:true,data:message.kind==='references-list'?refs:message.kind==='downloads-list'?[item]:item}}));
+ });
+ w.eval(fs.readFileSync(path.join(__dirname,'studio_web/studio.js'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'studio_web/workspace.js'),'utf8')+'\nwindow.reviewRender=render;window.reviewApi=api;');
+ await flush();bridgeReady=true;
+ w.dispatchEvent(new w.MessageEvent('message',{source:w,origin:w.location.origin,data:{source:'takoh-studio-bridge',kind:'ready'}}));
+ await flush();await flush();
+ assert.equal(d.getElementById('create-workspace').hidden,true);
+ assert.ok(calls.some(c=>c.url==='/studio/references/import'));
+ assert.equal(d.querySelectorAll('#download-files img').length,2);
+ assert.equal(d.querySelectorAll('#download-files button').length,2);
+ d.querySelector('#collected-files button').click();await flush();
+ assert.equal(d.querySelector('[data-production-stage=reference]').getAttribute('aria-pressed'),'true');
+ d.querySelector('[data-workspace=download]').click();await flush();
+ assert.match(d.getElementById('collected-files').textContent,/선택한 콘텐츠/);
+ d.querySelector('#download-files button').click();await flush();await flush();
+ assert.equal(d.getElementById('download-workspace').hidden,true);
+ assert.equal(d.getElementById('create-workspace').hidden,false);
+ assert.equal(d.getElementById('source').value,job.source);
+ assert.equal(d.querySelector('#preview').getAttribute('src'),`/studio/jobs/${job.id}/media/video`);
+ const imported=calls.find(c=>c.url==='/studio/imports');assert.ok(imported);
+ assert.equal(JSON.parse(imported.options.body).path,'C:/Users/test/Downloads/exact-file.mp4');
+ assert.equal(JSON.parse(imported.options.body).completed,true);
+ d.querySelector('[data-workspace=download]').click();await flush();
+ assert.equal(d.getElementById('create-workspace').hidden,true);
+ assert.equal(calls.filter(c=>c.url==='/studio/imports').length,1);
+ assert.equal(d.getElementById('draft-style').options.length,12);
+ d.getElementById('ai-provider').value='codex_cli';d.getElementById('ai-provider').dispatchEvent(new w.Event('change'));
+ assert.equal(d.getElementById('api-key-label').hidden,true);
+ assert.equal(d.getElementById('model').value,'gpt-6.1-sol');
+ d.getElementById('ai-provider').value='antigravity_cli';d.getElementById('ai-provider').dispatchEvent(new w.Event('change'));
+ assert.equal(d.getElementById('api-key-label').hidden,true);assert.equal(d.getElementById('model').value,'auto');assert.match(d.getElementById('cli-login-help').textContent,/agy/);
+ d.getElementById('ai-provider').value='openai_api';d.getElementById('ai-provider').dispatchEvent(new w.Event('change'));
+ assert.equal(d.getElementById('api-key-label').hidden,false);
+ d.querySelector('[data-production-stage="reference"]').click();await flush();
+ assert.equal(d.querySelector('[data-production-section="reference"]').dataset.stageHidden,'false');
+ assert.equal(d.querySelector('[data-production-stage="reference"]').getAttribute('aria-pressed'),'true');
+ assert.equal(d.getElementById('production-next').textContent,'다음: 원본 분석 →');
+ d.querySelector('[data-production-stage="analysis"]').click();await flush();
+ assert.equal(d.querySelector('[data-production-section="analysis"]').dataset.stageHidden,'false');
+ assert.ok(d.getElementById('fetch-url'));
+ const originalFetch=w.fetch;let selectedFolder='C:/Users/test/Downloads';
+ w.fetch=async(url,options)=>{
+  if(url==='/studio/downloads/folder'){
+   calls.push({url,options});
+   if(options?.body)selectedFolder=JSON.parse(options.body).path;
+   return {ok:true,json:async()=>({path:selectedFolder,exists:true})};
+  }
+  return originalFetch(url,options);
+ };
+ d.getElementById('download-folder-path').value='C:/Users/test/Downloads/other';
+ await d.getElementById('download-folder-form').onsubmit(new w.Event('submit',{cancelable:true}));
+ await flush();await flush();
+ assert.equal(selectedFolder,'C:/Users/test/Downloads/other');
+ assert.equal(d.getElementById('download-folder-path').value,selectedFolder);
+ assert.ok(calls.some(c=>c.url==='/studio/downloads/folder'&&JSON.parse(c.options.body||'{}').path===selectedFolder));
+ job.analysis={result:{summary:'제품 사용',observations:[{timestamp:.5,description:'사용 장면'}],audio_summary:'음성',uncertainties:[],search_terms:[]}};
+ w.reviewRender();
+ const previousFetch=w.fetch;
+ w.fetch=async(url,options)=>{
+  if(url.endsWith('/hook-recommend')){job.hook_recommendations={candidates:[{timestamp:1.2,score:90,reason:'제품 결과가 뚜렷함'},{timestamp:.5,score:75,reason:'사용 장면'}]};return {ok:true,json:async()=>job};}
+  return previousFetch(url,options);
+ };
+ await d.getElementById('recommend-hook').onclick();
+ assert.equal(d.getElementById('hook-start').value,'1.2');
+ assert.match(d.getElementById('hook-reason').textContent,/1순위 자동 선택/);
+ assert.equal(d.getElementById('hook-candidate').options.length,2);
+ assert.equal(d.getElementById('hook-effect').options.length,9);
+ assert.equal(d.getElementById('hook-effect').value,'impact');
+ assert.equal(d.getElementById('edit-audio').options.length,2);
+ assert.equal(d.getElementById('ad-position').options.length,3);
+ d.getElementById('workspace-settings-tab').click();await flush();await flush();
+ assert.equal(d.getElementById('settings-workspace').hidden,false);
+ assert.equal(d.getElementById('create-workspace').hidden,true);
+ assert.ok(d.getElementById('settings-workspace').contains(d.getElementById('ai-provider')));
+ assert.ok(d.getElementById('settings-workspace').contains(d.getElementById('key')));
+ assert.ok(calls.some(c=>c.url==='/studio/usage'));
+ assert.ok(d.getElementById('settings-workspace').contains(d.getElementById('serp-key')));
+ let draftAttempts=0;w.fetch=async(url,options)=>{if(url==='/studio/session')return {ok:true,json:async()=>({token:'fresh-token'})};if(url==='/studio/check-stale'){draftAttempts++;if(draftAttempts===1)return {status:403,ok:false,json:async()=>({error:'expired'})};assert.equal(options.headers['X-Studio-Token'],'fresh-token');return {status:200,ok:true,json:async()=>({success:true})};}return previousFetch(url,options);};
+ assert.equal((await w.reviewApi('check-stale',{})).success,true);assert.equal(draftAttempts,2);
+ dom.window.close();console.log('Workspace: completed file import, exact media/source selection, stage 0 reference navigation, and writing style controls passed.');
+})();

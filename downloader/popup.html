@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인스레드 치트키 by TAKOH</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="logo-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="#10b981" stroke-width="2"/>
+          <path d="M12 8v8M8 12l4 4 4-4" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="app-title">인스레드 치트키 <span class="badge-pro">TAKOH</span> <span class="app-version-badge" id="app-version-badge">v3.5.0</span></span>
+      </div>
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span class="status-text">연결됨</span>
+      </div>
+    </header>
+
+    <nav class="panel-workspaces" role="tablist" aria-label="작업 화면"><button role="tab" aria-controls="panel-download" aria-selected="true" data-panel-workspace="download">다운로드</button><button role="tab" aria-controls="panel-create" aria-selected="false" data-panel-workspace="create">콘텐츠 제작·게시</button></nav>
+    <div id="panel-download" role="tabpanel">
+    <button id="open-download-workspace" type="button">저장한 파일 · 제작 연결 화면 열기 ↗</button>
+    <!-- Top Quick Links (Website, Cafe, Open Chat) -->
+    <div class="community-link-area" style="margin-top: 4px; margin-bottom: 4px;">
+      <a href="https://fssblog.com/" target="_blank" rel="noopener noreferrer" class="community-link link-website">🌐 아낌없이주는타코 웹사이트</a>
+      <a href="https://cafe.naver.com/turnaroundin" target="_blank" rel="noopener noreferrer" class="community-link link-cafe">☕ 아낌없이주는타코 네이버카페</a>
+      <a href="https://open.kakao.com/o/g0E0fSPe" target="_blank" rel="noopener noreferrer" class="community-link link-chat">💬 오픈채팅방 입장하기</a>
+    </div>
+
+    <!-- License Section -->
+    <section class="section-panel" id="license-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="section-title">라이센스 활성화</h2>
+        <div id="free-mode-badge" style="font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+          오늘 무료 이용: <span id="free-count-text">0 / 3회</span>
+        </div>
+      </div>
+      <div class="license-status-area">
+        <div id="license-inactive-form" class="license-form">
+          <input type="text" id="input-license-key" placeholder="이메일, 휴대폰 번호(010-XXXX-XXXX) 또는 라이센스 키" />
+          <button id="btn-activate-license" class="btn-primary-sm">활성화</button>
+        </div>
+        <div id="license-active-status" class="license-active hidden">
+          <span class="active-badge">✓ 라이센스 활성화됨 (PRO 버전 - 무제한)</span>
+          <button id="btn-deactivate-license" class="btn-text-danger">등록 해제</button>
+        </div>
+      </div>
+      <p class="license-help-text" id="license-help">🎁 미인증 시 매일 3회 무료 (매일 자정 리셋) / 구매 시 등록한 이메일, 휴대폰 번호(010-XXXX-XXXX) 또는 키를 입력해 주세요.</p>
+      <a href="https://litt.ly/tako/sale/3CXxeYb" target="_blank" rel="noopener noreferrer" style="display: block; width: 100%; text-align: center; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; font-weight: bold; font-size: 12px; padding: 8px 12px; border-radius: 6px; text-decoration: none; margin-top: 8px; box-shadow: 0 2px 8px rgba(16,185,129,0.3); transition: all 0.2s;">🛒 PRO 무제한 이용권 구매하기 (클릭)</a>
+    </section>
+
+    <!-- Settings Section -->
+    <section class="section-panel">
+      <h2 class="section-title">기능 설정</h2>
+      <div class="settings-list">
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-name">이미지 다운로드 버튼</span>
+            <span class="setting-desc">이미지 우측 상단에 다운로드 버튼을 표시합니다.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-images" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-name">동영상 다운로드 버튼</span>
+            <span class="setting-desc">동영상 우측 상단에 다운로드 버튼을 표시합니다.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-videos" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <!-- Video Quality Selection Setting -->
+        <div class="setting-item-block" style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color); margin-top: 10px;">
+          <div class="setting-info">
+            <span class="setting-name" style="font-weight: 600; font-size: 13px; color: var(--text-color);">동영상 기본 화질 설정</span>
+            <span class="setting-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">다운로드 시 적용할 우선 화질을 지정합니다.</span>
+          </div>
+          <select id="select-video-quality" style="padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-color); font-size: 12px; font-weight: bold; cursor: pointer; outline: none;">
+            <option value="best" selected>🥇 최고 화질 (1080p / 4K / 원본)</option>
+            <option value="720p">🥈 고화질 (720p)</option>
+            <option value="480p">🥉 일반 화질 (480p / 360p)</option>
+          </select>
+        </div>
+        <!-- Folder Save Dialog Toggle Settings -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-name">저장할 폴더 항상 물어보기</span>
+            <span class="setting-desc">다운로드 클릭 시 파일 탐색기 폴더/이름 지정 창을 항상 띄웁니다.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-confirm-download">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <!-- Platform Auto Folder Classification Settings -->
+        <div class="setting-item" style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
+          <div class="setting-info">
+            <span class="setting-name">플랫폼별 폴더 자동 분류</span>
+            <span class="setting-desc">다운로드 파일 경로를 플랫폼별 하위 폴더로 자동 구분하여 정리합니다.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-platform-folder" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item-block" style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px;">
+          <div class="setting-info">
+            <span class="setting-name" style="font-size: 12px; color: var(--text-color);">최상위 폴더 이름</span>
+            <span class="setting-desc" style="font-size: 10px; color: var(--text-muted);">예: TAKOH (다운로드/TAKOH/Threads/...)</span>
+          </div>
+          <input type="text" id="input-root-folder" value="TAKOH" style="width: 100px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-color); font-size: 12px; font-weight: bold; text-align: center;" />
+        </div>
+        <!-- YouTube API Endpoint Settings -->
+        <div class="setting-item-block" style="display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-color); margin-top: 10px;">
+          <div class="setting-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; flex-direction: column;">
+              <span class="setting-name" style="font-weight: 600; font-size: 13px; color: var(--text-color);">유튜브 우회 API 서버 주소</span>
+              <span class="setting-desc" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">로컬 yt-dlp API 주소 (기본값: http://127.0.0.1:5005/download)</span>
+            </div>
+            <div id="ytdlp-server-status" style="font-size: 11px; display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); color: var(--text-muted);">
+              <span id="ytdlp-status-dot" style="width: 6px; height: 6px; border-radius: 50%; background: #888892; display: inline-block; transition: all 0.3s;"></span>
+              <span id="ytdlp-status-text">연결 대기</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px; width: 100%;">
+            <input type="text" id="input-ytdlp-api" placeholder="http://127.0.0.1:5005/download" style="flex: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-color); font-size: 12px;" />
+            <button id="btn-test-ytdlp-api" class="btn-secondary-sm" style="padding: 6px 10px; font-size: 11px; cursor: pointer; background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-color); border-radius: 4px; color: white; transition: all 0.2s;">테스트</button>
+            <button id="btn-save-ytdlp-api" class="btn-primary-sm" style="padding: 6px 12px; font-size: 11px; cursor: pointer; background: var(--primary, #10b981); border: none; border-radius: 4px; color: #000000; font-weight: bold; transition: all 0.2s;">저장</button>
+          </div>
+          <div style="font-size: 10px; color: var(--text-muted); line-height: 1.4; padding: 6px; background: rgba(255, 255, 255, 0.02); border-radius: 4px; border: 1px dashed rgba(255, 255, 255, 0.05);">
+            💡 <b>사용법:</b> 폴더 내 <span style="color: #3b82f6;">start_helper.bat</span>을 실행하여 컴퓨터에 로컬 도우미 서버를 가동한 뒤, 테스트를 눌러 연동 상태를 확인해 주세요.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Real-time Download Queue Section -->
+    <section class="section-panel" style="margin-top: 10px;">
+      <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 class="section-title" style="margin: 0;">⚡ 실시간 다운로드 대기열</h2>
+        <span id="queue-count-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(16,185,129,0.15); color: #10b981; font-weight: bold;">0개 진행 중</span>
+      </div>
+      <div id="queue-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto; padding-right: 2px;">
+        <div id="queue-empty" style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 12px; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">
+          현재 다운로드 대기 중인 항목이 없습니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats & Platform Chart Container (Relocated to bottom) -->
+    <section class="section-panel" style="margin-top: 10px;">
+      <!-- Stats Counters -->
+      <div class="stats-container" style="margin-bottom: 12px;">
+        <div class="stat-card">
+          <span class="stat-label">전체 다운로드</span>
+          <span class="stat-value" id="stat-total">0</span>
+          <div class="stat-progress-bar bg-total"></div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">이미지</span>
+          <span class="stat-value" id="stat-images">0</span>
+          <div class="stat-progress-bar bg-images"></div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">동영상</span>
+          <span class="stat-value" id="stat-videos">0</span>
+          <div class="stat-progress-bar bg-videos"></div>
+        </div>
+      </div>
+
+      <!-- Platform Chart -->
+      <h2 class="section-title">플랫폼별 누적 다운로드</h2>
+      <div class="platform-chart-box" style="display: flex; flex-direction: column; gap: 8px; padding: 4px 0;">
+        <div class="chart-progress-stacked" style="height: 12px; display: flex; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
+          <!-- Stacked bar fractions dynamically added here -->
+        </div>
+        <div id="chart-legend-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 9px; color: var(--text-muted); margin-top: 4px;">
+          <!-- Legend list added dynamically -->
+        </div>
+      </div>
+    </section>
+
+    </div>
+    <section class="section-panel" id="panel-create" role="tabpanel" hidden>
+      <h2 class="section-title">콘텐츠 제작·게시</h2>
+      <button id="open-studio" type="button">영상 분석 · 대본 · Threads 게시 준비</button>
+      <h3>콘텐츠 보관함</h3>
+      <div id="studio-references"></div>
+      <p>수집한 주소를 선택한 뒤 다운로드한 영상·이미지를 불러오세요.</p>
+    </section>
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-meta">
+        <span class="copyright">&copy; 2026 TAKOH. All rights reserved.</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Custom Confirm/Alert Modal -->
+  <div id="custom-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-body">
+        <p id="modal-message">확인하시겠습니까?</p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-modal-cancel" class="btn-modal-secondary">취소</button>
+        <button id="btn-modal-ok" class="btn-modal-primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+  <script src="studio-extension.js"></script>
+  <script src="popup-workspace.js"></script>
+</body>
+</html>
