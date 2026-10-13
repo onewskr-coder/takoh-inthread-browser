@@ -75,7 +75,7 @@ ipcMain.handle('native-media',async(event,message)=>{
     return {success:false,error:'전용 앱에서 아직 지원하지 않는 동작입니다.'};
   }catch(error){return {success:false,error:error.message};}
 });
-app.whenReady().then(async()=>{if(!ownsApp||!profileGuard.acquired)return;persistence=manageSessions(session);helperManager=new HelperManager({dataDir:app.getPath('userData'),sourceDir:path.join(__dirname,'..','downloader')});helperReady=helperManager.start();helperReady.catch(error=>console.error(error.message));win=new BaseWindow({width:1380,height:920,title:'인스레드 치트키 · 타코 브라우저'});win.show();win.focus();toolbar=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});win.contentView.addChildView(toolbar);toolbar.webContents.loadFile(path.join(__dirname,'toolbar.html'));ipcMain.on('site-select',(event,key)=>{if(event.sender===toolbar.webContents)select(key);});ipcMain.on('site-action',(event,action)=>{if(event.sender!==toolbar.webContents||!active)return;if(action==='reload')active.webContents.reload();if(action==='back'&&active.webContents.navigationHistory.canGoBack())active.webContents.navigationHistory.goBack();if(action==='external')shell.openExternal(active.webContents.getURL());});async function attemptGracefulQuit() {
+async function attemptGracefulQuit() {
   if (helperManager) {
     const stopRes = await helperManager.stop().catch(err => ({ stopped: false, warning: err.message }));
     if (stopRes && stopRes.stopped === false) {
@@ -106,51 +106,11 @@ app.whenReady().then(async()=>{if(!ownsApp||!profileGuard.acquired)return;persis
   return true;
 }
 
+app.whenReady().then(async()=>{if(!ownsApp||!profileGuard.acquired)return;persistence=manageSessions(session);helperManager=new HelperManager({dataDir:app.getPath('userData'),sourceDir:path.join(__dirname,'..','downloader')});helperReady=helperManager.start();helperReady.catch(error=>console.error(error.message));win=new BaseWindow({width:1380,height:920,title:'인스레드 치트키 · 타코 브라우저'});win.show();win.focus();toolbar=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});win.contentView.addChildView(toolbar);toolbar.webContents.loadFile(path.join(__dirname,'toolbar.html'));ipcMain.on('site-select',(event,key)=>{if(event.sender===toolbar.webContents)select(key);});ipcMain.on('site-action',(event,action)=>{if(event.sender!==toolbar.webContents||!active)return;if(action==='reload')active.webContents.reload();if(action==='back'&&active.webContents.navigationHistory.canGoBack())active.webContents.navigationHistory.goBack();if(action==='external')shell.openExternal(active.webContents.getURL());});
 win.on('resize',resize);
-let allowClose=false;
-let isClosing=false;
-win.on('close', async event => {
-  if (allowClose) return;
-  event.preventDefault();
-  if (isClosing) return;
-  isClosing = true;
-
-  try {
-    const canQuit = await attemptGracefulQuit();
-    if (!canQuit) {
-      isClosing = false;
-      return;
-    }
-    await persistence.flush().catch(error => console.error(error.message));
-    allowClose = true;
-    if (win) win.close();
-  } catch (err) {
-    console.error('Window close error:', err);
-    isClosing = false;
-  }
-});
+require('./shutdown.cjs').installShutdown({app,win,prepare:attemptGracefulQuit,flush:()=>persistence.flush(),dispose:()=>{devWatcher?.dispose();persistence?.dispose();},report:message=>{restartNotice=message;dialog.showMessageBoxSync(win,{type:'warning',message,buttons:['확인']});}});
 win.on('closed',()=>{for(const view of views.values())view.webContents.close();toolbar.webContents.close();views.clear();win=null;});
 select('threads');
 if(!app.isPackaged)devWatcher=watchDevelopment({root:__dirname,report:message=>{restartNotice=message;console.error(message);},busy:async()=>{for(const view of views.values()){if(view.webContents.isDestroyed())continue;if(/(?:two_step_verification|auth_platform|challenge|accounts\/login|accounts\.meta\.com|accounts\.google\.com)/i.test(view.webContents.getURL()))return true;try{if(await view.webContents.executeJavaScript(`!!Array.from(document.querySelectorAll('[contenteditable="true"],textarea,input[type="password"]')).find(el=>el.getBoundingClientRect().width>0&&(el.value||el.innerText||'').trim().length>0)`))return true;}catch{return true;}}return false;},restart:async()=>{restartNotice='변경 적용 중 · 앱 자동 재실행';await persistence.flush();app.relaunch();app.quit();}});});
 app.on('window-all-closed',()=>app.quit());
 
-let flushing=false;
-app.on('before-quit', async event => {
-  if (flushing) return;
-  event.preventDefault();
-  flushing = true;
-  try {
-    const canQuit = await attemptGracefulQuit();
-    if (!canQuit) {
-      flushing = false;
-      return;
-    }
-    await Promise.resolve(persistence?.flush()).catch(error => console.error(error.message));
-    devWatcher?.dispose();
-    persistence?.dispose();
-    app.quit();
-  } catch (err) {
-    console.error('Before quit error:', err);
-    flushing = false;
-  }
-});
