@@ -243,3 +243,9 @@ helper_build*/
 .test-tools/
 scratch/
 test_user_data/
+*.lock
+app-profile.lock
+check_proc.*
+graceful_shutdown.ps1
+test_*.py
+test_*.cjs

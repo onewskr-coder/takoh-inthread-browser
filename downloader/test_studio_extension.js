@@ -30,7 +30,7 @@ const bridge=fs.readFileSync(path.join(__dirname,'studio-extension.js'),'utf8');
  assert.equal((await request('studioGetDownload',7,{id:'our-extension',tab:{url:'https://www.threads.com/'}})).success,false);
  const dom=new JSDOM('<article><a href="/@test/post/ONE">게시물</a><img id="media" src="https://cdn.test/exact.jpg"><div id="controls"><button id="download">다운로드</button></div><button id="comment">댓글</button></article>',{url:'https://www.threads.com/',runScripts:'outside-only'});
  const w=dom.window;let downloads=0,saves=0;
- w.chrome={runtime:{sendMessage:(message,reply)=>{saves++;assert.equal(message.reference.imageUrls[0],'https://cdn.test/exact.jpg');assert.equal(message.reference.permalink,ref.permalink);reply({success:true});}}};
+ w.chrome={runtime:{id:'our-extension',sendMessage:(message,reply)=>{saves++;assert.equal(message.reference.imageUrls[0],'https://cdn.test/exact.jpg');assert.equal(message.reference.permalink,ref.permalink);reply({success:true});}}};
  w.TAKCore={showToast:()=>{}};
  w.document.getElementById('download').onclick=()=>downloads++;
  w.eval(fs.readFileSync(path.join(__dirname,'content-studio.js'),'utf8'));

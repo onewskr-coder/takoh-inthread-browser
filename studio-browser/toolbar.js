@@ -1,6 +1,57 @@
-document.querySelectorAll('[data-site]').forEach(button=>button.addEventListener('click',()=>window.studioBrowser.select(button.dataset.site)));
-document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>window.studioBrowser.action(button.dataset.action)));
-document.querySelectorAll('[data-work]').forEach(button=>button.addEventListener('click',async()=>{const result=await window.studioBrowser.work(button.dataset.work);document.getElementById('shell-message').textContent=result?.error||'';}));
-document.getElementById('navigation').addEventListener('submit',async event=>{event.preventDefault();const result=await window.studioBrowser.navigate(document.getElementById('address').value);document.getElementById('shell-message').textContent=result?.error||'';});
-async function refreshStatus(){try{const status=await window.studioBrowser.status();if(status)document.getElementById('helper-status').textContent=status.message;const current=await window.studioBrowser.location();if(current){if(document.activeElement!==document.getElementById('address'))document.getElementById('address').value=current.url;document.querySelectorAll('[data-site]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.site===current.key)));document.querySelectorAll('[data-work]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.work===current.work)));}}catch{document.getElementById('helper-status').textContent='상태 확인 실패';}}
-refreshStatus();setInterval(refreshStatus,1500);
+document.querySelectorAll('[data-site]').forEach(button => button.addEventListener('click', () => window.studioBrowser.select(button.dataset.site)));
+document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => window.studioBrowser.action(button.dataset.action)));
+document.querySelectorAll('[data-work]').forEach(button => button.addEventListener('click', async () => {
+  const result = await window.studioBrowser.work(button.dataset.work);
+  document.getElementById('shell-message').textContent = result?.error || '';
+}));
+document.getElementById('navigation').addEventListener('submit', async event => {
+  event.preventDefault();
+  const result = await window.studioBrowser.navigate(document.getElementById('address').value);
+  document.getElementById('shell-message').textContent = result?.error || '';
+});
+
+let isRetrying = false;
+const retryBtn = document.getElementById('helper-retry-btn');
+if (retryBtn) {
+  retryBtn.addEventListener('click', async () => {
+    if (isRetrying) return;
+    isRetrying = true;
+    retryBtn.disabled = true;
+    retryBtn.textContent = '연결 시도 중...';
+    try {
+      const res = await window.studioBrowser.retryHelper();
+      document.getElementById('shell-message').textContent = res?.error || res?.message || '';
+    } catch (e) {
+      document.getElementById('shell-message').textContent = e.message;
+    } finally {
+      isRetrying = false;
+      retryBtn.disabled = false;
+      retryBtn.textContent = '도우미 다시 시작';
+      refreshStatus();
+    }
+  });
+}
+
+async function refreshStatus() {
+  try {
+    const status = await window.studioBrowser.status();
+    if (status) {
+      document.getElementById('helper-status').textContent = status.message;
+      if (retryBtn) {
+        retryBtn.style.display = status.state === 'failed' ? 'inline-block' : 'none';
+      }
+    }
+    const current = await window.studioBrowser.location();
+    if (current) {
+      if (document.activeElement !== document.getElementById('address')) {
+        document.getElementById('address').value = current.url;
+      }
+      document.querySelectorAll('[data-site]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.site === current.key)));
+      document.querySelectorAll('[data-work]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.work === current.work)));
+    }
+  } catch {
+    document.getElementById('helper-status').textContent = '상태 확인 실패';
+  }
+}
+refreshStatus();
+setInterval(refreshStatus, 1500);

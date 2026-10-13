@@ -26,6 +26,10 @@ class StudioTests(unittest.TestCase):
         subprocess.run([cls.binary, '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
             'testsrc=size=320x240:rate=12', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000',
             '-t', '2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(cls.fixture)], check=True)
+        cls.fixture2 = Path(cls.tmp.name) / 'fixture2.mp4'
+        subprocess.run([cls.binary, '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+            'testsrc=size=320x240:rate=12', '-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=16000',
+            '-t', '3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(cls.fixture2)], check=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -623,7 +627,250 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(acquire_res.json['status'], 'media_ready')
             self.assertEqual(acquire_res.json['source'], 'https://example.com/video.mp4')
 
+    def test_job_upload_deduplication_by_sha256(self):
+        # 1st upload
+        job1 = self.upload()
+        self.assertEqual(len(self.client.get('/studio/jobs').json), 1)
+
+        # 2nd upload with identical video content
+        with self.fixture.open('rb') as f:
+            res2 = self.client.post('/studio/jobs', data={'video': (f, 'second_upload.mp4'), 'source': 'https://example.com/post2'}, headers=self.headers)
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.json['id'], job1['id'])
+        self.assertEqual(res2.json['sha256'], job1['sha256'])
+
+        # Verify only 1 job exists in studio root
+        jobs_list = self.client.get('/studio/jobs').json
+        self.assertEqual(len(jobs_list), 1)
+        self.assertEqual(jobs_list[0]['id'], job1['id'])
+
+    def test_acquire_deduplication_prevents_duplicate_jobs(self):
+        fake_video_bytes = self.fixture.read_bytes()
+        mock_response = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+        mock_response.iter_content.return_value = [fake_video_bytes]
+
+        # First acquire -> creates new job (201)
+        with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(mock_response, 'https://example.com/source_v1.mp4')):
+            res1 = self.client.post('/studio/acquire', json={'url': 'https://example.com/post/1', 'media_url': 'https://example.com/source_v1.mp4'}, headers=self.headers)
+        self.assertEqual(res1.status_code, 201)
+        job_id = res1.json['id']
+        self.assertEqual(len(self.client.get('/studio/jobs').json), 1)
+
+        # Second acquire with exact same URL -> matched by pre-download source check (200)
+        with patch('studio.check_safe_url') as safe_url_check, patch('studio.safe_fetch_stream') as fetch_check:
+            res2 = self.client.post('/studio/acquire', json={'url': 'https://example.com/post/1', 'media_url': 'https://example.com/source_v1.mp4'}, headers=self.headers)
+            self.assertEqual(res2.status_code, 200)
+            self.assertEqual(res2.json['id'], job_id)
+            fetch_check.assert_not_called()
+
+        # Third acquire with different post URL but identical file bytes -> matched by SHA-256 deduplication (200)
+        mock_response_3 = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+        mock_response_3.iter_content.return_value = [fake_video_bytes]
+        with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(mock_response_3, 'https://cdn2.example.com/another.mp4')):
+            res3 = self.client.post('/studio/acquire', json={'url': 'https://example.com/post/999', 'media_url': 'https://cdn2.example.com/another.mp4'}, headers=self.headers)
+            self.assertEqual(res3.status_code, 200)
+            self.assertEqual(res3.json['id'], job_id)
+
+        # Confirm still only 1 job in storage
+        self.assertEqual(len(self.client.get('/studio/jobs').json), 1)
+
+    def test_full_collection_thumbnail_acquire_and_reuse_flow(self):
+        # Step 1: Collect reference from simulated browser
+        ref_payload = {
+            'reference': {
+                'id': 'https://www.threads.com/@creator/post/flow_test_1',
+                'permalink': 'https://www.threads.com/@creator/post/flow_test_1',
+                'username': 'creator',
+                'text': 'New flow test video',
+                'mediaKind': 'video',
+                'videoUrls': ['https://cdn.example.com/flow_video.mp4'],
+                'poster': ''
+            }
+        }
+        import_res = self.client.post('/studio/references/import', json=ref_payload, headers=self.headers)
+        self.assertEqual(import_res.status_code, 200)
+
+        # Step 2: Reference appears in library with previewUrl
+        refs_res = self.client.get('/studio/references')
+        self.assertEqual(refs_res.status_code, 200)
+        refs = refs_res.json
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]['username'], 'creator')
+        preview_url = refs[0]['previewUrl']
+
+        # Step 3: Fetch reference thumbnail via own-video fallback
+        fake_video_bytes = self.fixture.read_bytes()
+        thumb_img_mock = Mock(headers={'Content-Type': 'video/mp4'})
+        thumb_img_mock.iter_content.return_value = [fake_video_bytes]
+        with patch('studio.safe_fetch_stream', return_value=(thumb_img_mock, 'https://cdn.example.com/flow_video.mp4')):
+            thumb_res = self.client.get(preview_url)
+            self.assertEqual(thumb_res.status_code, 200)
+            self.assertEqual(thumb_res.mimetype, 'image/jpeg')
+            thumb_res.close()
+
+        # Step 4: Acquire original media into studio job
+        video_resp = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+        video_resp.iter_content.return_value = [fake_video_bytes]
+        with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(video_resp, 'https://cdn.example.com/flow_video.mp4')):
+            acq_res = self.client.post('/studio/acquire', json={
+                'url': refs[0]['permalink'],
+                'media_url': refs[0]['videoUrls'][0],
+                'kind': 'video'
+            }, headers=self.headers)
+            self.assertEqual(acq_res.status_code, 201)
+            job = acq_res.json
+            self.assertEqual(job['status'], 'media_ready')
+            self.assertTrue(job['media']['has_audio'])
+
+        # Step 5: Duplicate acquire does not create extra jobs
+        with patch('studio.check_safe_url'):
+            acq_dup = self.client.post('/studio/acquire', json={
+                'url': refs[0]['permalink'],
+                'media_url': refs[0]['videoUrls'][0],
+                'kind': 'video'
+            }, headers=self.headers)
+            self.assertEqual(acq_dup.status_code, 200)
+            self.assertEqual(acq_dup.json['id'], job['id'])
+            self.assertEqual(len(self.client.get('/studio/jobs').json), 1)
+
+        # Step 6: Unpublished reuse returns original job without clone
+        reuse_res = self.client.post(f"/studio/jobs/{job['id']}/reuse", headers=self.headers)
+        reuse_res_json = reuse_res.json
+        reuse_res.close()
+        self.assertEqual(reuse_res.status_code, 200)
+        self.assertEqual(reuse_res_json['id'], job['id'])
+        jobs_check = self.client.get('/studio/jobs')
+        self.assertEqual(len(jobs_check.json), 1)
+        jobs_check.close()
+
+    def test_concurrent_acquire_creates_only_one_job(self):
+        import concurrent.futures
+        fake_video_bytes = self.fixture.read_bytes()
+
+        def make_request():
+            mock_resp = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+            mock_resp.iter_content.return_value = [fake_video_bytes]
+            with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(mock_resp, 'https://example.com/concurrent_v.mp4')):
+                res = self.client.post('/studio/acquire', json={
+                    'url': 'https://example.com/post/concurrent',
+                    'media_url': 'https://example.com/concurrent_v.mp4',
+                    'kind': 'video'
+                }, headers=self.headers)
+                status = res.status_code
+                data = res.json
+                res.close()
+                return status, data
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(make_request) for _ in range(5)]
+            results = [f.result() for f in futures]
+
+        statuses = [r[0] for r in results]
+        job_ids = {r[1]['id'] for r in results}
+        self.assertEqual(len(job_ids), 1, "모든 동시 요청이 동일한 단일 job ID를 공유해야 합니다.")
+        self.assertIn(201, statuses)
+        self.assertTrue(all(s in (200, 201) for s in statuses))
+
+        all_jobs_res = self.client.get('/studio/jobs')
+        all_jobs = all_jobs_res.json
+        all_jobs_res.close()
+        self.assertEqual(len(all_jobs), 1, "동시 요청 후 작업은 정확히 1개만 생성되어야 합니다.")
+
+    def test_sequential_repeat_requests_do_not_create_new_jobs(self):
+        fake_video_bytes = self.fixture.read_bytes()
+        mock_resp = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+        mock_resp.iter_content.return_value = [fake_video_bytes]
+
+        with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(mock_resp, 'https://example.com/repeat_v.mp4')):
+            res1 = self.client.post('/studio/acquire', json={'url': 'https://example.com/post/repeat', 'media_url': 'https://example.com/repeat_v.mp4'}, headers=self.headers)
+            self.assertEqual(res1.status_code, 201)
+            job_id = res1.json['id']
+            res1.close()
+
+            # Sequential repeated acquires
+            for _ in range(3):
+                res = self.client.post('/studio/acquire', json={'url': 'https://example.com/post/repeat', 'media_url': 'https://example.com/repeat_v.mp4'}, headers=self.headers)
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.json['id'], job_id)
+                res.close()
+
+        all_jobs_res = self.client.get('/studio/jobs')
+        self.assertEqual(len(all_jobs_res.json), 1, "반복 요청 후에도 총 작업 수는 1개여야 합니다.")
+        all_jobs_res.close()
+
+    def test_different_carousel_slides_create_separate_jobs(self):
+        # Carousel post with 2 distinct video slides
+        post_url = 'https://www.threads.com/@creator/post/carousel_mixed'
+        slide1_media = 'https://cdn.example.com/carousel_slide_1.mp4'
+        slide2_media = 'https://cdn.example.com/carousel_slide_2.mp4'
+
+        fake_video_bytes_1 = self.fixture.read_bytes()
+        fake_video_bytes_2 = self.fixture2.read_bytes()
+        resp1 = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+        resp1.iter_content.return_value = [fake_video_bytes_1]
+        resp2 = Mock(status_code=200, ok=True, headers={'Content-Type': 'video/mp4'})
+        resp2.iter_content.return_value = [fake_video_bytes_2]
+
+        with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(resp1, slide1_media)):
+            res1 = self.client.post('/studio/acquire', json={'url': post_url, 'media_url': slide1_media}, headers=self.headers)
+            self.assertEqual(res1.status_code, 201)
+            job1_id = res1.json['id']
+            res1.close()
+
+        with patch('studio.check_safe_url'), patch('studio.safe_fetch_stream', return_value=(resp2, slide2_media)):
+            res2 = self.client.post('/studio/acquire', json={'url': post_url, 'media_url': slide2_media}, headers=self.headers)
+            # Different media in the same post must NOT be merged
+            self.assertEqual(res2.status_code, 201)
+            job2_id = res2.json['id']
+            res2.close()
+
+        self.assertNotEqual(job1_id, job2_id, "서로 다른 캐러셀 슬라이드는 별도의 작업으로 분리되어야 합니다.")
+        all_jobs_res = self.client.get('/studio/jobs')
+        jobs = all_jobs_res.json
+        all_jobs_res.close()
+        self.assertEqual(len(jobs), 2, "2개의 서로 다른 슬라이드는 총 2개의 작업으로 유지되어야 합니다.")
+
+    def test_published_job_acquire_does_not_auto_reuse(self):
+        # Create a job and mark it as published directly in job.json
+        source_url = 'https://example.com/published_post'
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4'), 'source': source_url}, headers=self.headers)
+        job = response.json
+        job_id = job['id']
+        job_path = Path(self.data.name) / job_id / 'job.json'
+        persisted = json.loads(job_path.read_text(encoding='utf-8'))
+        persisted['publication'] = {
+            'account_id': 'threads-user-1',
+            'post_id': 'https://www.threads.net/t/12345678',
+            'comment_id': None,
+            'status': 'published'
+        }
+        job_path.write_text(json.dumps(persisted), encoding='utf-8')
+
+        # Re-acquiring the published job in normal 'prepare source' must NOT automatically trigger reuse_job
+        with patch('studio.check_safe_url'):
+            res = self.client.post('/studio/acquire', json={'url': source_url}, headers=self.headers)
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.json['id'], job_id, "기존 작업이 그대로 반환되어야 하며 자동 reuse_job 복제가 발생하지 않아야 합니다.")
+            res.close()
+
+        all_jobs_res = self.client.get('/studio/jobs')
+        self.assertEqual(len(all_jobs_res.json), 1, "새 작업이 자동으로 생성되지 않아야 합니다.")
+        all_jobs_res.close()
+
+        # Only explicit user request to /jobs/<id>/reuse creates a new cloned job
+        reuse_res = self.client.post(f'/studio/jobs/{job_id}/reuse', headers=self.headers)
+        self.assertEqual(reuse_res.status_code, 201)
+        cloned_id = reuse_res.json['id']
+        self.assertNotEqual(cloned_id, job_id)
+        reuse_res.close()
+
+        all_jobs_res2 = self.client.get('/studio/jobs')
+        self.assertEqual(len(all_jobs_res2.json), 2, "명시적 reuse 호출 시에만 새 작업이 추가되어 총 2개가 됩니다.")
+        all_jobs_res2.close()
+
 
 if __name__ == '__main__':
     unittest.main()
+
 
