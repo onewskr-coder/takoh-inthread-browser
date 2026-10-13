@@ -81,6 +81,31 @@ class DiscoveryFeatureTests(unittest.TestCase):
             self.assertNotIn('/search',call.args[0])
 
     @patch('requests.get')
+    def test_channel_shortforms_rank_persist_and_deduplicate(self,mock_get):
+        from studio_catalogue import DiscoveryCatalogue
+        catalogue=DiscoveryCatalogue(self.data.name)
+        catalogue.add([({'id':'seed','snippet':{'channelId':'UCtest'}},'','')])
+        def video(vid,duration,views):
+            return {'id':vid,'snippet':{'channelId':'UCtest','title':'제품 시연'},'contentDetails':{'duration':duration},'statistics':{'viewCount':str(views)}}
+        responses=[{'items':[{'id':'UCtest','contentDetails':{'relatedPlaylists':{'uploads':'UUtest'}}}]},
+            {'items':[{'contentDetails':{'videoId':v}} for v in ['low','high','long','missing']]},
+            {'items':[video('low','PT30S',10),video('high','PT3M',900),video('long','PT4M',9999),video('missing','',999)]}]
+        mock_get.side_effect=[Mock(ok=True,json=Mock(return_value=d)) for d in responses]
+        r=self.client.post('/studio/discovery/channels/shorts/refresh',headers=self.headers,json={})
+        self.assertEqual(r.status_code,200)
+        self.assertEqual(r.json['ranked_video_ids'],['high','low'])
+        self.assertEqual(r.json['added'],2)
+        self.assertEqual(r.json['youtube_requests'],3)
+        self.assertEqual(r.json['serpapi_requests'],0)
+        self.assertEqual({i['id'] for i,q,l in catalogue.rows()},{'seed','high','low'})
+        mock_get.side_effect=[Mock(ok=True,json=Mock(return_value=d)) for d in responses[1:]]
+        r=self.client.post('/studio/discovery/channels/shorts/refresh',headers=self.headers,json={})
+        self.assertEqual(r.json['added'],0)
+        self.assertEqual(r.json['youtube_requests'],2)
+        for call in mock_get.call_args_list:
+            self.assertNotIn('/search',call.args[0])
+
+    @patch('requests.get')
     def test_subscriber_refresh_persists_and_displays_multiple(self,mock_get):
         from studio_catalogue import DiscoveryCatalogue
         catalogue=DiscoveryCatalogue(self.data.name)

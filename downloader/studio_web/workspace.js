@@ -659,6 +659,18 @@
     catch(error){$('discovery-status-banner').textContent=error.message;}
     finally{button.disabled=false;}
   };
+  if($('discovery-channel-shorts-refresh'))$('discovery-channel-shorts-refresh').onclick=async()=>{
+    const button=$('discovery-channel-shorts-refresh');button.disabled=true;button.textContent='등록 채널 숏폼 확인 중…';
+    try{
+      const data=await api('discovery/channels/shorts/refresh',{});
+      discoveryArchiveMode=true;
+      $('discovery-type').value='shorts';$('discovery-sort-by').value='views';
+      $('discovery-published-range').value='all';$('discovery-unseen').checked=false;
+      await refreshDiscovery(false);
+      $('discovery-status-banner').textContent+=` · 채널 ${data.checked_channels}/${data.registered_channels}개 확인 · 숏폼 후보 ${data.matched}개 · 신규 저장 ${data.added}개 · YouTube ${data.youtube_requests}유닛 · SerpAPI 0회 · ${data.scope}`;
+    }catch(error){$('discovery-status-banner').textContent=error.message;}
+    finally{button.disabled=false;button.textContent='등록 채널 숏폼 수집 · 조회수 순';await refreshCatalogueSummary();}
+  };
   if($('discovery-channel-refresh'))$('discovery-channel-refresh').onclick=async()=>{
     const button=$('discovery-channel-refresh');button.disabled=true;
     try{const data=await api('discovery/channels/refresh',{});discoveryArchiveMode=true;await refreshDiscovery(false);$('discovery-status-banner').textContent+=` · 채널 ${data.checked_channels}개 확인 · 신규 ${data.added}개 · YouTube ${data.youtube_requests}회 · SerpAPI 0회`;}

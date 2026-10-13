@@ -1452,8 +1452,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             catalogue.save_channel_statistics(response.json().get('items',[]))
         return jsonify(checked_channels=len(ids),youtube_requests=calls,serpapi_requests=0)
 
+    @bp.route('/discovery/channels/shorts/refresh', methods=['POST'])
     @bp.route('/discovery/channels/refresh', methods=['POST'])
     def discovery_channels_refresh():
+        shorts_only = request.path.endswith('/shorts/refresh')
         # Explicit user action only; no SerpAPI calls or search.list fallback.
         from studio_secrets import load
         key = str(load(root).get('youtube_api_key') or os.environ.get('YOUTUBE_API_KEY', '')).strip()
@@ -1489,17 +1491,25 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 continue
             data = yt_get('playlistItems', {'part':'contentDetails','playlistId':c['uploads'],'maxResults':50})
             video_ids.extend(i.get('contentDetails',{}).get('videoId') for i in data.get('items',[]))
-            catalogue.update_channel(c['id'], c['uploads'])
         video_ids = list(dict.fromkeys(v for v in video_ids if v))[:250]
-        added = 0
+        items = []
         for offset in range(0,len(video_ids),50):
             data = yt_get('videos', {'part':'snippet,contentDetails,statistics,status','id':','.join(video_ids[offset:offset+50])})
-            added += catalogue.add([(item,'등록 채널 새 영상','채널') for item in data.get('items',[])])
             for item in data.get('items',[]):
-                views = item.get('statistics',{}).get('viewCount')
-                if views is not None:
-                    record_video_observation(item['id'],int(views))
-        return jsonify(added=added,checked_channels=len(channels),youtube_requests=calls,serpapi_requests=0,**catalogue.stats())
+                duration = parse_iso8601_duration(item.get('contentDetails',{}).get('duration',''))
+                if shorts_only and (duration is None or not 0 < duration <= 180):
+                    continue
+                items.append(item)
+        items.sort(key=lambda item:int(item.get('statistics',{}).get('viewCount') or 0), reverse=True)
+        added = catalogue.add([(item,'등록 채널 숏폼 조회수 순' if shorts_only else '등록 채널 새 영상','채널') for item in items])
+        for item in items:
+            views = item.get('statistics',{}).get('viewCount')
+            if views is not None:
+                record_video_observation(item['id'],int(views))
+        for c in channels:
+            if c['uploads']:
+                catalogue.update_channel(c['id'], c['uploads'])
+        return jsonify(added=added,matched=len(items),ranked_video_ids=[item['id'] for item in items],checked_channels=len(channels),registered_channels=len(catalogue.channels()),youtube_requests=calls,serpapi_requests=0,scope='채널별 최근 업로드 최대 50개 중 180초 이하 후보; 채널 전체 역대 순위 아님',**catalogue.stats())
 
     @bp.route('/discovery/gemini-settings',methods=['GET','POST'])
     def discovery_gemini_settings():
