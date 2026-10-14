@@ -113,3 +113,31 @@
 - 발견 카드의 보관함 담기 문구를 레퍼런스 수집으로 정정.
 - 격리 API 테스트 통과: 저장/독립삭제/전체확인필수/인증/경로검증/재동기화차단/명시적재수집. studio.js/workspace.js 구문검사 통과.
 - 실제 전용 앱:수집10개,개별삭제/전체삭제/보관함저장 버튼 표시 및 별도보관함0개 전환 확인. 사용자자료 실제삭제/임의보관 미수행. 실행페이지 새로고침으로 적용.
+
+## 사용자 전용 앱 실행 → 정상 종료 → 재실행 실제 검증 및 현황 (2026-10-14)
+- 작업 폴더 및 프로필 확인: 실행 앱이 `C:\Users\hynihk\Documents\TAKOH_Media_Downloader_PRO\github-handoff\takoh-inthread-browser\studio-browser` 소스와 `%APPDATA%\takoh-studio-browser` 프로필, `%LOCALAPPDATA%\ONEWS\studio` 데이터 폴더를 사용하는 것을 확인.
+- 1차 실행 확인: `start-browser.bat` 실행 시 Electron 메인(PID 23592, 창 핸들 `HWND 723322`) 및 5006 도우미(PID 2964) 기동, `/studio/session`·`/studio/busy-status` HTTP 200 응답 확인.
+- 실제 앱 정상 종료 검증: 창 닫기(`WM_CLOSE`) 시 `shutdown.cjs` → `attemptGracefulQuit`(`GET /studio/busy-status` 200 → `POST /studio/shutdown` 200) → `persistence.flush()` → `will-quit` 순서로 실행되어 Electron 프로세스 전체와 직접 시작한 5006 도우미(PID 2964)가 잔류 없이 종료되고 `app-profile.lock`이 해제됨을 확인.
+- 재실행 및 도우미 재연결 확인: `start-browser.bat` 재실행 시 단일 인스턴스 차단 없이 새 Electron 메인(PID 3416, 창 핸들 `HWND 985426`) 및 새 5006 도우미(PID 34776)가 정상 기동되고 `app-profile.lock`(3416) 기록 및 `/studio/session` 주기 폴링(HTTP 200) 연결됨을 확인.
+- 플랫폼 로그인 검증 (쿠키 존재 vs 실제 로그인 화면 확인 구분):
+  1. **SQLite 쿠키 DB 보존 확인**: 정상 종료 직후 `%APPDATA%\takoh-studio-browser\Partitions\sites\Network\Cookies`에서 총 157개 영구 쿠키(`.threads.com` `sessionid`/`ds_user_id`/`csrftoken`, `.instagram.com` `sessionid`, `.pinterest.com` `_pinterest_sess`/`_auth` 등)가 디스크에 유지됨을 확인했으며, 재실행 후에는 Chromium 네트워크 프로세스가 해당 DB 파일을 정상 점유함을 확인.
+  2. **실제 로그인 화면 확인 구분**: 이전 Windows Computer Use 화면 점검에서 기본 탭인 Threads 화면의 로그인 상태 유지는 확인했으나, 이번 재실행(PID 3416)에서는 비침투 창 핸들(`HWND 985426`) 및 세션 폴링만 확인하고 Instagram·Pinterest·X·TikTok 각 탭을 직접 전환하여 실제 로그인된 DOM/화면을 눈으로 검증하지는 않았음(쿠키 DB 존재 확인 완료 / 전 플랫폼 탭별 실제 로그인 화면 전환 확인은 미수행으로 구분).
+
+## 승인된 Antigravity CLI 실제 검색 1회 검증 결과 (2026-10-14)
+- 실행 조건: `GET /studio/discovery` (`provider=antigravity_search`, 모델 `gemini-3.8-flash-low`, 제한시간 120초, `country=KR`, `mode=shopping`, `category=living_kitchen`, `published_range=90d`, `refresh=1`) 1회 실행.
+- 실행 소요 및 CLI 상태: 약 76.6초 소요(CLI 내부 74.8초, 1턴). 이전 실행과 달리 스트림 중단 없이 `result.status: "SUCCESS"`로 완료되었으며, CLI 내부에서 `search_web` 도구가 총 6회(`step_index` 2, 4, 6, 8, 10, 12) 실행됨.
+- 단계별 성공 여부:
+  1. **실제 영상 URL 확보 (실패 — 0개)**:
+     - Antigravity CLI의 `--output-format stream-json` 이벤트(`step_update.tool_info`)에는 호출 파라미터(`parameters.query`)만 기록되고 도구의 원시 반환 본문(`result`/`output`)은 스트림 이벤트에 포함되지 않음.
+     - CLI 세션 로그(`0fdbe528-2ad5-4bd0-a602-1e858f03e3dc`) 대조 결과, `search_web` 도구 자체가 개별 `youtube.com/shorts/<11자리ID>` 또는 `youtube.com/watch?v=<11자리ID>` 직접 링크 대신 요약문과 `https://vertexaisearch.cloud.google.com/grounding-api-redirect/...` 리다이렉트 출처만 반환함.
+     - 그 결과 모델 응답 본문에서도 11자리 영상 ID URL이 0개였고, `parse_antigravity_events`의 `sources`가 빈 배열(`[]`)이 되어 `studio_gemini_discovery.py` 96행에서 최초 오류(`GeminiDiscoveryError: Google 웹 검색 실행·출처 근거를 확인하지 못해 추천을 중단했습니다. 모델이 기억으로 만든 URL은 사용하지 않습니다.`, HTTP 502)가 발생함.
+  2. **YouTube 상세 확인 (미실행 — 0회 / 0유닛)**:
+     - 후보 영상 ID가 확보되지 않아 1단계에서 즉시 중단되었으며, YouTube `videos.list` 호출은 0회(누적 요청 162회·6,803유닛 그대로 유지)로 쿼터가 소모되지 않음.
+  3. **누적 저장 (미실행 — 0건 추가)**:
+     - 검증된 후보가 없으므로 `discovery-catalogue.sqlite3`에 가짜/미검증 데이터를 저장하지 않고 기존 872건을 그대로 유지함.
+  4. **화면 표시 (오류 안내 표시 / 가짜 후보 미표시)**:
+     - HTTP 502 및 최초 오류 메시지를 반환하여 가짜 후보 카드가 표시되지 않도록 차단함.
+- 원시 응답 및 최초 오류 보존:
+  - 감사 폴더 `%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`에 44개 stream-json 이벤트 전체가 그대로 보존됨.
+  - 승인 조건에 따라 자동 재시도(0회), SerpAPI 호출(0회, 누적 27회 유지), 다른 공급자(Gemini API 등) 자동 전환 없이 즉시 중단함.
+

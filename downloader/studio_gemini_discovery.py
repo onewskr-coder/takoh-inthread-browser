@@ -22,19 +22,28 @@ def extract_video_ids(text):
     return list(dict.fromkeys(re.findall(r'https?://(?:www\.)?(?:youtube\.com/(?:shorts/|watch\?v=|embed/)|youtu\.be/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])',text)))[:50]
 
 def parse_antigravity_events(events):
-    searches=set();sources=[];text='';final={}
+    searches=set();sources=[];seen_source_urls=set();accumulated_deltas=[];final={}
     for event in events:
         update=event.get('step_update',{})
         tool=update.get('tool_name') or update.get('tool_info',{}).get('name')
         if tool in ('google_web_search','search_web','web_search'):
             searches.add(update.get('step_index'))
             output=update.get('tool_info',{}).get('result') or update.get('tool_info',{}).get('output') or ''
-            sources.extend({'url':u,'title':'Antigravity 웹 검색 출처'} for u in re.findall(r'https?://[^\s"<>]+',json.dumps(output,ensure_ascii=False)))
+            for u in re.findall(r'https?://[^\s"<>]+',json.dumps(output,ensure_ascii=False)):
+                if u not in seen_source_urls:
+                    seen_source_urls.add(u)
+                    sources.append({'url':u,'title':'Antigravity 웹 검색 출처'})
+        if update.get('step_type')=='agent_response' and update.get('text_delta'):
+            accumulated_deltas.append(update['text_delta'])
         if event.get('event')=='result' and isinstance(event.get('result'),dict):
-            final=event['result'];text=final.get('response','')
+            final=event['result']
             for source in final.get('sources',[]) or []:
-                if isinstance(source,dict) and source.get('url'):sources.append(source)
+                if isinstance(source,dict) and source.get('url') and source['url'] not in seen_source_urls:
+                    seen_source_urls.add(source['url'])
+                    sources.append(source)
+    text=final.get('response','') or ''.join(accumulated_deltas)
     return text,sources,len(searches),final
+
 
 
 def grounded_search(provider,key,model,prompt,audit_dir):
