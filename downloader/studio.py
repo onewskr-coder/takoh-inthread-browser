@@ -1655,30 +1655,93 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         folder = root / 'references'
         folder.mkdir(exist_ok=True)
         target_file = folder / (name + '.json')
-        if target_file.is_file():
-            existing_ref = json.loads(target_file.read_text(encoding='utf-8'))
-            existing_ref['already_saved'] = True
-            return jsonify(existing_ref), 200
-        clean['already_saved'] = False
-        temporary = folder / (name + '.tmp')
-        temporary.write_text(json.dumps(clean, ensure_ascii=False), encoding='utf-8')
-        temporary.replace(target_file)
+        with lock('references'):
+            tombstones_file = root / 'reference-deletions.json'
+            tombstones = json.loads(tombstones_file.read_text(encoding='utf-8')) if tombstones_file.is_file() else []
+            if data.get('automatic') is True and name in tombstones:
+                return jsonify(skipped_deleted=True), 200
+            if target_file.is_file():
+                existing_ref = json.loads(target_file.read_text(encoding='utf-8'))
+                existing_ref['already_saved'] = True
+                return jsonify(existing_ref), 200
+            clean['already_saved'] = False
+            temporary = folder / (name + '.tmp')
+            temporary.write_text(json.dumps(clean, ensure_ascii=False), encoding='utf-8')
+            temporary.replace(target_file)
+            if name in tombstones:
+                tombstones.remove(name)
+                tombstones_file.write_text(json.dumps(tombstones),encoding='utf-8')
         return jsonify(clean), 200
 
+    @bp.route('/references/save', methods=['POST'])
+    def save_reference_to_library():
+        reference_id = str((request.get_json() or {}).get('reference_id',''))
+        if not re.fullmatch(r'[0-9a-f]{64}',reference_id):
+            raise StudioError('레퍼런스 ID를 확인해 주세요.',400)
+        with lock('references'):
+            source = root / 'references' / (reference_id+'.json')
+            if not source.is_file():
+                raise StudioError('수집한 레퍼런스를 찾지 못했습니다.',404)
+            folder = root / 'saved-references'
+            folder.mkdir(exist_ok=True)
+            target = folder / (reference_id+'.json')
+            already_saved = target.is_file()
+            ref = json.loads(source.read_text(encoding='utf-8'))
+            ref['saved_at'] = time.time()
+            temp = folder / (reference_id+'.tmp')
+            temp.write_text(json.dumps(ref,ensure_ascii=False),encoding='utf-8')
+            temp.replace(target)
+        return jsonify(saved=True,already_saved=already_saved)
+
+    @bp.route('/references/delete', methods=['POST'])
+    def delete_references():
+        data = request.get_json() or {}
+        collection = data.get('collection','collected')
+        if collection not in ('collected','saved'):
+            raise StudioError('목록 종류를 확인해 주세요.',400)
+        folder = root / ('references' if collection=='collected' else 'saved-references')
+        ids = data.get('ids',[])
+        if not isinstance(ids,list) or not ids or any(not isinstance(i,str) or not re.fullmatch(r'[0-9a-f]{64}',i) for i in ids):
+            raise StudioError('삭제할 레퍼런스 ID를 확인해 주세요.',400)
+        with lock('references'):
+            if data.get('all') is True and data.get('confirm_all') is not True:
+                raise StudioError('전체 삭제 확인이 필요합니다.',400)
+            # Delete only the IDs shown in the confirmed list, never new arrivals.
+            deleted = 0
+            tombstones_file = root / 'reference-deletions.json'
+            tombstones = set(json.loads(tombstones_file.read_text(encoding='utf-8'))) if tombstones_file.is_file() else set()
+            for reference_id in set(ids):
+                target = folder / (reference_id+'.json')
+                if target.is_file():
+                    target.unlink()
+                    deleted += 1
+                if collection=='collected':
+                    tombstones.add(reference_id)
+            if collection=='collected':
+                temp = root / 'reference-deletions.tmp'
+                temp.write_text(json.dumps(sorted(tombstones)),encoding='utf-8')
+                temp.replace(tombstones_file)
+        return jsonify(deleted=deleted,collection=collection)
+
+    @bp.route('/saved-references')
     @bp.route('/references')
     def references():
         refs = []
-        for path in (root / 'references').glob('*.json'):
+        folder_name = 'saved-references' if request.path.endswith('/saved-references') else 'references'
+        for path in (root / folder_name).glob('*.json'):
             ref = json.loads(path.read_text(encoding='utf-8'))
-            ref['previewUrl'] = f'/studio/references/{path.stem}/thumbnail'
+            ref['reference_id'] = path.stem
+            ref['previewUrl'] = f'/studio/{folder_name}/{path.stem}/thumbnail'
             refs.append(ref)
         return jsonify(refs)
 
+    @bp.route('/saved-references/<reference_id>/thumbnail')
     @bp.route('/references/<reference_id>/thumbnail')
     def reference_thumbnail(reference_id):
         if not re.fullmatch(r'[0-9a-f]{64}', reference_id):
             abort(404)
-        path = root / 'references' / (reference_id + '.json')
+        folder_name = 'saved-references' if '/saved-references/' in request.path else 'references'
+        path = root / folder_name / (reference_id + '.json')
         if not path.is_file():
             abort(404)
         cache = root / 'reference-thumbnails' / (reference_id + '.jpg')

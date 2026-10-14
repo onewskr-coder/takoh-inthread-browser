@@ -220,7 +220,7 @@
     viewLink.target='_blank';
     viewLink.rel='noopener noreferrer';
 
-    const saveBtn=text('button','보관함 담기 +');
+    const saveBtn=text('button','레퍼런스 수집 +');
     saveBtn.type='button';
     saveBtn.className='btn-save-ref';
     saveBtn.onclick=async()=>{
@@ -277,7 +277,7 @@
         if(typeof refreshReferences==='function')refreshReferences();
       }catch(err){
         saveBtn.disabled=false;
-        saveBtn.textContent='보관함 담기 +';
+        saveBtn.textContent='레퍼런스 수집 +';
         message('보관함 저장 실패: '+err.message,true);
       }
     };
@@ -815,7 +815,7 @@
   async function syncCollections(){if(syncing)return;syncing=true;try{
     const refs=await bridge('references-list');const existing=await api('references');
     for(const ref of refs){const old=(Array.isArray(existing)?existing:[]).find(x=>x.permalink===ref.permalink);
-      if(!old||old.text!==ref.text||JSON.stringify(old.imageUrls)!==JSON.stringify(ref.imageUrls)||JSON.stringify(old.videoUrls)!==JSON.stringify(ref.videoUrls)||old.thumbnailUrl!==ref.thumbnailUrl||old.poster!==ref.poster)await api('references/import',{reference:ref});}
+      if(!old||old.text!==ref.text||JSON.stringify(old.imageUrls)!==JSON.stringify(ref.imageUrls)||JSON.stringify(old.videoUrls)!==JSON.stringify(ref.videoUrls)||old.thumbnailUrl!==ref.thumbnailUrl||old.poster!==ref.poster)await api('references/import',{reference:ref,automatic:true});}
     await refreshReferences();$('collected-files').replaceChildren();
     for(const ref of refs){
       const row=document.createElement('div');row.className='download-file-row';

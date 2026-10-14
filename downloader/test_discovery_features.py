@@ -45,6 +45,28 @@ class DiscoveryFeatureTests(unittest.TestCase):
     def tearDown(self):
         self.data.cleanup()
 
+    def test_reference_library_delete_isolated_and_auto_sync_does_not_restore(self):
+        ref={'permalink':'https://www.youtube.com/watch?v=abcdefghijk','text':'제품 참고','imageUrls':[],'videoUrls':[]}
+        self.assertEqual(self.client.post('/studio/references/import',headers=self.headers,json={'reference':ref}).status_code,200)
+        rid=self.client.get('/studio/references').json[0]['reference_id']
+        self.assertEqual(self.client.post('/studio/references/save',headers=self.headers,json={'reference_id':rid}).status_code,200)
+        self.assertEqual(len(self.client.get('/studio/saved-references').json),1)
+        self.assertEqual(self.client.post('/studio/references/delete',headers=self.headers,json={'ids':[rid],'all':True}).status_code,400)
+        self.assertEqual(self.client.post('/studio/references/delete',json={'ids':[rid]}).status_code,403)
+        r=self.client.post('/studio/references/delete',headers=self.headers,json={'ids':[rid]})
+        self.assertEqual(r.json['deleted'],1)
+        self.assertEqual(self.client.get('/studio/references').json,[])
+        self.assertEqual(len(self.client.get('/studio/saved-references').json),1)
+        r=self.client.post('/studio/references/import',headers=self.headers,json={'reference':ref,'automatic':True})
+        self.assertTrue(r.json['skipped_deleted'])
+        self.assertEqual(self.client.get('/studio/references').json,[])
+        self.client.post('/studio/references/import',headers=self.headers,json={'reference':ref})
+        self.assertEqual(len(self.client.get('/studio/references').json),1)
+        self.assertEqual(self.client.post('/studio/references/delete',headers=self.headers,json={'ids':['../credentials']}).status_code,400)
+        self.client.post('/studio/references/delete',headers=self.headers,json={'collection':'saved','ids':[rid],'all':True,'confirm_all':True})
+        self.assertEqual(self.client.get('/studio/saved-references').json,[])
+        self.assertEqual(len(self.client.get('/studio/references').json),1)
+
     @patch('requests.get')
     def test_catalogue_persists_deduplicates_and_hides_seen_without_api(self, mock_get):
         from studio_catalogue import DiscoveryCatalogue
