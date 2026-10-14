@@ -201,7 +201,32 @@ $('visual-search').onclick=()=>act('원본 이미지를 업로드하고 시각 �
 let incoming=null;
 if(location.hash.startsWith('#reference=')&&location.hash.length<50000){try{incoming=JSON.parse(decodeURIComponent(location.hash.substring(11)));$('incoming-reference').hidden=false;$('incoming-text').textContent=`@${incoming.username||''}: ${String(incoming.text||'').substring(0,500)}`;history.replaceState(null,'',location.pathname);}catch{message('전달된 레퍼런스를 읽지 못했습니다.',true);}}
 let selectedReference=null, referenceCollection='collected', displayedReferences=[];
-const referenceMediaChoices=new Map(),referenceStates=new Map();
+const referenceMediaChoices=new Map(),referenceStates=new Map(),checkedReferenceIds=new Set();
+const getRefKey=ref=>ref?.reference_id||ref?.permalink||'';
+function updateReferenceSelectionUi(){
+  const validKeys=new Set(displayedReferences.map(getRefKey).filter(Boolean));
+  for(const key of Array.from(checkedReferenceIds))if(!validKeys.has(key))checkedReferenceIds.delete(key);
+  const count=checkedReferenceIds.size,total=displayedReferences.length;
+  const selectAll=$('select-all-references');
+  if(selectAll){
+    selectAll.disabled=!total;
+    selectAll.checked=total>0&&count===total;
+    selectAll.indeterminate=count>0&&count<total;
+  }
+  const saveSelected=$('save-selected-references');
+  if(saveSelected){
+    saveSelected.hidden=referenceCollection==='saved';
+    saveSelected.disabled=referenceCollection==='saved'||count===0;
+    saveSelected.textContent=count>0?`선택 보관함에 담기 (${count})`:'선택 보관함에 담기';
+  }
+  const deleteSelected=$('delete-selected-references');
+  if(deleteSelected){
+    deleteSelected.disabled=count===0;
+    deleteSelected.textContent=count>0?`선택 삭제 (${count})`:'선택 삭제';
+  }
+  const summary=$('reference-summary-count');
+  if(summary)summary.textContent=`${referenceCollection==='saved'?'보관함':'수집한 레퍼런스'} ${total}개`+(count>0?` · ${count}개 선택됨`:'');
+}
 async function refreshReferences(){
   const refs=await api(referenceCollection==='saved'?'saved-references':'references');
   displayedReferences=refs;
@@ -209,12 +234,32 @@ async function refreshReferences(){
   if($('delete-all-references'))$('delete-all-references').disabled=!refs.length;
   const list=$('references');if(!list)return;
   list.replaceChildren();
-  const summary=$('reference-summary-count');if(summary)summary.textContent=`${referenceCollection==='saved'?'보관함':'수집한 레퍼런스'} ${refs.length}개`;
+  updateReferenceSelectionUi();
   for(const ref of refs){
+    const refKey=getRefKey(ref);
+    const isChecked=Boolean(refKey&&checkedReferenceIds.has(refKey));
     const card=document.createElement('div');
-    card.className='reference-card'+(selectedReference?.permalink===ref.permalink?' selected':'');
+    card.className='reference-card'+(selectedReference?.permalink===ref.permalink?' selected':'')+(isChecked?' checked':'');
     const thumbBox=document.createElement('div');
     thumbBox.className='ref-thumb-wrap';
+    const checkLabel=document.createElement('label');
+    checkLabel.className='ref-check-badge';
+    checkLabel.onclick=e=>e.stopPropagation();
+    const checkInput=document.createElement('input');
+    checkInput.type='checkbox';
+    checkInput.className='ref-select-checkbox';
+    checkInput.dataset.refId=refKey;
+    checkInput.checked=isChecked;
+    checkInput.setAttribute('aria-label',(ref.username?'@'+ref.username+' ':'')+'레퍼런스 선택');
+    checkInput.onchange=e=>{
+      e.stopPropagation();
+      if(!refKey)return;
+      if(checkInput.checked){checkedReferenceIds.add(refKey);card.classList.add('checked');}
+      else{checkedReferenceIds.delete(refKey);card.classList.remove('checked');}
+      updateReferenceSelectionUi();
+    };
+    checkLabel.append(checkInput,text('span','선택'));
+    thumbBox.append(checkLabel);
     const thumbUrl=ref.previewUrl||ref.thumbnailUrl||ref.poster||ref.imageUrls?.[0]||'';
     const img=document.createElement('img');img.alt='콘텐츠 썸네일';img.className='ref-thumb-img';img.loading='lazy';img.referrerPolicy='no-referrer';
     const fallback=document.createElement('div');fallback.className='ref-thumb-fallback';
@@ -308,7 +353,7 @@ async function refreshReferences(){
     postLink.onclick=e=>e.stopPropagation();
     linksRow.append(postLink);
     const removeBtn=text('button','삭제');removeBtn.type='button';removeBtn.className='secondary';
-    removeBtn.onclick=e=>{e.stopPropagation();const collection=referenceCollection;if(!confirm('이 목록에서 레퍼런스를 삭제할까요? 준비한 원본과 작업은 유지됩니다.'))return;act('삭제 중…',async()=>{await api('references/delete',{collection,ids:[ref.reference_id]});if(selectedReference?.permalink===ref.permalink)selectedReference=null;await refreshReferences();},'목록에서 삭제했습니다.');};
+    removeBtn.onclick=e=>{e.stopPropagation();const collection=referenceCollection;if(!confirm('이 목록에서 레퍼런스를 삭제할까요? 준비한 원본과 작업은 유지됩니다.'))return;act('삭제 중…',async()=>{await api('references/delete',{collection,ids:[ref.reference_id]});checkedReferenceIds.delete(refKey);if(selectedReference?.permalink===ref.permalink)selectedReference=null;await refreshReferences();},'목록에서 삭제했습니다.');};
     if(referenceCollection==='collected'){
       const saveBtn=text('button','보관함에 저장');saveBtn.type='button';saveBtn.className='secondary';
       saveBtn.onclick=e=>{e.stopPropagation();act('보관함에 저장 중…',async()=>{const result=await api('references/save',{reference_id:ref.reference_id});message(result.already_saved?'이미 보관된 자료를 갱신했습니다.':'보관함에 저장했습니다.');},'보관함에 저장했습니다.');};linksRow.append(saveBtn);
@@ -329,11 +374,44 @@ async function refreshReferences(){
   }
   if(!refs.length)list.append(text('p',referenceCollection==='saved'?'보관함이 비어 있습니다. 수집한 레퍼런스에서 [보관함에 저장]을 누르세요.':'수집된 레퍼런스가 없습니다. 게시물의 [수집] 버튼을 누르면 여기에 나타납니다.'));
 }
-for(const [id,collection] of [['show-collected-references','collected'],['show-saved-references','saved']])if($(id))$(id).onclick=()=>{referenceCollection=collection;refreshReferences().catch(e=>message(e.message,true));};
+for(const [id,collection] of [['show-collected-references','collected'],['show-saved-references','saved']])if($(id))$(id).onclick=()=>{referenceCollection=collection;checkedReferenceIds.clear();refreshReferences().catch(e=>message(e.message,true));};
+if($('select-all-references'))$('select-all-references').onchange=e=>{
+  checkedReferenceIds.clear();
+  if(e.target.checked)for(const ref of displayedReferences){const k=getRefKey(ref);if(k)checkedReferenceIds.add(k);}
+  document.querySelectorAll('#references .reference-card').forEach(card=>{
+    const cb=card.querySelector('.ref-select-checkbox');
+    if(cb){cb.checked=e.target.checked;card.classList.toggle('checked',Boolean(e.target.checked));}
+  });
+  updateReferenceSelectionUi();
+};
+if($('save-selected-references'))$('save-selected-references').onclick=()=>{
+  const selectedRefs=displayedReferences.filter(ref=>checkedReferenceIds.has(getRefKey(ref)));
+  const ids=selectedRefs.map(ref=>ref.reference_id).filter(Boolean);
+  if(!ids.length)return;
+  act('선택한 레퍼런스를 보관함에 담는 중…',async()=>{
+    const result=await api('references/save',{ids});
+    checkedReferenceIds.clear();
+    await refreshReferences();
+    const total=result.total||ids.length;
+    message(result.already_saved?`선택한 ${total}개 레퍼런스(이미 보관됨)를 최신 상태로 갱신했습니다.`:`선택한 ${total}개 레퍼런스를 보관함에 담았습니다.`);
+  });
+};
+if($('delete-selected-references'))$('delete-selected-references').onclick=()=>{
+  const collection=referenceCollection;
+  const selectedRefs=displayedReferences.filter(ref=>checkedReferenceIds.has(getRefKey(ref)));
+  const ids=selectedRefs.map(ref=>ref.reference_id).filter(Boolean);
+  if(!ids.length||!confirm(`선택한 레퍼런스 ${ids.length}개를 ${collection==='saved'?'보관함':'수집한 레퍼런스'}에서 삭제할까요? 준비한 원본과 작업은 유지됩니다.`))return;
+  act('선택한 레퍼런스 삭제 중…',async()=>{
+    await api('references/delete',{collection,ids});
+    if(selectedReference&&selectedRefs.some(r=>r.permalink===selectedReference.permalink))selectedReference=null;
+    checkedReferenceIds.clear();
+    await refreshReferences();
+  },`선택한 레퍼런스 ${ids.length}개를 삭제했습니다.`);
+};
 if($('delete-all-references'))$('delete-all-references').onclick=()=>{
   const collection=referenceCollection,ids=displayedReferences.map(ref=>ref.reference_id);
   if(!ids.length||!confirm(`${collection==='saved'?'보관함':'수집한 레퍼런스'} ${ids.length}개를 모두 삭제할까요? 다른 목록과 준비한 원본·작업은 유지됩니다.`))return;
-  act('목록 전체 삭제 중…',async()=>{await api('references/delete',{collection,ids,all:true,confirm_all:true});selectedReference=null;await refreshReferences();},'확인한 목록을 삭제했습니다.');
+  act('목록 전체 삭제 중…',async()=>{await api('references/delete',{collection,ids,all:true,confirm_all:true});selectedReference=null;checkedReferenceIds.clear();await refreshReferences();},'확인한 목록을 삭제했습니다.');
 };
 $('import-reference').onclick=()=>act('레퍼런스 저장 중…',async()=>{await api('references/import',{reference:incoming});$('incoming-reference').hidden=true;await refreshReferences();});
 if($('reload-references'))$('reload-references').onclick=()=>refreshReferences().catch(e=>message(e.message,true));

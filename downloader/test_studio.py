@@ -869,6 +869,52 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(len(all_jobs_res2.json), 2, "명시적 reuse 호출 시에만 새 작업이 추가되어 총 2개가 됩니다.")
         all_jobs_res2.close()
 
+    def test_batch_save_and_delete_references(self):
+        for idx in (1, 2, 3):
+            res = self.client.post('/studio/references/import', json={
+                'reference': {
+                    'permalink': f'https://www.threads.com/@owner/post/batch_{idx}',
+                    'username': f'user{idx}',
+                    'text': f'Batch ref {idx}',
+                    'mediaKind': 'video',
+                    'videoUrls': [f'https://cdn.example.com/v_{idx}.mp4'],
+                }
+            }, headers=self.headers)
+            self.assertEqual(res.status_code, 200)
+
+        collected = self.client.get('/studio/references').json
+        self.assertEqual(len(collected), 3)
+        ids = [r['reference_id'] for r in collected]
+
+        # Batch save 2 items to library (보관함)
+        save_res = self.client.post('/studio/references/save', json={'ids': ids[:2]}, headers=self.headers)
+        self.assertEqual(save_res.status_code, 200)
+        self.assertTrue(save_res.json['saved'])
+        self.assertEqual(save_res.json['saved_count'], 2)
+        self.assertEqual(save_res.json['updated_count'], 0)
+        self.assertEqual(save_res.json['total'], 2)
+        self.assertFalse(save_res.json['already_saved'])
+
+        # Saving the same 2 items again reports already_saved=True
+        save_again = self.client.post('/studio/references/save', json={'ids': ids[:2]}, headers=self.headers)
+        self.assertEqual(save_again.status_code, 200)
+        self.assertEqual(save_again.json['saved_count'], 0)
+        self.assertEqual(save_again.json['updated_count'], 2)
+        self.assertTrue(save_again.json['already_saved'])
+
+        saved_list = self.client.get('/studio/saved-references').json
+        self.assertEqual({r['reference_id'] for r in saved_list}, set(ids[:2]))
+
+        # Batch delete 2 items from collected references
+        del_res = self.client.post('/studio/references/delete', json={'collection': 'collected', 'ids': ids[:2]}, headers=self.headers)
+        self.assertEqual(del_res.status_code, 200)
+        self.assertEqual(del_res.json['deleted'], 2)
+
+        remaining_collected = self.client.get('/studio/references').json
+        self.assertEqual([r['reference_id'] for r in remaining_collected], [ids[2]])
+        # Library items remain intact
+        self.assertEqual(len(self.client.get('/studio/saved-references').json), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

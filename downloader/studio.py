@@ -1675,23 +1675,45 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
 
     @bp.route('/references/save', methods=['POST'])
     def save_reference_to_library():
-        reference_id = str((request.get_json() or {}).get('reference_id',''))
-        if not re.fullmatch(r'[0-9a-f]{64}',reference_id):
-            raise StudioError('레퍼런스 ID를 확인해 주세요.',400)
+        data = request.get_json() or {}
+        ids_param = data.get('ids')
+        if isinstance(ids_param, list):
+            if not ids_param or any(not isinstance(i, str) or not re.fullmatch(r'[0-9a-f]{64}', i) for i in ids_param):
+                raise StudioError('보관함에 담을 레퍼런스 ID를 확인해 주세요.', 400)
+            target_ids = list(dict.fromkeys(ids_param))
+            is_batch = True
+        else:
+            reference_id = str(data.get('reference_id', ''))
+            if not re.fullmatch(r'[0-9a-f]{64}', reference_id):
+                raise StudioError('레퍼런스 ID를 확인해 주세요.', 400)
+            target_ids = [reference_id]
+            is_batch = False
         with lock('references'):
-            source = root / 'references' / (reference_id+'.json')
-            if not source.is_file():
-                raise StudioError('수집한 레퍼런스를 찾지 못했습니다.',404)
             folder = root / 'saved-references'
             folder.mkdir(exist_ok=True)
-            target = folder / (reference_id+'.json')
-            already_saved = target.is_file()
-            ref = json.loads(source.read_text(encoding='utf-8'))
-            ref['saved_at'] = time.time()
-            temp = folder / (reference_id+'.tmp')
-            temp.write_text(json.dumps(ref,ensure_ascii=False),encoding='utf-8')
-            temp.replace(target)
-        return jsonify(saved=True,already_saved=already_saved)
+            saved_count = 0
+            already_saved_count = 0
+            for ref_id in target_ids:
+                source = root / 'references' / (ref_id + '.json')
+                if not source.is_file():
+                    if not is_batch:
+                        raise StudioError('수집한 레퍼런스를 찾지 못했습니다.', 404)
+                    continue
+                target = folder / (ref_id + '.json')
+                if target.is_file():
+                    already_saved_count += 1
+                else:
+                    saved_count += 1
+                ref = json.loads(source.read_text(encoding='utf-8'))
+                ref['saved_at'] = time.time()
+                temp = folder / (ref_id + '.tmp')
+                temp.write_text(json.dumps(ref, ensure_ascii=False), encoding='utf-8')
+                temp.replace(target)
+            if is_batch and saved_count == 0 and already_saved_count == 0:
+                raise StudioError('수집한 레퍼런스를 찾지 못했습니다.', 404)
+        if not is_batch:
+            return jsonify(saved=True, already_saved=(already_saved_count > 0))
+        return jsonify(saved=True, saved_count=saved_count, updated_count=already_saved_count, total=saved_count + already_saved_count, already_saved=(saved_count == 0 and already_saved_count > 0))
 
     @bp.route('/references/delete', methods=['POST'])
     def delete_references():
