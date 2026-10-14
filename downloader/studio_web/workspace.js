@@ -788,6 +788,10 @@
     const mode=$('discovery-mode').value;
     const catGroup=$('group-discovery-category');
     if(catGroup)catGroup.style.display=(mode==='shopping'||mode==='hashtag')?'flex':'none';
+    if(mode==='hashtag'&&$('discovery-hashtag-drawer')){
+      $('discovery-hashtag-drawer').hidden=false;
+      if($('btn-toggle-hashtag-drawer'))$('btn-toggle-hashtag-drawer').textContent='🔥 인기 해시태그 48개 ▴';
+    }
     updateQuotaPreview();
     refreshDiscovery(false);
   };
@@ -1021,6 +1025,24 @@
       }
     }catch{}
   }
+  if($('btn-toggle-adv-filters'))$('btn-toggle-adv-filters').onclick=()=>{
+    const drawer=$('discovery-advanced-drawer');
+    const btn=$('btn-toggle-adv-filters');
+    if(!drawer||!btn)return;
+    const nextHidden=!drawer.hidden;
+    drawer.hidden=nextHidden;
+    btn.setAttribute('aria-expanded',String(!nextHidden));
+    btn.textContent=nextHidden?'상세 조건 ▾':'상세 조건 ▴';
+  };
+  if($('btn-toggle-hashtag-drawer'))$('btn-toggle-hashtag-drawer').onclick=()=>{
+    const drawer=$('discovery-hashtag-drawer');
+    const btn=$('btn-toggle-hashtag-drawer');
+    if(!drawer||!btn)return;
+    const nextHidden=!drawer.hidden;
+    drawer.hidden=nextHidden;
+    btn.setAttribute('aria-expanded',String(!nextHidden));
+    btn.textContent=nextHidden?'🔥 인기 해시태그 48개 ▾':'🔥 인기 해시태그 48개 ▴';
+  };
   if($('discovery-hashtag-category'))$('discovery-hashtag-category').onchange=renderDiscoveryHashtagQuickbar;
   if($('btn-add-custom-hashtag'))$('btn-add-custom-hashtag').onclick=()=>{
     const raw=$('discovery-hashtag-custom-input')?.value?.trim()||'';
