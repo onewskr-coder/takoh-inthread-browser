@@ -195,7 +195,7 @@
           <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;flex-shrink:0;">
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
           </svg>
-          <span>이미지 저장</span>
+          <span>저장</span>
         `;
 
         Object.assign(btn.style, {
@@ -279,7 +279,7 @@
           <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;flex-shrink:0;">
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
           </svg>
-          <span>동영상 저장</span>
+          <span>저장</span>
         `;
 
         Object.assign(btn.style, {

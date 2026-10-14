@@ -53,7 +53,8 @@ def auto_update_ytdlp():
         print("[TAKOH Helper] yt-dlp 및 1080p 고화질 ffmpeg 인코더 최신 업데이트 점검 중...")
         subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "--no-deps", "https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz"],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=40
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=40,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         )
         print("[TAKOH Helper] 1080p Full-HD 고화질 결합 엔진 준비 완료 (최신 yt-dlp 엔진)!")
     except Exception as e:
@@ -286,6 +287,11 @@ def download_video():
     if request.method == 'HEAD':
         return '', 405, {'Allow': 'GET'}
 
+    from studio import track_activity
+    with track_activity('영상 다운로드', video_url):
+        return _do_download(video_url, quality)
+
+def _do_download(video_url, quality):
     import tempfile, glob
     temp_dir = tempfile.mkdtemp(prefix='takoh_download_')
 
@@ -739,7 +745,8 @@ def update_ytdlp():
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
-            capture_output=True, text=True, timeout=120
+            capture_output=True, text=True, timeout=120,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         )
         if result.returncode == 0:
             return jsonify({
@@ -757,10 +764,11 @@ def update_ytdlp():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-from studio import register_studio
+from studio import register_studio, lifecycle_tracker
 register_studio(app, find_ffmpeg_location, pinterest_studio_media)
 
 if __name__ == '__main__':
+    import werkzeug.serving
     port = int(os.environ.get("PORT", 5005))
     print(f"\n============================================================")
     print(f"  TAKOH Media Downloader PRO - 로컬 도우미 서버 가동 성공!")
@@ -772,4 +780,9 @@ if __name__ == '__main__':
     print(f"  ----------------------------------------------------------")
     print(f"  * 다운로드하는 동안 이 까만 창을 닫지 마세요.")
     print(f"============================================================\n")
-    app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False)
+    server = werkzeug.serving.make_server('127.0.0.1', port, app, threaded=True)
+    lifecycle_tracker.set_server(server)
+    try:
+        server.serve_forever()
+    finally:
+        lifecycle_tracker.set_server(None)

@@ -17,8 +17,31 @@
       'div[role="presentation"]'
     ];
 
+  // Helper: Find open media viewer modal/dialog (excluding composer/reply dialogs and hidden/offscreen dialogs)
+  function findThreadMediaModal() {
+    const dialogs = document.querySelectorAll('div[role="dialog"], div[aria-modal="true"]');
+    for (const dialog of dialogs) {
+      if (!dialog.isConnected) continue;
+      if (dialog.getAttribute('aria-hidden') === 'true') continue;
+      if (window.TAKCore?.isComposerMedia?.(dialog)) continue;
+      if (dialog.getAttribute('aria-label') === '새로운 스레드' || dialog.getAttribute('aria-label') === '답글') continue;
+      if (dialog.querySelector('[contenteditable="true"], textarea, [role="textbox"]')) continue;
+
+      const style = window.getComputedStyle ? window.getComputedStyle(dialog) : dialog.style;
+      if (style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) continue;
+      const rect = dialog.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) continue;
+
+      if (dialog.querySelector('img, video')) return dialog;
+    }
+    return null;
+  }
+
   // Each media owns its actions, including individual carousel slides.
   const threadControls = new Map();
+  let modalControls = null;
+
   function getThreadButtons(media) {
     let controls=threadControls.get(media);
     if(controls?.isConnected)return controls;
@@ -33,9 +56,12 @@
     return controls;
   }
   function videoForImage(img){
-    const post=findThreadPostBoundary(img);if(!post)return null;
+    const post=findThreadPostBoundary(img);
+    const modal=img.closest('div[role="dialog"], div[aria-modal="true"]');
+    const scope=modal||post;
+    if(!scope)return null;
     const r=img.getBoundingClientRect();
-    return Array.from(post.querySelectorAll('video')).find(video=>{
+    return Array.from(scope.querySelectorAll('video')).find(video=>{
       if(video.poster&&(video.poster===(img.currentSrc||img.src)))return true;
       const v=video.getBoundingClientRect();
       return r.width>0&&r.height>0&&v.width>0&&v.height>0&&Math.abs(r.left-v.left)<2&&Math.abs(r.top-v.top)<2&&Math.abs(r.width-v.width)<2&&Math.abs(r.height-v.height)<2;
@@ -47,7 +73,185 @@
     return Math.max(0,right-left)*Math.max(0,bottom-top);
   }
   function activeMedia(controls,type){return controls.__takohCandidates.filter(m=>m.isConnected&&(!type||m.tagName===type)).sort((a,b)=>visibleArea(b)-visibleArea(a))[0];}
+
+  function getOrCreateModalControls(modal, activeTarget) {
+    if (modalControls && modalControls.isConnected) {
+      modalControls.__takohMedia = activeTarget;
+      modalControls.__takohCandidates = [activeTarget];
+      updateModalControlsContent(activeTarget);
+      positionModalControls(modal, activeTarget);
+      return modalControls;
+    }
+    modalControls = document.createElement('div');
+    modalControls.className = 'threads-download-btn-container takoh-threads-media-controls takoh-threads-modal-controls';
+    modalControls.setAttribute('data-takoh-threads-controls', 'true');
+    modalControls.setAttribute('data-takoh-modal-controls', 'true');
+    modalControls.__takohCandidates = [activeTarget];
+    modalControls.__takohMedia = activeTarget;
+    document.body.appendChild(modalControls);
+    updateModalControlsContent(activeTarget);
+    positionModalControls(modal, activeTarget);
+    window.TAKStudio?.attach(modalControls, activeTarget, true);
+    return modalControls;
+  }
+
+  function updateModalControlsContent(target) {
+    if (!modalControls) return;
+    const isVideo = target.tagName === 'VIDEO';
+    const currentBtn = modalControls.querySelector('.threads-download-btn');
+    const currentType = currentBtn?.dataset?.mediaType;
+    const targetType = isVideo ? 'video' : 'image';
+
+    if (currentBtn && currentType === targetType) {
+      // Type is same, target updated
+      return;
+    }
+
+    modalControls.querySelectorAll('.threads-download-btn').forEach(b => b.remove());
+
+    const btn = createDownloadButton(targetType, async () => {
+      const current = modalControls.__takohMedia || target;
+      console.log(`[Threads Downloader] Modal ${targetType} download clicked!`);
+      const meta = getPostMetadata(current);
+      if (current.tagName === 'VIDEO') {
+        let videoUrl = [current.currentSrc, current.src, ...Array.from(current.querySelectorAll('source')).map(s => s.src)]
+          .find(url => /^https?:\/\//.test(url) && !/\.(m3u8|mpd)(?:[?#]|$)/i.test(url)) || '';
+        if (!videoUrl) videoUrl = await getVideoUrlViaMainWorldBridge(current);
+        if (!videoUrl && current.src && !current.src.startsWith('blob:')) videoUrl = current.src;
+        if (!videoUrl && current.currentSrc && !current.currentSrc.startsWith('blob:')) videoUrl = current.currentSrc;
+        if (!videoUrl) videoUrl = findVideoUrlFromReactProps(current);
+
+        if (videoUrl) {
+          triggerDownload(videoUrl, 'video', meta, 'threads');
+        } else {
+          showToast(Date.now().toString(), '다운로드 준비 중', '동영상을 한번 재생한 후 다시 시도해주세요.', 'error');
+        }
+      } else {
+        if (current.currentSrc || current.src) {
+          triggerDownload(current.currentSrc || current.src, 'image', meta, 'threads');
+        }
+      }
+    });
+
+    modalControls.insertBefore(btn, modalControls.firstChild);
+    const label = btn.querySelector('span');
+    if (label) label.textContent = '저장';
+  }
+
+  function positionModalControls(modal, target) {
+    if (!modalControls) return;
+    const rect = target.getBoundingClientRect();
+    const modalRect = modal.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      modalControls.style.setProperty('display', 'none', 'important');
+      return;
+    }
+    modalControls.style.setProperty('display', 'flex', 'important');
+    modalControls.style.setProperty('position', 'fixed', 'important');
+    modalControls.style.setProperty('z-index', '2147483647', 'important');
+
+    const closeBtn = modal.querySelector('button[aria-label="닫기"], button[aria-label="Close"], [aria-label*="닫기" i], [aria-label*="Close" i]');
+    const closeRect = closeBtn ? closeBtn.getBoundingClientRect() : null;
+
+    const btnWidth = modalControls.offsetWidth || 120;
+    const btnHeight = modalControls.offsetHeight || 36;
+
+    let targetRight = rect.right - 12;
+    let targetTop = rect.top + 12;
+
+    if (closeRect && closeRect.width > 0 && closeRect.height > 0) {
+      if (Math.abs(closeRect.top - targetTop) < btnHeight + 10 && targetRight > closeRect.left - btnWidth - 8) {
+        targetRight = closeRect.left - 12;
+      }
+    }
+
+    if (targetRight - btnWidth < rect.left) {
+      targetRight = Math.min(window.innerWidth - 12, rect.right - 8);
+      targetTop = Math.max(8, rect.top + (closeRect ? closeRect.height + 12 : 48));
+    }
+
+    const left = Math.max(8, targetRight - btnWidth);
+    const top = Math.max(8, targetTop);
+
+    modalControls.style.setProperty('left', `${left}px`, 'important');
+    modalControls.style.setProperty('top', `${top}px`, 'important');
+    modalControls.style.setProperty('right', 'auto', 'important');
+    modalControls.style.setProperty('bottom', 'auto', 'important');
+  }
+
+  function isElementRendered(el) {
+    if (!el || !el.isConnected) return false;
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      const style = window.getComputedStyle ? window.getComputedStyle(node) : node.style;
+      if (style) {
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+      }
+    }
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    const isVisibleInViewport = r.right > 0 && r.bottom > 0 && r.left < window.innerWidth && r.top < window.innerHeight;
+    return isVisibleInViewport;
+  }
+
+  function findActiveModalMedia(modal) {
+    if (!modal) return null;
+    const candidates = Array.from(modal.querySelectorAll('video, img')).filter(m => {
+      if (!m.isConnected) return false;
+      if (!isElementRendered(m)) return false;
+      if (m.tagName === 'IMG' && videoForImage(m)) return false;
+      if (m.tagName === 'IMG' && !window.TAKCore.isContentImage(m, 'threads')) return false;
+      const r = m.getBoundingClientRect();
+      if (r.width < 100 || r.height < 100) return false;
+      return true;
+    });
+
+    if (!candidates.length) return null;
+
+    // Check viewport center intersection (true active slide)
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+
+    candidates.sort((a, b) => {
+      const rA = a.getBoundingClientRect();
+      const rB = b.getBoundingClientRect();
+      const centerA = (rA.left <= centerX && rA.right >= centerX && rA.top <= centerY && rA.bottom >= centerY);
+      const centerB = (rB.left <= centerX && rB.right >= centerX && rB.top <= centerY && rB.bottom >= centerY);
+      if (centerA !== centerB) return centerB ? 1 : -1;
+
+      const areaA = visibleArea(a);
+      const areaB = visibleArea(b);
+      if (Math.abs(areaA - areaB) > 50) return areaB - areaA;
+      return (b.tagName === 'VIDEO') - (a.tagName === 'VIDEO');
+    });
+    return candidates[0];
+  }
+
   function updateThreadButtons(){
+    const modal = findThreadMediaModal();
+    if (modal) {
+      // Hide all feed buttons when modal is open using data-takoh-hidden
+      for (const controls of threadControls.values()) {
+        controls.setAttribute('data-takoh-hidden', 'true');
+        controls.style.setProperty('display', 'none', 'important');
+      }
+      const activeTarget = findActiveModalMedia(modal);
+      if (activeTarget) {
+        getOrCreateModalControls(modal, activeTarget);
+      } else if (modalControls) {
+        modalControls.style.setProperty('display', 'none', 'important');
+      }
+      return;
+    } else {
+      // Modal closed: remove modalControls if exists, clear data-takoh-hidden on feed buttons
+      if (modalControls) {
+        modalControls.remove();
+        modalControls = null;
+      }
+      for (const controls of threadControls.values()) {
+        controls.removeAttribute('data-takoh-hidden');
+      }
+    }
+
     for(const [media,controls] of threadControls){if(!media.isConnected||(media.tagName==='IMG'&&videoForImage(media))){controls.remove();threadControls.delete(media);}}
     for(const controls of new Set(threadControls.values())){
       controls.__takohCandidates=controls.__takohCandidates.filter(m=>m.isConnected);
@@ -55,7 +259,11 @@
       const visibleVideo=activeMedia(controls,'VIDEO');
       controls.__takohMedia=visibleVideo&&visibleArea(visibleVideo)>0?visibleVideo:activeMedia(controls);
       const enabled=controls.__takohCandidates.some(m=>m.tagName==='VIDEO'?config.enableVideos:config.enableImages);
-      if(!enabled)controls.style.setProperty('display','none','important');
+      if(!enabled) {
+        controls.style.setProperty('display','none','important');
+      } else {
+        controls.style.removeProperty('display');
+      }
       for(const button of controls.querySelectorAll('.threads-download-btn')){const label=button.querySelector('span');if(label&&button.dataset.mediaType!=='batch')label.textContent='저장';}
     }
   }
@@ -77,7 +285,7 @@
     let username = 'threads', postId = 'post';
     const urlMatch = window.location.pathname.match(/\/@([a-zA-Z0-9_.]+)\/post\/([a-zA-Z0-9_-]+)/);
     if (urlMatch) { username = urlMatch[1]; postId = urlMatch[2]; }
-    const article = findThreadPostBoundary(element);
+    const article = findThreadPostBoundary(element) || element?.closest?.('div[role="dialog"], div[aria-modal="true"]');
     if (article) {
       const userLink = article.querySelector('a[href^="/@"]');
       if (userLink) { const m = userLink.getAttribute('href').match(/\/@([a-zA-Z0-9_.]+)/); if (m) username = m[1]; }
@@ -344,6 +552,8 @@
 
     videoElements.forEach(videoEl => {
       if(window.TAKCore.isComposerMedia?.(videoEl))return;
+      // Skip videos inside media modal viewer (modalControls manages them)
+      if(videoEl.closest('div[role="dialog"], div[aria-modal="true"]'))return;
       // Skip control thumbnails and tiny elements
       if (videoEl.offsetWidth < 100 || videoEl.offsetHeight < 100) return;
 

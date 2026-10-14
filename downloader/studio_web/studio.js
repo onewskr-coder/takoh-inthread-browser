@@ -25,6 +25,7 @@ function writingCounts(){for(const id of ['script','body']){const count=Array.fr
 for(const id of ['script','body'])$(id).addEventListener('input',writingCounts);
 for(const [button,field] of [['copy-intro','script'],['copy-draft-body','body']])$(button).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(field).value);},'문단을 유지해 복사했습니다.');
 function text(tag,value){const el=document.createElement(tag);el.textContent=value;return el;}
+window.$=$;window.api=api;window.act=act;window.message=message;window.text=text;
 let editJobId=null;
 let hookFocus=null;
 function refreshHookFocus(){
@@ -199,13 +200,16 @@ $('visual-frame').onchange=showVisualOriginal;
 $('visual-search').onclick=()=>act('원본 이미지를 업로드하고 시각 검색하는 중…',()=>update('visual-search',{frame:$('visual-frame').value,mode:$('visual-mode').value,key:$('serp-key').value.trim()}));
 let incoming=null;
 if(location.hash.startsWith('#reference=')&&location.hash.length<50000){try{incoming=JSON.parse(decodeURIComponent(location.hash.substring(11)));$('incoming-reference').hidden=false;$('incoming-text').textContent=`@${incoming.username||''}: ${String(incoming.text||'').substring(0,500)}`;history.replaceState(null,'',location.pathname);}catch{message('전달된 레퍼런스를 읽지 못했습니다.',true);}}
-let selectedReference=null;
+let selectedReference=null, referenceCollection='collected', displayedReferences=[];
 const referenceMediaChoices=new Map(),referenceStates=new Map();
 async function refreshReferences(){
-  const refs=await api('references').catch(()=>[]);
+  const refs=await api(referenceCollection==='saved'?'saved-references':'references');
+  displayedReferences=refs;
+  for(const [id,value] of [['show-collected-references','collected'],['show-saved-references','saved']])$(id)?.setAttribute('aria-pressed',String(referenceCollection===value));
+  if($('delete-all-references'))$('delete-all-references').disabled=!refs.length;
   const list=$('references');if(!list)return;
   list.replaceChildren();
-  const summary=$('reference-summary-count');if(summary)summary.textContent=`수집된 레퍼런스 ${refs.length}개`;
+  const summary=$('reference-summary-count');if(summary)summary.textContent=`${referenceCollection==='saved'?'보관함':'수집한 레퍼런스'} ${refs.length}개`;
   for(const ref of refs){
     const card=document.createElement('div');
     card.className='reference-card'+(selectedReference?.permalink===ref.permalink?' selected':'');
@@ -235,6 +239,23 @@ async function refreshReferences(){
     const info=document.createElement('div');info.className='ref-card-body';
     info.append(text('h3',ref.username?'@'+ref.username:'수집한 콘텐츠'));
     info.append(text('p',ref.text?ref.text.slice(0,250):ref.permalink));
+    if(ref.discovery){
+      const disc=ref.discovery;
+      const discBox=document.createElement('div');
+      discBox.className='ref-discovery-meta';
+      discBox.style.cssText='font-size:11px;background:#f6f9f5;border:1px solid #dfe5de;border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;flex-direction:column;gap:4px;';
+      discBox.append(text('strong',`[발견] ${disc.source_label||''} · 조회수 ${disc.view_count_display||''}`));
+      if(disc.shorts_classification)discBox.append(text('span',`형식: ${disc.shorts_classification}`));
+      if(disc.recommendation_reason)discBox.append(text('span',`추천: ${disc.recommendation_reason}`));
+      if(disc.growth_display)discBox.append(text('span',`관측: ${disc.growth_display}`));
+      if(disc.license_label)discBox.append(text('span',`권리: ${disc.license_label}`));
+      if(disc.attribution_draft){
+        const attrP=text('p',`출처 표기: ${disc.attribution_draft}`);
+        attrP.style.cssText='margin:4px 0 0;padding:4px;background:#fffde7;border-radius:4px;font-size:10px;word-break:break-all;';
+        discBox.append(attrP);
+      }
+      info.append(discBox);
+    }
 
     const allMedia=[
       ...(ref.videoUrls||[]).map((u,idx)=>({url:u,kind:'video',label:`영상 #${idx+1}`})),
@@ -286,6 +307,13 @@ async function refreshReferences(){
     const postLink=text('a','원본 게시물 ↗');postLink.href=ref.permalink;postLink.target='_blank';postLink.rel='noopener noreferrer';
     postLink.onclick=e=>e.stopPropagation();
     linksRow.append(postLink);
+    const removeBtn=text('button','삭제');removeBtn.type='button';removeBtn.className='secondary';
+    removeBtn.onclick=e=>{e.stopPropagation();const collection=referenceCollection;if(!confirm('이 목록에서 레퍼런스를 삭제할까요? 준비한 원본과 작업은 유지됩니다.'))return;act('삭제 중…',async()=>{await api('references/delete',{collection,ids:[ref.reference_id]});if(selectedReference?.permalink===ref.permalink)selectedReference=null;await refreshReferences();},'목록에서 삭제했습니다.');};
+    if(referenceCollection==='collected'){
+      const saveBtn=text('button','보관함에 저장');saveBtn.type='button';saveBtn.className='secondary';
+      saveBtn.onclick=e=>{e.stopPropagation();act('보관함에 저장 중…',async()=>{const result=await api('references/save',{reference_id:ref.reference_id});message(result.already_saved?'이미 보관된 자료를 갱신했습니다.':'보관함에 저장했습니다.');},'보관함에 저장했습니다.');};linksRow.append(saveBtn);
+    }
+    linksRow.append(removeBtn);
     info.append(linksRow);
 
     card.onclick=()=>{
@@ -299,8 +327,14 @@ async function refreshReferences(){
     card.append(info);
     list.append(card);
   }
-  if(!refs.length)list.append(text('p','수집된 레퍼런스가 없습니다. 웹 브라우저에서 게시물의 [수집] 버튼을 누르면 여기에 나타납니다.'));
+  if(!refs.length)list.append(text('p',referenceCollection==='saved'?'보관함이 비어 있습니다. 수집한 레퍼런스에서 [보관함에 저장]을 누르세요.':'수집된 레퍼런스가 없습니다. 게시물의 [수집] 버튼을 누르면 여기에 나타납니다.'));
 }
+for(const [id,collection] of [['show-collected-references','collected'],['show-saved-references','saved']])if($(id))$(id).onclick=()=>{referenceCollection=collection;refreshReferences().catch(e=>message(e.message,true));};
+if($('delete-all-references'))$('delete-all-references').onclick=()=>{
+  const collection=referenceCollection,ids=displayedReferences.map(ref=>ref.reference_id);
+  if(!ids.length||!confirm(`${collection==='saved'?'보관함':'수집한 레퍼런스'} ${ids.length}개를 모두 삭제할까요? 다른 목록과 준비한 원본·작업은 유지됩니다.`))return;
+  act('목록 전체 삭제 중…',async()=>{await api('references/delete',{collection,ids,all:true,confirm_all:true});selectedReference=null;await refreshReferences();},'확인한 목록을 삭제했습니다.');
+};
 $('import-reference').onclick=()=>act('레퍼런스 저장 중…',async()=>{await api('references/import',{reference:incoming});$('incoming-reference').hidden=true;await refreshReferences();});
 if($('reload-references'))$('reload-references').onclick=()=>refreshReferences().catch(e=>message(e.message,true));
 refreshJobs().catch(error=>message(error.message,true));
@@ -405,6 +439,7 @@ async function refreshUploadQueue(){const queue=await uploadBridge('upload-statu
 $('upload-queue-refresh').onclick=()=>act('확장 예약 상태 확인 중…',refreshUploadQueue,'업로드 상태를 확인했습니다.');
 
 async function refreshCommerceSettings(){const state=await api('commerce-settings');if(!Array.isArray(state.configured))return;$('commerce-status').textContent=state.configured.length?'등록됨: '+state.configured.join(', '):'아직 등록한 검색·제휴 API가 없습니다.';for(const [id,key] of [['serp-key','serp_key'],['coupang-access','coupang_access'],['coupang-secret','coupang_secret']])$(id).placeholder=state.configured.includes(key)?'암호화 등록됨 · 변경할 때만 입력':'';}
+window.refreshCommerceSettings=refreshCommerceSettings;window.refreshReferences=refreshReferences;
 $('ai-provider').addEventListener('change',()=>{$('fallback-model').value=localStorage.getItem('studio-fallback-'+$('ai-provider').value)||'';});
 $('fallback-model').value=localStorage.getItem('studio-fallback-'+$('ai-provider').value)||'';
 $('fallback-model').addEventListener('change',()=>localStorage.setItem('studio-fallback-'+$('ai-provider').value,$('fallback-model').value.trim()));

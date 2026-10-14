@@ -709,6 +709,10 @@ console.log("[TAKOH Downloader] Core Engine initialized on:", window.location.hr
     for (const [control,{media,fixed}] of positionedControls) {
       if(isComposerMedia(media)){control.remove();positionedControls.delete(control);continue;}
       if (!control.isConnected) {positionedControls.delete(control);continue;}
+      if (control.getAttribute('data-takoh-hidden') === 'true' || control.hasAttribute('data-takoh-suppressed')) {
+        control.style.setProperty('display','none','important');
+        continue;
+      }
       const rect=media.isConnected ? visibleMediaRect(media) : null;
       const enabled=media.tagName==='IMG' ? config.enableImages : config.enableVideos;
       if (!rect || !enabled) {control.style.setProperty('display','none','important');continue;}
