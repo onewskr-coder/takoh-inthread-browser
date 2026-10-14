@@ -210,12 +210,16 @@
 
     const meta=document.createElement('div');
     meta.className='discovery-card-meta';
+    const hasIsoDate=Boolean(item.published_at && /^\d{4}-\d{2}-\d{2}/.test(item.published_at));
     meta.append(
-      text('strong',`조회수 ${item.view_count_display}`),
-      text('span',` · ${item.published_at.slice(0,10)}`)
+      text('strong',`조회수 ${item.view_count_display}`)
     );
-    if(item.days_ago_str){
-      const daysBadge=text('span',item.days_ago_str);
+    if(hasIsoDate){
+      meta.append(text('span',` · ${item.published_at.slice(0,10)}`));
+    }
+    const badgeLabel=item.days_ago_str || (hasIsoDate ? '' : '게시일 미확인');
+    if(badgeLabel){
+      const daysBadge=text('span',badgeLabel);
       daysBadge.className='badge-days-ago';
       meta.append(daysBadge);
     }

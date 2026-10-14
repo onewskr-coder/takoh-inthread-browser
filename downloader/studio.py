@@ -2151,7 +2151,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     'snippet': {
                         'title': title,
                         'channelTitle': f'YouTube #{tag_name}',
-                        'publishedAt': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                        'publishedAt': '',
                         'description': f'#{tag_name} #shorts {title} ({stats_text})',
                         'thumbnails': {'high': {'url': thumb_url}}
                     },
@@ -2166,6 +2166,47 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
 
         if catalogue_rows:
             try:
+                from studio_secrets import load
+                secrets_vals = load(root)
+                yt_key = str(secrets_vals.get('youtube_api_key') or os.environ.get('YOUTUBE_API_KEY', '')).strip()
+                if yt_key:
+                    row_by_vid = {r[0]['id']: r[0] for r in catalogue_rows if r[0].get('id')}
+                    ht_vids = list(row_by_vid.keys())[:300]
+                    yt_usage = youtube_usage_stats()
+                    for chunk_start in range(0, len(ht_vids), 50):
+                        chunk = ht_vids[chunk_start:chunk_start + 50]
+                        detail_resp = requests.get(
+                            'https://www.googleapis.com/youtube/v3/videos',
+                            params={
+                                'part': 'snippet,contentDetails,statistics,status',
+                                'id': ','.join(chunk),
+                                'key': yt_key
+                            },
+                            timeout=12
+                        )
+                        if detail_resp.ok:
+                            yt_usage['quota_units'] += 1
+                            yt_usage['requests_count'] += 1
+                            for v_info in detail_resp.json().get('items', []):
+                                v_id = v_info.get('id')
+                                if v_id in row_by_vid:
+                                    orig_item = row_by_vid[v_id]
+                                    v_snip = v_info.get('snippet', {})
+                                    orig_snip = orig_item.get('snippet', {})
+                                    if v_snip.get('publishedAt'):
+                                        orig_snip['publishedAt'] = v_snip['publishedAt']
+                                        orig_item['_published_verified'] = True
+                                    if v_snip.get('channelTitle'):
+                                        orig_snip['channelTitle'] = v_snip['channelTitle']
+                                    if v_snip.get('channelId'):
+                                        orig_snip['channelId'] = v_snip['channelId']
+                                    if v_info.get('contentDetails', {}).get('duration'):
+                                        orig_item['contentDetails'] = v_info['contentDetails']
+                                    if v_info.get('statistics', {}).get('viewCount'):
+                                        orig_item['statistics'] = v_info['statistics']
+                                    if v_info.get('status'):
+                                        orig_item['status'] = v_info['status']
+                    save_youtube_usage(yt_usage)
                 catalogue.add(catalogue_rows)
             except Exception:
                 pass
@@ -2363,13 +2404,13 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         real_auth_verified = serp_usage.get('searches_count', 0) > 0
         serp_auth_label = '실서비스 인증 완료' if real_auth_verified else '키 형식 정상 (실제 인증 미검증)'
 
-        FILTER_VERSION = 'v4_serp_paging_rawcache'
+        FILTER_VERSION = 'v5_verified_published_date'
         cache_dir = root / 'youtube_cache'
         cache_dir.mkdir(parents=True, exist_ok=True)
         raw_cache_dir = root / 'youtube_raw_cache'
         raw_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        cache_key_str = f"v11_gemini_discovery:{provider}:{country}:{mode}:{category}:{q}:{type_filter}:{intent_filter}:{license_filter}:{published_range}:{custom_after}:{custom_before}:{min_views}:{sort_by}:{limit}:{page}"
+        cache_key_str = f"v12_verified_pubdate:{provider}:{country}:{mode}:{category}:{q}:{type_filter}:{intent_filter}:{license_filter}:{published_range}:{custom_after}:{custom_before}:{min_views}:{sort_by}:{limit}:{page}"
         cache_key = hashlib.sha256(cache_key_str.encode('utf-8')).hexdigest()
         cache_file = cache_dir / f"{cache_key}.json"
 
@@ -2483,7 +2524,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                                 'snippet': {
                                     'title': f"{s_it['title']} #{t_tag}",
                                     'channelTitle': f"YouTube #{t_tag}",
-                                    'publishedAt': now_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                                    'publishedAt': '',
                                     'description': f"#{t_tag} #shorts {s_it['title']} ({stats_txt}) { cat_info['keywords'][0] if cat_info.get('keywords') else '제품 리뷰' }",
                                     'thumbnails': {'high': {'url': s_it['thumbnail_url']}}
                                 },
@@ -2495,6 +2536,45 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                                 '_source_provider': 'hashtag_shorts'
                             }
                             raw_items_dict[vid] = (synthetic_item, f"#{t_tag}", '한국어')
+                    if yt_key and raw_items_dict:
+                        ht_vids = list(raw_items_dict.keys())[:300]
+                        for chunk_start in range(0, len(ht_vids), 50):
+                            chunk = ht_vids[chunk_start:chunk_start + 50]
+                            try:
+                                detail_resp = requests.get(
+                                    'https://www.googleapis.com/youtube/v3/videos',
+                                    params={
+                                        'part': 'snippet,contentDetails,statistics,status',
+                                        'id': ','.join(chunk),
+                                        'key': yt_key
+                                    },
+                                    timeout=12
+                                )
+                                if detail_resp.ok:
+                                    yt_usage['quota_units'] += 1
+                                    yt_usage['requests_count'] += 1
+                                    for v_info in detail_resp.json().get('items', []):
+                                        v_id = v_info.get('id')
+                                        if v_id in raw_items_dict:
+                                            orig_item, orig_q, orig_lang = raw_items_dict[v_id]
+                                            v_snip = v_info.get('snippet', {})
+                                            orig_snip = orig_item.get('snippet', {})
+                                            if v_snip.get('publishedAt'):
+                                                orig_snip['publishedAt'] = v_snip['publishedAt']
+                                                orig_item['_published_verified'] = True
+                                            if v_snip.get('channelTitle'):
+                                                orig_snip['channelTitle'] = v_snip['channelTitle']
+                                            if v_snip.get('channelId'):
+                                                orig_snip['channelId'] = v_snip['channelId']
+                                            if v_info.get('contentDetails', {}).get('duration'):
+                                                orig_item['contentDetails'] = v_info['contentDetails']
+                                            if v_info.get('statistics', {}).get('viewCount'):
+                                                orig_item['statistics'] = v_info['statistics']
+                                            if v_info.get('status'):
+                                                orig_item['status'] = v_info['status']
+                            except Exception:
+                                pass
+                        save_youtube_usage(yt_usage)
                     stop_reason = f"YouTube 해시태그 Shorts 조회 완료 ({', '.join('#'+t for t in target_tags)})"
                 elif provider == 'youtube':
                     if mode == 'popular':
@@ -2837,7 +2917,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
 
             title = snippet.get('title', '')
             channel = snippet.get('channelTitle', '')
-            published_at = snippet.get('publishedAt', '')
+            published_at = str(snippet.get('publishedAt') or '').strip()
+            if it.get('_source_provider') == 'hashtag_shorts' and not it.get('_published_verified'):
+                published_at = ''
+                snippet['publishedAt'] = ''
             desc = snippet.get('description', '')
             thumbs = snippet.get('thumbnails', {})
             thumb_url = thumbs.get('high', {}).get('url') or thumbs.get('medium', {}).get('url') or thumbs.get('default', {}).get('url') or f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg'
@@ -2849,14 +2932,18 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 view_count = 0
 
             days_ago = None
-            days_ago_str = ''
+            days_ago_str = '게시일 미확인'
             if published_at:
                 try:
                     pub_dt = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
-                    pub_days = (now_dt - pub_dt).days
-                    days_ago = max(0, pub_days)
-                    if days_ago == 0:
-                        days_ago_str = '오늘 게시'
+                    if pub_dt.tzinfo is None:
+                        pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                    elapsed_sec = max(0.0, (now_dt - pub_dt).total_seconds())
+                    pub_days = int(elapsed_sec // 86400)
+                    days_ago = pub_days
+                    if pub_days == 0:
+                        elapsed_hours = int(elapsed_sec // 3600)
+                        days_ago_str = f'{elapsed_hours}시간 전 (오늘 게시)' if elapsed_hours >= 1 else '방금 전 (오늘 게시)'
                     elif days_ago == 1:
                         days_ago_str = '1일 전'
                     elif days_ago < 30:
@@ -2866,7 +2953,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     else:
                         days_ago_str = f'{days_ago // 365}년 전 ({days_ago}일 전)'
                 except Exception:
-                    days_ago_str = published_at[:10] if len(published_at) >= 10 else ''
+                    days_ago_str = published_at
 
             if not used_raw_cache and not it.get('_source_provider'):
                 obs_history = record_video_observation(vid, view_count)
