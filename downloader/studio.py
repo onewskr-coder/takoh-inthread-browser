@@ -272,14 +272,55 @@ def inspect_media(binary, path):
     result = run_ffmpeg(binary, ['-protocol_whitelist', 'file,pipe', '-i', str(path)])
     info = result.stderr.decode('utf-8', errors='replace')
     duration = re.search(r'Duration: (\d+):(\d+):(\d+(?:\.\d+)?)', info)
-    video = re.search(r'Video: [^\n]*?\b(\d{2,5})x(\d{2,5})\b', info)
+    video = re.search(r'Video: ([a-zA-Z0-9_]+)[^\n]*?\b(\d{2,5})x(\d{2,5})\b', info)
     if not duration or not video:
         raise StudioError('읽을 수 있는 동영상 파일을 선택해 주세요.', 422)
     seconds = sum(float(x) * multiplier for x, multiplier in zip(duration.groups(), (3600, 60, 1)))
     if not math.isfinite(seconds) or not 0 < seconds <= 600:
         raise StudioError('첫 버전에서는 10분 이하 영상을 선택해 주세요.', 422)
-    return dict(duration=seconds, width=int(video[1]), height=int(video[2]),
-                has_audio=bool(re.search(r'Stream[^\n]*Audio:', info)))
+    vcodec = video[1].lower()
+    is_mp4_container = bool(re.search(r'Input #0,\s*[^\n]*\bmp4\b', info, re.I))
+    return dict(duration=seconds, width=int(video[2]), height=int(video[3]),
+                has_audio=bool(re.search(r'Stream[^\n]*Audio:', info)),
+                vcodec=vcodec, is_mp4=is_mp4_container)
+
+
+def ensure_browser_playable_mp4(binary, video_path, media):
+    """Ensure video_path is an H.264 + AAC MP4 with +faststart so HTML5 <video> preview always plays."""
+    vcodec = str(media.get('vcodec') or '').lower()
+    is_mp4 = bool(media.get('is_mp4', True))
+    if vcodec == 'h264' and is_mp4:
+        return media
+    tmp_out = video_path.with_name('video_h264.mp4')
+    args = [
+        '-y', '-protocol_whitelist', 'file,pipe', '-i', str(video_path),
+        '-map', '0:v:0', '-map', '0:a:0?',
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart',
+        str(tmp_out)
+    ]
+    try:
+        with _ffmpeg_slots:
+            res = subprocess.run(
+                [binary, '-hide_banner', '-nostdin', *args],
+                capture_output=True, timeout=120,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            )
+        if res.returncode == 0 and tmp_out.is_file() and tmp_out.stat().st_size > 1024:
+            tmp_out.replace(video_path)
+            return inspect_media(binary, video_path)
+    except Exception:
+        pass
+    finally:
+        if tmp_out.is_file():
+            try:
+                tmp_out.unlink()
+            except OSError:
+                pass
+    return media
 
 
 def extract_evidence(binary, directory, media):
@@ -1231,11 +1272,14 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
     def find_existing_job(digest=None, source_url=None, media_url=None, kind=None):
         if not digest and not source_url and not media_url:
             return None
+        is_yt_source = bool(source_url and re.search(r'(?:youtube\.com|youtu\.be)/', source_url, re.I))
         for path in sorted(root.glob('*/job.json'), key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 candidate = json.loads(path.read_text(encoding='utf-8'))
                 cand_kind = candidate.get('kind', 'video')
                 if kind and kind != 'auto' and cand_kind != kind:
+                    continue
+                if is_yt_source and cand_kind == 'image':
                     continue
                 media_file = path.parent / ('original' if cand_kind == 'image' else 'video')
                 if not media_file.is_file():
@@ -1251,7 +1295,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             return candidate
                     else:
                         # Single-item post without slide media: match candidate that is also single-item
-                        if cand_source == source_url and not cand_media:
+                        if cand_source == source_url and (not cand_media or is_yt_source):
                             return candidate
             except Exception:
                 continue
@@ -2003,6 +2047,24 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             ref = json.loads(path.read_text(encoding='utf-8'))
             ref['reference_id'] = path.stem
             ref['previewUrl'] = f'/studio/{folder_name}/{path.stem}/thumbnail'
+            permalink = str(ref.get('permalink') or '')
+            if ref.get('mediaKind') == 'video' or re.search(r'(?:youtube\.com|youtu\.be)/', permalink, re.I):
+                ref['mediaKind'] = 'video'
+                thumbs = {str(ref.get('thumbnailUrl') or ''), str(ref.get('poster') or '')}
+                img_urls = ref.get('imageUrls') or []
+                cleaned_imgs = [
+                    u for u in img_urls
+                    if u and u not in thumbs and not re.search(r'(?:ytimg\.com|ggpht\.com)/', str(u), re.I)
+                ]
+                if len(cleaned_imgs) != len(img_urls):
+                    ref['imageUrls'] = cleaned_imgs
+                vid_urls = ref.get('videoUrls') or []
+                cleaned_vids = [
+                    u for u in vid_urls
+                    if u and u != permalink and not re.search(r'(?:youtube\.com|youtu\.be)/', str(u), re.I)
+                ]
+                if len(cleaned_vids) != len(vid_urls):
+                    ref['videoUrls'] = cleaned_vids
             refs.append(ref)
         return jsonify(refs)
 
@@ -2086,7 +2148,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     'text': f"{title}\n\n[해시태그 Shorts] #{tag_name} ({stats_text})\n[조회수] {view_display}\n[원본 해시태그] {fetched['hashtag_url']}",
                     'permalink': permalink,
                     'mediaKind': 'video',
-                    'imageUrls': [thumb_url],
+                    'imageUrls': [],
                     'videoUrls': [],
                     'poster': thumb_url,
                     'thumbnailUrl': thumb_url,
@@ -3349,6 +3411,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             return jsonify(existing), 200
 
                     media = inspect_media(binary, target / 'video')
+                    media = ensure_browser_playable_mp4(binary, target / 'video', media)
                     evidence = extract_evidence(binary, target, media)
                     new_source = str(source if source is not None else request.form.get('source', ''))[:2048]
                     new_media = str(media_url if media_url is not None else request.form.get('media_url', ''))[:2048] or None
@@ -3517,6 +3580,18 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         if media_url and media_url != source_url:
             check_safe_url(media_url)
 
+        is_yt_source = bool(re.search(r'(?:youtube\.com|youtu\.be)/', source_url, re.I))
+        if is_yt_source:
+            target_kind = 'video'
+            if media_url and (
+                media_url == source_url
+                or re.search(r'(?:ytimg\.com|ggpht\.com|youtube\.com|youtu\.be)/', media_url, re.I)
+                or any(urlparse(media_url).path.lower().endswith(e) for e in ('.jpg', '.jpeg', '.png', '.webp', '.gif'))
+            ):
+                media_url = None
+        elif media_url and target_kind == 'video' and any(urlparse(media_url).path.lower().endswith(e) for e in ('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+            media_url = None
+
         acquire_key = 'acquire-' + hashlib.sha256(f"{source_url}:{media_url or ''}:{target_kind}".encode()).hexdigest()
         with lock(acquire_key):
             existing = find_existing_job(source_url=source_url, media_url=media_url, kind=target_kind)
@@ -3558,7 +3633,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         fname = Path(urlparse(final_url).path).name or ('acquired.jpg' if is_img else 'acquired.mp4')
                         return (upload_image if is_img else upload)(FileStorage(stream=buf, filename=fname), str(source_url)[:2048], media_url=media_url)
                 except StudioError:
-                    if media_url: raise
+                    if media_url and media_url != post_url:
+                        raise
                     pass
 
             import yt_dlp
@@ -3566,7 +3642,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 tmp_path = Path(tmpdir)
                 outtmpl = str(tmp_path / 'media_%(id)s.%(ext)s')
                 ydl_opts = {
-                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best',
+                    'format': 'bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1][ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best',
                     'outtmpl': outtmpl,
                     'merge_output_format': 'mp4',
                     'ffmpeg_location': binary,

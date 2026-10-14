@@ -50,7 +50,7 @@
     $('production-next').textContent='다음: '+stageNames[next]+' →';
   }
   document.querySelectorAll('[data-production-stage]').forEach(button=>button.onclick=()=>selectStage(button.dataset.productionStage));
-  $('new-job').addEventListener('click',()=>{selectStage('analysis');$('video-file').focus();});
+  $('new-job').addEventListener('click',()=>{selectStage('analysis');($('fetch-url')||$('video-file'))?.focus();});
   $('production-next').onclick=()=>selectStage(stages[stages.indexOf(stage)+1]);
   function bridge(kind,downloadId){return new Promise((resolve,reject)=>{
     const requestId=crypto.randomUUID(),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('타코 확장을 새로고침한 뒤 다시 연결하세요. 다른 위치의 파일은 제작 화면에서 직접 선택할 수 있습니다.'));},5000);
@@ -89,13 +89,14 @@
   const checkedDiscoveryUrls=new Set();
 
   function buildDiscoveryReferencePayload(item, country, category){
-    const isYtUrl=/youtube\.com|youtu\.be/i.test(item.url||'');
+    const isDirectVideo=/\.(mp4|webm|mov)(\?|$)/i.test(item.url||'');
     return {
       permalink:item.url,
       username:item.channel,
       text:`${item.title}\n\n[추천 유형] ${item.intent||'제품 시연'}\n[카테고리] ${item.category_name||'생활·주방'}\n[추천 사유] ${item.recommendation_reason}\n[권리 상태] ${item.license_label}${item.attribution_draft?'\n[출처 표기] '+item.attribution_draft:''}`,
       mediaKind:'video',
-      videoUrls:isYtUrl?[]:[item.url],
+      videoUrls:isDirectVideo?[item.url]:[],
+      imageUrls:[],
       thumbnailUrl:item.thumbnail_url,
       poster:item.thumbnail_url,
       discovery:{

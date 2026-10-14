@@ -97,7 +97,9 @@ async function refreshJobs(){
 function render(){
   productDirty=false;
   renderEditor();
-  $('media').hidden=!job; $('analyze').disabled=!job;$('save-product').disabled=!job;
+  $('media').hidden=!job;
+  if($('analysis-empty-state'))$('analysis-empty-state').hidden=Boolean(job);
+  $('analyze').disabled=!job;$('save-product').disabled=!job;
   $('draft').disabled=!job?.analysis;$('prepare').disabled=!job?.draft;
   $('copy-body').disabled=job?.status!=='publish_ready';$('copy-comment').disabled=job?.status!=='publish_ready';
   $('video-download').hidden=!job;
@@ -118,17 +120,143 @@ function render(){
   $('publication').textContent=job?.status==='publish_ready'?'게시 준비 완료 · Threads에서 직접 게시해 주세요.':'아직 게시하지 않았습니다.';
   renderIntegrations();
   renderVisual();
-  if(!job){$('preview').removeAttribute('src');return;}
-  $('source').value=job.source;
+  if(!job){
+    $('preview').pause();
+    $('preview').removeAttribute('src');
+    $('preview').removeAttribute('poster');
+    $('preview').load();
+    if($('source-link'))$('source-link').hidden=true;
+    return;
+  }
+  $('source').value=job.source||'';
+  if($('fetch-url')&&job.source)$('fetch-url').value=job.source;
+  if($('source-link')){
+    if(job.source&&/^https?:\/\//i.test(job.source)){
+      $('source-link').href=job.source;
+      $('source-link').hidden=false;
+    }else{
+      $('source-link').hidden=true;
+    }
+  }
   const base=`/studio/jobs/${job.id}/media/`;
-  $('preview').hidden=job.kind==='image';$('image-preview').hidden=job.kind!=='image';
-  if(job.kind==='image')$('image-preview').src=base+'frame-0.jpg';
-  if($('preview').getAttribute('src')!==base+'video') $('preview').src=base+'video';
-  $('video-download').href=base+(job.kind==='image'?'original':'video');$('video-download').download=job.name;
-  $('metadata').textContent=`${job.name} · ${job.media.duration.toFixed(1)}초 · ${job.media.width}×${job.media.height} · ${job.media.has_audio?'음성 트랙 있음':'음성 트랙 없음'}`;
+  const isImage=job.kind==='image';
+  $('preview').hidden=isImage;$('image-preview').hidden=!isImage;
+  if(isImage){
+    $('preview').pause();
+    $('preview').removeAttribute('src');
+    $('preview').removeAttribute('poster');
+    $('image-preview').src=base+'frame-0.jpg';
+  }else{
+    const firstFrame=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
+    $('preview').poster=base+firstFrame;
+    const nextSrc=base+'video';
+    if($('preview').getAttribute('src')!==nextSrc){
+      $('preview').src=nextSrc;
+      $('preview').load();
+    }
+  }
+  $('video-download').href=base+(isImage?'original':'video');$('video-download').download=job.name;
+  const kindBadge=isImage?'이미지':'영상';
+  const durText=isImage?'단일 이미지':`${Number(job.media?.duration||0).toFixed(1)}초`;
+  const resText=`${job.media?.width||0}×${job.media?.height||0}`;
+  const audioText=isImage?'':` · ${job.media?.has_audio?'음성 트랙 있음':'음성 없음'}`;
+  $('metadata').textContent=`[${kindBadge}] ${job.name} · ${durText} · ${resText}${audioText}`;
   if(job.edit?.text_clean)$('metadata').textContent+=` · 텍스트 처리 ${job.edit.text_clean.repaired_frames}/${job.edit.text_clean.frames}프레임`;
-  for(const frame of job.evidence.frames){const figure=document.createElement('figure');const img=document.createElement('img');img.src=base+frame.file;img.alt=`${frame.timestamp}초 추출 프레임`;figure.append(img,text('figcaption',`${frame.timestamp}초`));$('frames').append(figure);}
-  if(job.analysis){const data=job.analysis.result;$('analysis').append(text('h3',data.summary),text('p',job.analysis.scope?.description||job.evidence.description));const list=document.createElement('ul');for(const item of data.observations) list.append(text('li',`${item.timestamp}초: ${item.description}`));$('analysis').append(list,text('h3','음성 요약'),text('p',data.audio_summary),text('h3','확인이 필요한 내용'),text('p',data.uncertainties.join(' · ')),text('h3','상품 검색어'),text('p',data.search_terms.join(' · ')));}
+  for(const frame of (job.evidence?.frames||[])){
+    const figure=document.createElement('figure');
+    figure.className='analysis-frame-item';
+    figure.title=isImage?'원본 이미지':`${frame.timestamp}초 시점으로 이동`;
+    const img=document.createElement('img');
+    img.src=base+frame.file;
+    img.alt=`${frame.timestamp}초 추출 프레임`;
+    figure.append(img,text('figcaption',isImage?'원본':`${frame.timestamp}초 ▶`));
+    if(!isImage){
+      figure.onclick=()=>{
+        $('preview').currentTime=Number(frame.timestamp||0);
+        $('preview').play().catch(()=>{});
+      };
+    }
+    $('frames').append(figure);
+  }
+  if(job.analysis){
+    const data=job.analysis.result||{};
+    const summaryBox=document.createElement('div');
+    summaryBox.className='analysis-summary-card';
+    const scopeBadge=text('span',job.analysis.scope?.description||job.evidence?.description||'AI 분석 완료');
+    scopeBadge.className='analysis-scope-meta';
+    const summaryTitle=text('h3',data.summary||'핵심 장면 요약');
+    summaryBox.append(scopeBadge,summaryTitle);
+    $('analysis').append(summaryBox);
+
+    if(Array.isArray(data.observations)&&data.observations.length){
+      const obsSection=document.createElement('div');
+      obsSection.className='analysis-block';
+      obsSection.append(text('h4','시간대별 주요 관찰 장면'));
+      const list=document.createElement('div');
+      list.className='analysis-timeline-list';
+      for(const item of data.observations){
+        const row=document.createElement('div');
+        row.className='analysis-timeline-row';
+        const timeBtn=text('button',`${item.timestamp}초 ▶`);
+        timeBtn.type='button';
+        timeBtn.className='analysis-time-chip';
+        timeBtn.title='클릭하면 이 장면으로 영상 이동';
+        timeBtn.onclick=()=>{
+          if(!isImage){
+            $('preview').currentTime=Number(item.timestamp||0);
+            $('preview').play().catch(()=>{});
+          }
+        };
+        const descSpan=text('span',item.description||'');
+        descSpan.className='analysis-timeline-desc';
+        row.append(timeBtn,descSpan);
+        list.append(row);
+      }
+      obsSection.append(list);
+      $('analysis').append(obsSection);
+    }
+
+    const metaGrid=document.createElement('div');
+    metaGrid.className='analysis-detail-grid';
+    const audioBox=document.createElement('div');
+    audioBox.className='analysis-detail-item';
+    audioBox.append(text('h4','음성·내레이션 요약'),text('p',data.audio_summary||'음성 정보 없음'));
+    const uncertainBox=document.createElement('div');
+    uncertainBox.className='analysis-detail-item';
+    const uncList=Array.isArray(data.uncertainties)&&data.uncertainties.length?data.uncertainties.join(' · '):'특이사항 없음';
+    uncertainBox.append(text('h4','확인 필요 사항'),text('p',uncList));
+    metaGrid.append(audioBox,uncertainBox);
+    $('analysis').append(metaGrid);
+
+    if(Array.isArray(data.search_terms)&&data.search_terms.length){
+      const termBox=document.createElement('div');
+      termBox.className='analysis-block';
+      termBox.append(text('h4','추출된 상품 검색 키워드 (클릭 시 3 상품 검색에 입력)'));
+      const chips=document.createElement('div');
+      chips.className='analysis-term-chips';
+      for(const term of data.search_terms){
+        const chip=text('button',`🔍 ${term}`);
+        chip.type='button';
+        chip.className='analysis-term-chip';
+        chip.onclick=()=>{
+          if($('search-query'))$('search-query').value=term;
+          document.querySelector('[data-production-stage="product"]')?.click();
+          message(`상품 검색어 "${term}"을(를) 입력했습니다. [선택한 서비스에서 후보 검색]을 눌러 확인하세요.`);
+        };
+        chips.append(chip);
+      }
+      termBox.append(chips);
+      $('analysis').append(termBox);
+    }
+  }else{
+    const placeholder=document.createElement('div');
+    placeholder.className='analysis-placeholder';
+    placeholder.append(
+      text('strong','원본 미디어가 준비되었습니다'),
+      text('p','우측 상단의 [✦ 영상 분석 시작] 버튼을 누르면 AI가 추출 프레임과 음성을 분석하여 시간대별 장면 요약, 상품 키워드, 후킹 편집 구간을 자동으로 도출합니다.')
+    );
+    $('analysis').append(placeholder);
+  }
 }
 async function update(path,data){const targetId=job?.id;if(!targetId)return;const next=await api(`jobs/${targetId}/${path}`,data);if(job?.id!==targetId)return;job=next;render();await refreshJobs();}
 if($('url-fetch-form'))$('url-fetch-form').onsubmit=event=>{event.preventDefault();act('게시물에서 미디어를 가져오는 중…',async()=>{const url=$('fetch-url').value.trim();job=await api('acquire',{url});render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();},'영상·이미지를 불러왔습니다. 원본 분석을 시작할 수 있습니다.');};
@@ -139,7 +267,8 @@ $('product-form').onsubmit=event=>{event.preventDefault();act('상품 저장 중
 $('draft').onclick=()=>act('영상 관찰 근거로 대본을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials(),style:$('draft-style').value});});
 $('prepare').onclick=()=>act('게시 내용 준비 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요. 상품 변경 후에는 초안을 다시 작성합니다.');return update('prepare',{body:$('script').value,script:$('script').value,disclosure:$('disclosure').value,selected:job.draft.selected||0});});
 for(const target of ['body','comment']) $('copy-'+target).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(target).value);}, '복사했습니다. Threads에서 붙여 넣어 주세요.');
-$('new-job').onclick=()=>{job=null;render();$('upload-form').reset();refreshJobs().catch(e=>message(e.message,true));$('video-file').focus();};
+$('new-job').onclick=()=>{job=null;editJobId=null;render();$('upload-form').reset();if($('fetch-url')){$('fetch-url').value='';$('fetch-url').focus();}refreshJobs().catch(e=>message(e.message,true));};
+if($('btn-goto-reference'))$('btn-goto-reference').onclick=()=>document.querySelector('[data-production-stage="reference"]')?.click();
 // Editing prepared text requires saving it again before the copy actions can run.
 for(const id of ['script','body','disclosure','platform','product-name','product-url','affiliate-url','confirmed']) $(id).addEventListener('input',()=>{$('copy-body').disabled=true;$('copy-comment').disabled=true;});
 for(const id of ['script','body','disclosure','platform','product-name','product-url','affiliate-url','confirmed']) $(id).addEventListener('input',()=>{$('publish-api').disabled=true;$('extension-upload').disabled=true;});
@@ -272,8 +401,15 @@ async function refreshReferences(){
     thumbBox.append(img,fallback);
 
     const badge=document.createElement('span');badge.className='media-badge';
-    const vCount=(ref.videoUrls||[]).length, iCount=(ref.imageUrls||[]).length;
-    let badgeLabel=ref.mediaKind==='video'?'영상':ref.mediaKind==='image'?'이미지':'미디어';
+    const isVideoRef=ref.mediaKind==='video'||/(?:youtube\.com|youtu\.be)/i.test(ref.permalink||'');
+    const cleanVideoUrls=(ref.videoUrls||[]).filter(u=>u&&u!==ref.permalink&&!/(?:youtube\.com|youtu\.be)/i.test(u));
+    const cleanImageUrls=(ref.imageUrls||[]).filter(u=>{
+      if(!u)return false;
+      if(isVideoRef&&(u===ref.thumbnailUrl||u===ref.poster||/(?:ytimg\.com|ggpht\.com)/i.test(u)))return false;
+      return true;
+    });
+    const vCount=cleanVideoUrls.length, iCount=cleanImageUrls.length;
+    let badgeLabel=isVideoRef?'영상':ref.mediaKind==='image'?'이미지':'미디어';
     if(vCount>0&&iCount>0)badgeLabel=`영상 ${vCount} · 이미지 ${iCount}`;
     else if(vCount>0)badgeLabel=vCount>1?`영상 ${vCount}개`:'영상';
     else if(iCount>0)badgeLabel=iCount>1?`이미지 ${iCount}장`:'이미지';
@@ -303,8 +439,8 @@ async function refreshReferences(){
     }
 
     const allMedia=[
-      ...(ref.videoUrls||[]).map((u,idx)=>({url:u,kind:'video',label:`영상 #${idx+1}`})),
-      ...(ref.imageUrls||[]).map((u,idx)=>({url:u,kind:'image',label:`이미지 #${idx+1}`}))
+      ...cleanVideoUrls.map((u,idx)=>({url:u,kind:'video',label:`영상 #${idx+1}`})),
+      ...cleanImageUrls.map((u,idx)=>({url:u,kind:'image',label:`이미지 #${idx+1}`}))
     ];
     let chosenMedia=allMedia.find(m=>m.url===referenceMediaChoices.get(ref.permalink))||allMedia[0]||null;
     if(allMedia.length>1){
@@ -334,7 +470,7 @@ async function refreshReferences(){
       chooseBtn.disabled=true;
       try{
         await act('콘텐츠 원본을 획득하는 중…',async()=>{
-          const payload={url:ref.permalink,kind:ref.mediaKind||'auto'};
+          const payload={url:ref.permalink,kind:isVideoRef?'video':(ref.mediaKind||'auto')};
           if(chosenMedia){payload.media_url=chosenMedia.url;payload.kind=chosenMedia.kind;}
           try{job=await api('acquire',payload);}catch(err){statusText.textContent='획득 실패: '+err.message;referenceStates.set(ref.permalink,statusText.textContent);throw err;}
           statusText.textContent='준비 완료!';referenceStates.set(ref.permalink,statusText.textContent);
