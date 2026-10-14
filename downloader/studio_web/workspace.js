@@ -272,7 +272,7 @@
           message('이미 보관함에 저장되어 있는 영상입니다.');
         }else{
           saveBtn.textContent='✓ 보관함 담김';
-          message('보관함에 담았습니다! [0 수집한 레퍼런스]에서 원본을 준비할 수 있습니다.');
+          message('보관함에 담았습니다! [수집한 레퍼런스]에서 원본을 준비할 수 있습니다.');
         }
         if(typeof refreshReferences==='function')refreshReferences();
       }catch(err){

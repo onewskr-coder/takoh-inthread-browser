@@ -352,13 +352,15 @@ async function refreshReferences(){
     const postLink=text('a','원본 게시물 ↗');postLink.href=ref.permalink;postLink.target='_blank';postLink.rel='noopener noreferrer';
     postLink.onclick=e=>e.stopPropagation();
     linksRow.append(postLink);
-    const removeBtn=text('button','삭제');removeBtn.type='button';removeBtn.className='secondary';
+    const itemActions=document.createElement('div');itemActions.className='ref-card-item-actions';
+    const removeBtn=text('button','삭제');removeBtn.type='button';removeBtn.className='secondary btn-card-delete';
     removeBtn.onclick=e=>{e.stopPropagation();const collection=referenceCollection;if(!confirm('이 목록에서 레퍼런스를 삭제할까요? 준비한 원본과 작업은 유지됩니다.'))return;act('삭제 중…',async()=>{await api('references/delete',{collection,ids:[ref.reference_id]});checkedReferenceIds.delete(refKey);if(selectedReference?.permalink===ref.permalink)selectedReference=null;await refreshReferences();},'목록에서 삭제했습니다.');};
     if(referenceCollection==='collected'){
-      const saveBtn=text('button','보관함에 저장');saveBtn.type='button';saveBtn.className='secondary';
-      saveBtn.onclick=e=>{e.stopPropagation();act('보관함에 저장 중…',async()=>{const result=await api('references/save',{reference_id:ref.reference_id});message(result.already_saved?'이미 보관된 자료를 갱신했습니다.':'보관함에 저장했습니다.');},'보관함에 저장했습니다.');};linksRow.append(saveBtn);
+      const saveBtn=text('button','보관함 저장');saveBtn.type='button';saveBtn.className='secondary btn-card-save';
+      saveBtn.onclick=e=>{e.stopPropagation();act('보관함에 저장 중…',async()=>{const result=await api('references/save',{reference_id:ref.reference_id});message(result.already_saved?'이미 보관된 자료를 갱신했습니다.':'보관함에 저장했습니다.');},'보관함에 저장했습니다.');};itemActions.append(saveBtn);
     }
-    linksRow.append(removeBtn);
+    itemActions.append(removeBtn);
+    linksRow.append(itemActions);
     info.append(linksRow);
 
     card.onclick=()=>{
