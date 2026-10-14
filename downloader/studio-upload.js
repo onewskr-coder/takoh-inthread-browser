@@ -4,7 +4,7 @@ async function takohThreadsUpload(payload) {
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const rand=(min,max)=>Math.floor(min+Math.random()*(max-min+1));
   const humanPause=(min=420,max=980)=>sleep(isJsdom?2:rand(min,max));
-  async function wait(find,timeout=45000){const end=Date.now()+timeout;while(Date.now()<end){const result=find();if(result)return result;await sleep(isJsdom?20:380);}throw new Error('Threads 화면 요소를 확인하지 못했습니다. 로그인·화면 구조를 확인하세요.');}
+  async function wait(find,timeout=45000,label='요소'){const end=Date.now()+timeout;while(Date.now()<end){const result=find();if(result)return result;await sleep(isJsdom?20:380);}throw new Error(`Threads 화면 요소(${label})를 확인하지 못했습니다. 로그인·화면 구조를 확인하세요.`);}
   const visible=el=>el&&el.getClientRects().length>0;
   const buttons=root=>[...root.querySelectorAll('button,[role="button"]')].filter(visible);
   const findButton=(root,pattern)=>buttons(root).find(el=>pattern.test((el.getAttribute('aria-label')||el.textContent||'').trim()));
@@ -25,7 +25,13 @@ async function takohThreadsUpload(payload) {
     el.click();
   }
   async function humanFill(editor,value){
+    const parentDlg=editor.closest?.('[role="dialog"]');
     await humanClick(editor);
+    if(!isJsdom&&!editor.isConnected){
+      await sleep(220);
+      const active=document.activeElement?.matches?.('[role="textbox"],textarea')?document.activeElement:null;
+      editor=active||(parentDlg&&parentDlg.querySelector('[role="textbox"],textarea'))||[...document.querySelectorAll('[role="textbox"],textarea')].find(visible)||editor;
+    }
     editor.focus();
     const chars=Array.from(String(value||''));
     const tag=String(editor.tagName||'').toUpperCase();
@@ -45,63 +51,126 @@ async function takohThreadsUpload(payload) {
       }
       editor.dispatchEvent(new Event('change',{bubbles:true}));
     }else{
-      try{document.execCommand?.('selectAll',false);document.execCommand?.('delete',false);}catch{}
+      const normText=s=>String(s||'').replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ').trim();
+      const selectAllInEditor=()=>{
+        try{
+          editor.focus();
+          const sel=window.getSelection?.();
+          if(sel){
+            const range=document.createRange();
+            range.selectNodeContents(editor);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+          document.execCommand?.('selectAll',false);
+        }catch{}
+      };
+      selectAllInEditor();
+      try{document.execCommand?.('delete',false);}catch{}
       await humanPause(120,260);
-      for(const ch of chars){
-        try{editor.dispatchEvent(new KeyboardEvent('keydown',{key:ch,bubbles:true,cancelable:true}));}catch{}
-        try{editor.dispatchEvent(new InputEvent('beforeinput',{bubbles:true,cancelable:true,data:ch,inputType:ch==='\n'?'insertParagraph':'insertText'}));}catch{}
-        try{document.execCommand?.('insertText',false,ch);}catch{}
-        try{editor.dispatchEvent(new InputEvent('input',{bubbles:true,data:ch,inputType:ch==='\n'?'insertParagraph':'insertText'}));}catch{editor.dispatchEvent(new Event('input',{bubbles:true}));}
-        try{editor.dispatchEvent(new KeyboardEvent('keyup',{key:ch,bubbles:true}));}catch{}
+      for(let idx=0;idx<chars.length;idx++){
+        const ch=chars[idx];
+        if(idx===0&&normText(editor.value||editor.innerText||editor.textContent))selectAllInEditor();
+        try{editor.dispatchEvent(new KeyboardEvent('keydown',{key:ch==='\n'?'Enter':ch,bubbles:true,cancelable:true}));}catch{}
+        let inserted=false;
+        try{
+          if(document.execCommand){
+            inserted=ch==='\n'?(document.execCommand('insertLineBreak',false)||document.execCommand('insertParagraph',false)||document.execCommand('insertText',false,'\n')):document.execCommand('insertText',false,ch);
+          }
+        }catch{}
+        if(!inserted){
+          try{editor.dispatchEvent(new InputEvent('beforeinput',{bubbles:true,cancelable:true,data:ch==='\n'?null:ch,inputType:ch==='\n'?'insertParagraph':'insertText'}));}catch{}
+          try{editor.dispatchEvent(new InputEvent('input',{bubbles:true,data:ch==='\n'?null:ch,inputType:ch==='\n'?'insertParagraph':'insertText'}));}catch{editor.dispatchEvent(new Event('input',{bubbles:true}));}
+        }
+        try{editor.dispatchEvent(new KeyboardEvent('keyup',{key:ch==='\n'?'Enter':ch,bubbles:true}));}catch{}
         if(!isJsdom)await sleep(/[\s.,!?~\n]/.test(ch)?rand(90,210):rand(26,74));
       }
-      if(((editor.value||editor.innerText||editor.textContent)||'').trim()!==value.trim()){
-        try{document.execCommand?.('selectAll',false);document.execCommand?.('insertText',false,value);}catch{editor.textContent=value;}
+      const normNoSpace=s=>String(s||'').replace(/#\S+/g,'').replace(/[\u200B-\u200D\uFEFF\s]+/g,'');
+      if(!normNoSpace(editor.value||editor.innerText||editor.textContent).includes(normNoSpace(value))){
+        selectAllInEditor();
+        try{if(!document.execCommand?.('insertText',false,value))editor.textContent=value;}catch{editor.textContent=value;}
       }
     }
-    if(((editor.value||editor.innerText||editor.textContent)||'').trim()!==value.trim())throw new Error('본문 입력 결과를 확인하지 못했습니다.');
+    const normCheck=s=>String(s||'').replace(/#\S+/g,'').replace(/[\u200B-\u200D\uFEFF\s]+/g,'');
+    const actualFinal=normCheck(editor.value||editor.innerText||editor.textContent);
+    if(!actualFinal.includes(normCheck(value)))throw new Error('본문 입력 결과를 확인하지 못했습니다.');
     await humanPause(320,680);
+    return editor;
   }
   const oldLinks=new Set([...document.querySelectorAll('a[href*="/post/"]')].map(a=>a.href));
+  function status(text){let banner=document.getElementById('takoh-upload-status');if(!banner){banner=document.createElement('div');banner.id='takoh-upload-status';banner.style.cssText='position:fixed;bottom:20px;right:20px;padding:16px;background:#163d2a;color:white;z-index:2147483647;max-width:360px';document.body.append(banner);}banner.textContent=text;return banner;}
+  const normalize=value=>String(value||'').replace(/\s+/g,' ').trim();
+  const bodyMatchText=normalize(String(payload.body||'').replace(/#\S+/g,'').replace(/https?:\/\/\S+/g,'')).slice(0,24)||normalize(payload.body).slice(0,24);
+  const findPostLink=(ignoreOld=false)=>[...document.querySelectorAll('a[href*="/post/"]')].find(a=>(ignoreOld||!oldLinks.has(a.href))&&/^https:\/\/(?:www\.)?threads\.(?:com|net)\//.test(a.href)&&(normalize(a.closest('article,[role="article"], [data-pressable-container="true"]')?.innerText).includes(bodyMatchText)||/^(보기|View)$/i.test((a.textContent||'').trim())));
+  async function locatePost(){
+    let found=findPostLink();
+    if(found)return found;
+    if(!isJsdom){
+      await sleep(2200);
+      found=findPostLink();
+      if(found)return found;
+      const prof=[...document.querySelectorAll('nav a[href^="/@"], header a[href^="/@"], a[href^="/@"]')].find(a=>/프로필|profile/i.test((a.textContent||'')+(a.getAttribute('aria-label')||''))||/^\/@[A-Za-z0-9._]+$/.test(a.getAttribute('href')||''));
+      if(prof){try{await humanClick(prof);}catch{prof.click();}}
+    }
+    return wait(()=>findPostLink(true),60000,'게시물링크');
+  }
+  async function commentOnPost(link,automatic){
+    await humanPause(480,1050);
+    if(link && location.href!==link.href)await humanClick(link);
+    const findReplyDialog=()=>{
+      const dlgs=[...document.querySelectorAll('[role="dialog"]')].filter(d=>visible(d)&&d.querySelector('[role="textbox"],textarea')&&!/새로운 스레드|New thread/i.test(d.innerText||''));
+      return dlgs.length?{dialog:dlgs[dlgs.length-1],editor:dlgs[dlgs.length-1].querySelector('[role="textbox"],textarea')}:null;
+    };
+    if(!findReplyDialog()){
+      const reply=await wait(()=>buttons(document).find(el=>!el.closest('[role="dialog"]')&&/^(답글|답글 달기|Reply)(?:\s*\d+)?$/i.test((el.getAttribute('aria-label')||el.textContent||'').trim())),45000,'답글버튼');
+      await humanClick(reply);
+    }
+    let {dialog:replyDialog,editor:replyEditor}=await wait(()=>{
+      const d=findReplyDialog();
+      if(d)return d;
+      const dlg=[...document.querySelectorAll('[role="dialog"]')].find(el=>visible(el)&&el.querySelector('[role="textbox"],textarea'));
+      if(dlg&&isJsdom)return {dialog:dlg,editor:dlg.querySelector('[role="textbox"],textarea')};
+      return null;
+    },45000,'답글입력창');
+    await humanPause(320,680);
+    replyEditor=(await humanFill(replyEditor,payload.comment))||replyEditor;
+    replyDialog=replyEditor.closest?.('[role="dialog"]')||replyDialog;
+    if(!automatic){status('휴먼터치로 첫 댓글을 입력했습니다. 내용을 확인한 뒤 답글 게시 버튼을 눌러 주세요.');return;}
+    const scope=replyDialog||replyEditor.parentElement?.parentElement?.parentElement?.parentElement||document;
+    const publish=await wait(()=>{
+      const candidates=buttons(scope).filter(el=>/^(게시|답글|Post|Reply)$/i.test((el.getAttribute('aria-label')||el.textContent||'').trim())&&!el.disabled&&el.getAttribute('aria-disabled')!=='true');
+      if(candidates.length)return candidates[candidates.length-1];
+      const docCandidates=buttons(document).filter(el=>/^(게시|답글|Post|Reply)$/i.test((el.getAttribute('aria-label')||el.textContent||'').trim())&&!el.disabled&&el.getAttribute('aria-disabled')!=='true');
+      return docCandidates.length?docCandidates[docCandidates.length-1]:null;
+    },45000,'답글게시버튼');
+    await humanPause(450,950);
+    await humanClick(publish);
+    const commentSnippet=normalize(String(payload.comment||'').replace(/#\S+/g,'').replace(/https?:\/\/\S+/g,'')).slice(0,24)||normalize(payload.comment).slice(0,24);
+    if(replyDialog)await wait(()=>!document.body.contains(replyDialog)||!visible(replyDialog)||!normalize(replyDialog.innerText).includes(commentSnippet),45000,'답글모달닫힘');
+    const hasReply=()=>[...document.querySelectorAll('article,[role="article"],[data-pressable-container="true"],main')].some(el=>visible(el)&&!el.closest('[role="dialog"]')&&normalize(el.innerText).includes(commentSnippet));
+    if(!hasReply()&&link&&location.href!==link.href){try{await humanClick(link);}catch{}}
+    await wait(hasReply,45000,'답글노출');
+  }
   if(!document.querySelector('[role="dialog"] [role="textbox"], [role="dialog"] textarea')){
-    const create=await wait(()=>findButton(document,/^(새 스레드|새로운 스레드|만들기|작성|Create|New thread)$/i));
+    const create=await wait(()=>findButton(document,/^(새 스레드|새로운 스레드|만들기|작성|Create|New thread)$/i),45000,'작성버튼');
     await humanClick(create);
   }
-  const dialog=await wait(()=>[...document.querySelectorAll('[role="dialog"]')].find(d=>d.querySelector('[role="textbox"],textarea')));
+  const dialog=await wait(()=>[...document.querySelectorAll('[role="dialog"]')].find(d=>visible(d)&&d.querySelector('[role="textbox"],textarea')),45000,'작성모달');
   await humanPause(350,750);
   const editor=dialog.querySelector('[role="textbox"],textarea');
   await humanFill(editor,payload.body);
-  const input=await wait(()=>dialog.querySelector('input[type="file"]'));
+  const input=await wait(()=>dialog.querySelector('input[type="file"]'),45000,'파일입력');
   await humanPause(280,620);
   const binary=atob(payload.video);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   const transfer=new DataTransfer();transfer.items.add(new File([bytes],payload.name,{type:'video/mp4'}));input.files=transfer.files;
   input.dispatchEvent(new Event('input',{bubbles:true}));
   input.dispatchEvent(new Event('change',{bubbles:true}));
-  function status(text){let banner=document.getElementById('takoh-upload-status');if(!banner){banner=document.createElement('div');banner.id='takoh-upload-status';banner.style.cssText='position:fixed;bottom:20px;right:20px;padding:16px;background:#163d2a;color:white;z-index:2147483647;max-width:360px';document.body.append(banner);}banner.textContent=text;return banner;}
-  const normalize=value=>String(value||'').replace(/\s+/g,' ').trim();
-  async function locatePost(){return wait(()=>[...document.querySelectorAll('a[href*="/post/"]')].find(a=>!oldLinks.has(a.href)&&/^https:\/\/(?:www\.)?threads\.(?:com|net)\//.test(a.href)&&normalize(a.closest('article,[role="article"], [data-pressable-container="true"]')?.innerText).includes(normalize(payload.body))),60000);}
-  async function commentOnPost(link,automatic){
-    await humanPause(480,1050);
-    await humanClick(link);
-    const reply=await wait(()=>findButton(document,/^(답글|답글 달기|Reply)$/i));
-    await humanClick(reply);
-    const replyDialog=await wait(()=>[...document.querySelectorAll('[role="dialog"]')].find(d=>d.querySelector('[role="textbox"],textarea')));
-    await humanPause(320,680);
-    await humanFill(replyDialog.querySelector('[role="textbox"],textarea'),payload.comment);
-    if(!automatic){status('휴먼터치로 첫 댓글을 입력했습니다. 내용을 확인한 뒤 답글 게시 버튼을 눌러 주세요.');return;}
-    const publish=await wait(()=>findButton(replyDialog,/^(게시|답글|Post|Reply)$/i));
-    if(publish.getAttribute('aria-disabled')==='true'||publish.disabled)throw new Error('첫 댓글 게시 버튼이 아직 비활성입니다.');
-    await humanPause(450,950);
-    await humanClick(publish);
-    await wait(()=>!document.body.contains(replyDialog));
-    await wait(()=>[...document.querySelectorAll('article,[role="article"],[data-pressable-container="true"]')].some(el=>visible(el)&&normalize(el.innerText).includes(normalize(payload.comment))));
-  }
   if(!payload.automatic){const banner=status('휴먼터치로 영상·본문을 입력했습니다. 확인 후 게시하세요. 게시 완료 후 아래 버튼으로 첫 댓글을 입력합니다.');const next=document.createElement('button');next.textContent='본문 게시 완료 · 첫 댓글 입력';next.onclick=async()=>{next.disabled=true;try{await commentOnPost(await locatePost(),false);}catch(error){status(error.message);}};banner.append(document.createElement('br'),next);return {state:'awaiting_confirmation'};}
-  await wait(()=>dialog.querySelector('video')&&dialog.querySelector('video').readyState>=2,90000);
+  await wait(()=>dialog.querySelector('video')&&dialog.querySelector('video').readyState>=2,90000,'영상미리보기');
   await humanPause(650,1400);
-  const publish=await wait(()=>{const b=findButton(dialog,/^(게시|Post)$/i);return b&&!b.disabled&&b.getAttribute('aria-disabled')!=='true'?b:null;});
+  const publish=await wait(()=>{const b=findButton(dialog,/^(게시|Post)$/i);return b&&!b.disabled&&b.getAttribute('aria-disabled')!=='true'?b:null;},45000,'본문게시버튼');
   await humanClick(publish);
-  await wait(()=>!document.body.contains(dialog));
+  await wait(()=>!document.body.contains(dialog)||!visible(dialog)||!normalize(dialog.innerText).includes(bodyMatchText),45000,'본문모달닫힘');
   const link=await locatePost();const permalink=link.href;
   try{await commentOnPost(link,true);}catch(error){return {state:'partial_success',permalink,error:error.message};}
   status('휴먼터치로 본문과 첫 댓글 게시를 화면에서 확인했습니다.');return {state:'posted',permalink};

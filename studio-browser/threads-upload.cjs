@@ -110,6 +110,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
       const script=`(${fnSource})(${JSON.stringify(payload)})`;
       const result=await view.webContents.executeJavaScript(script,true);
       await setState(id,result||{state:'uncertain',error:'화면 실행 결과가 없습니다. Threads에서 직접 확인하세요.'});
+      if(result?.state==='queued')schedule(id,Date.now()+1500);
     }catch(error){
       await setState(id,{state:'uncertain',error:error.message});
     }finally{
@@ -125,6 +126,14 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
           item.error='브라우저가 작업 중 종료되었습니다. Threads에서 게시 여부를 확인하세요.';
         }else if(item.state==='queued'){
           schedule(item.id,Math.max(Date.now()+1000,item.when));
+        }
+      }
+    });
+    fs.watchFile(filePath,{interval:1000},()=>{
+      const queue=readQueue();
+      for(const item of queue){
+        if(item.state==='queued'&&!timers.has(item.id)){
+          schedule(item.id,Math.max(Date.now()+600,item.when));
         }
       }
     });
@@ -172,6 +181,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
   }
 
   function dispose(){
+    fs.unwatchFile(filePath);
     for(const timer of timers.values())clearTimeout(timer);
     timers.clear();
   }
