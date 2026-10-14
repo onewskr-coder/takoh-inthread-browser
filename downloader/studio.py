@@ -3320,7 +3320,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                                    data.get('secret_key') or os.environ.get('COUPANG_SECRET_KEY') or credential('coupang_secret'))
             job['product'].update(affiliate_url=link, affiliate_method='coupang_api', attribution='api_issued',
                                   account_fingerprint=hashlib.sha256(access.encode()).hexdigest()[:16], issued_at=time.time())
-            job.update(draft=None, comment='', status='product_ready' if job['analysis'] else 'media_ready')
+            job.update(comment='', status='draft_ready' if job.get('draft') else ('product_ready' if job['analysis'] else 'media_ready'))
             save(job)
             return jsonify(job)
 
@@ -3971,7 +3971,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 product.update({k: previous[k] for k in ('affiliate_method', 'attribution', 'account_fingerprint', 'issued_at')})
             if affiliation and product['attribution'] not in ('user_confirmed', 'api_issued'):
                 raise StudioError('본인 제휴 계정에서 발급한 링크인지 확인해 주세요.')
-            job.update(product=product, draft=None, comment='', status='product_ready' if job['analysis'] else 'media_ready')
+            job.update(product=product, comment='', status='draft_ready' if job.get('draft') else ('product_ready' if job['analysis'] else 'media_ready'))
             save(job)
             return jsonify(job)
 
