@@ -1,11 +1,11 @@
 import tempfile
 import unittest
 from unittest.mock import patch,Mock
-from studio_gemini_discovery import grounded_search,extract_video_ids,GeminiDiscoveryError,parse_antigravity_events
+from studio_gemini_discovery import grounded_search,extract_video_ids,GeminiDiscoveryError,parse_antigravity_events,resolve_grounding_redirects,antigravity_transcript_sources
 
 class GeminiDiscoveryTests(unittest.TestCase):
     def test_urls_are_validated_deduplicated_and_not_channel_links(self):
-        self.assertEqual(extract_video_ids('https://youtube.com/shorts/abcdefghijk https://youtu.be/abcdefghijk https://youtube.com/@channel https://youtube.com/watch?v=bad'),['abcdefghijk'])
+        self.assertEqual(extract_video_ids('https://youtube.com/shorts/abcdefghijk https://m.youtube.com/shorts/abcdefghijk https://youtu.be/abcdefghijk https://youtube.com/@channel https://youtube.com/watch?v=bad'),['abcdefghijk'])
     def test_antigravity_nested_search_steps_are_deduplicated(self):
         events=[{'event':'step_update','step_update':{'step_index':2,'state':'ACTIVE','tool_name':'search_web'}},{'event':'step_update','step_update':{'step_index':2,'state':'DONE','tool_name':'search_web'}},{'event':'result','result':{'status':'ERROR','response':'No usable video URLs','error':'interrupted'}}]
         text,sources,count,final=parse_antigravity_events(events)
@@ -85,6 +85,33 @@ class GeminiDiscoveryTests(unittest.TestCase):
             with self.assertRaises(GeminiDiscoveryError) as ctx:
                 grounded_search('antigravity_search','','gemini-3.8-flash-low','prompt',root)
             self.assertIn('CLI 응답이 완료되지 않았습니다',str(ctx.exception))
+
+    @patch('studio_gemini_discovery.requests.head')
+    def test_antigravity_transcript_sources_and_redirect_resolution(self,mock_head):
+        import json
+        from pathlib import Path
+        mock_head.return_value=Mock(status_code=302,headers={'Location':'https://m.youtube.com/shorts/zT6hH9JACPY'})
+        with tempfile.TemporaryDirectory() as brain:
+            conv_id='0fdbe528-2ad5-4bd0-a602-1e858f03e3dc'
+            logs=Path(brain)/conv_id/'.system_generated'/'logs'
+            logs.mkdir(parents=True,exist_ok=True)
+            redir='https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ_test_token'
+            (logs/'transcript_full.jsonl').write_text(
+                json.dumps({'step_index':2,'type':'GENERIC','content':f'Sources:\n[1] [youtube.com]({redir})'})+'\n',
+                encoding='utf-8'
+            )
+            events=[
+                {'event':'init','conversation_id':conv_id},
+                {'event':'step_update','step_update':{'conversation_id':conv_id,'step_index':2,'state':'DONE','tool_name':'search_web'}},
+                {'event':'result','result':{'conversation_id':conv_id,'status':'SUCCESS','response':'리다이렉트 주소만 제공됨'}}
+            ]
+            text,sources,count,final=parse_antigravity_events(events,brain_root=brain,resolve_redirects=True)
+            self.assertEqual(count,1)
+            self.assertEqual(len(sources),1)
+            self.assertEqual(sources[0]['url'],'https://m.youtube.com/shorts/zT6hH9JACPY')
+            self.assertEqual(sources[0]['redirect_url'],redir)
+            ids=extract_video_ids(text+'\n'+'\n'.join(s['url'] for s in sources))
+            self.assertEqual(ids,['zT6hH9JACPY'])
 
 if __name__=='__main__':unittest.main()
 

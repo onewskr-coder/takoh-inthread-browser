@@ -141,3 +141,43 @@
   - 감사 폴더 `%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`에 44개 stream-json 이벤트 전체가 그대로 보존됨.
   - 승인 조건에 따라 자동 재시도(0회), SerpAPI 호출(0회, 누적 27회 유지), 다른 공급자(Gemini API 등) 자동 전환 없이 즉시 중단함.
 
+## 검색 출처 리다이렉트 링크(`grounding-api-redirect`) 실제 영상 주소 확보 검증 (2026-10-14)
+- **검증 방법 (반복 검색 0회)**:
+  - 직전 보존된 Antigravity 검색 감사 파일(`%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`, `conversation_id: 0fdbe528-2ad5-4bd0-a602-1e858f03e3dc`)과 해당 CLI 세션의 로컬 트랜스크립트(`~/.gemini/antigravity-cli/brain/0fdbe528-2ad5-4bd0-a602-1e858f03e3dc/.system_generated/logs/transcript_full.jsonl`)를 대조 분석함.
+  - CLI `search_web` 도구의 `GENERIC` 응답 본문에 기록된 `https://vertexaisearch.cloud.google.com/grounding-api-redirect/...` 링크 **28개**에 대해 `HEAD` 요청(`allow_redirects=False`)으로 `Location` 헤더를 확인한 결과, **28개 중 27개가 실제 개별 YouTube 영상 URL(Shorts 16개, Watch 11개, 채널 1개)로 즉시 변환됨**을 확인함.
+- **코드 보완 (`downloader/studio_gemini_discovery.py`, `downloader/test_gemini_discovery.py`)**:
+  1. `antigravity_transcript_sources(conversation_id, brain_root=None)`: `stream-json` 이벤트에 출처 URL이 비어 있을 때 해당 `conversation_id`의 로컬 트랜스크립트(`GENERIC` 스텝)에서 `search_web` 출처 링크를 추출.
+  2. `resolve_grounding_redirects(sources, timeout=4)`: `vertexaisearch.cloud.google.com/grounding-api-redirect/` URL을 `HEAD`(필요 시 `GET`, `allow_redirects=False`)로 조회하여 `Location` 헤더의 실제 영상 URL로 변환하고 원본 리다이렉트 주소는 `redirect_url` 필드에 보존 (`antigravity_search` 및 `gemini_search` 양쪽 모두 적용).
+  3. `extract_video_ids(text)`: `m.youtube.com/shorts/<11자리ID>` 모바일 도메인도 11자리 영상 ID로 추출하도록 정규식(`(?:(?:www|m)\.)?`) 보완.
+- **단위 테스트 및 보존 데이터 오프라인 검증 결과**:
+  - `python -m unittest test_gemini_discovery.py -v`: 리다이렉트 변환·트랜스크립트 출처 추출·모바일 쇼츠 URL 추출을 포함해 **9개 테스트 전부 통과 (`Ran 9 tests in 0.042s — OK`)**.
+  - 보존된 `eee8ef48fc97478494dccbe30888994e/latest-response.json`을 보완된 `parse_antigravity_events`에 통과시킨 결과, 추가 검색 없이 `search_count=6`, `sources=29개`, **고유 11자리 영상 ID 27개**(`YtgbN-TrWvY`, `f9s40SNqqm4`, `YGq4AMnW_mk`, `mi1tsWYp490`, `MdA0WXjq-2Y`, `53l5VGZLHyg`, `UNbHbL1jK-s`, `36PrR06QCd8`, `ilULIPlEGyo`, `kuxJCEICKxo`, `W4OP8WxahzE`, `BKkPurocO7Y`, `8iTO9aIwL2E`, `sPJffYnI1NA`, `KGZrk70O_nY`, `zT6hH9JACPY`, `fcAA1EMxWJY`, `FSsfVAThs_M`, `y4SEXzkUyqk`, `GmAqt0H_cnI`, `AUnRMPhQc88`, `i0sKoVxqxlM`, `DiyaYANmDKM`, `Lbv0Zcn1gkg`, `tovtCIliMmE`, `g6Gd0iBTP-Y`, `CnXSLtaVJxc`)가 정상 확보됨을 확인함.
+  - **구분**: 보존된 응답 기반 리다이렉트 → 실제 영상 URL(27개) 확보까지는 검증 완료했으며, 확보된 27개 ID를 실제 도우미의 YouTube 상세 조회(`videos.list` 1회·1유닛) → 누적 DB 저장 → 화면 카드 표시까지 연결하는 실행은 별도 승인 전이므로 수행하지 않음.
+
+## Threads 직접 휴먼터치 업로드 로직 구현 및 검증 (2026-10-14)
+- **목적 및 방향**:
+  - 공식 Meta Threads Graph API에 의존하지 않고, 로그인된 Threads 웹 화면(`https://www.threads.com/`)에서 실제 사람이 게시물과 첫 댓글(제휴 링크/고지문)을 작성·업로드하는 것과 동일한 **휴먼터치 직접 업로드 흐름**으로 통합 구현함.
+- **구현 내용**:
+  1. **휴먼터치 DOM 입력·클릭 엔진 (`downloader/studio-upload.js`)**:
+     - `humanPause(min, max)`: 단계 간 자연스러운 사고/대기 지연 적용 (JSDOM 테스트 환경에서는 자동 고속 동작).
+     - `humanClick(el)`: 부드러운 스크롤(`scrollIntoView`) 후 요소 영역 내부 랜덤 좌표 산출 및 `pointerover` → `mouseover` → `pointermove` → `mousemove` → `pointerdown` → `mousedown` → `focus` → `pointerup` → `mouseup` → `click` 실제 마우스/포인터 이벤트 시퀀스 발생.
+     - `humanFill(editor, value)`: 글자/청크 단위 `keydown` → `beforeinput` → `insertText` → `input` → `keyup` 타이핑 및 문장부호·줄바꿈·공백 구간 가변 딜레이 적용.
+     - 본문 게시 확인 후 획득한 게시물 permalink로 첫 댓글(제휴 링크 등)까지 동일한 휴먼터치 흐름으로 자동 작성·게시.
+     - 전용 브라우저(`127.0.0.1:5006`)와 단독 도우미(`127.0.0.1:5005`) 양쪽 포트 모두 지원하도록 `packetUrl` 허용 범위 확장.
+  2. **전용 Electron 브라우저 직접 업로드 매니저 및 브리지 (`studio-browser/threads-upload.cjs`, `studio-browser/site-preload.cjs`, `studio-browser/main.cjs`)**:
+     - Chrome 확장 프로그램 없이도 전용 Electron 브라우저(`studio-browser`) 자체에서 즉시 게시·예약 게시·취소·상태 조회가 동작하도록 `createThreadsUploadManager` 구현.
+     - `upload-queue.json` 영구 큐 저장, 30MB 용량 제한 확인, 예약 시각 스케줄러, 중단/재시작 시 `running` → `uncertain` 전환으로 중복 게시 방지.
+     - 업로드 진행 중(`uploadManager.isBusy()`)일 때 앱 종료(`attemptGracefulQuit`) 및 개발 감시 재시작(`devWatcher`)을 보류하여 업로드 도중 브라우저가 닫히지 않도록 보호.
+  3. **제작 스튜디오 UI 정리 (`downloader/studio_web/index.html`, `downloader/studio_web/studio.js`)**:
+     - 공식 API 게시 설정 블록을 숨김(`hidden`) 처리하고, 게시 섹션을 **Threads에서 게시 (휴먼터치 직접 업로드)** 중심으로 안내 문구 및 버튼(`Threads에서 지금 업로드`, `이 시각에 업로드`) 정리.
+     - `studio.js`의 비동기 `update()` 실행 중 새 작업(`#new-job`) 전환 시 레이스 컨디션 방어 로직 추가.
+- **검증 결과**:
+  - `node downloader/test_studio_upload.js`: PASS
+  - `node downloader/test_studio_upload_dom.js`: PASS (휴먼터치 본문 게시 + 첫 댓글 게시 + 실패 시 원문 보존 검증)
+  - `node downloader/test_studio_local_bridge.js`: PASS
+  - `node downloader/test_studio_ui.js`: PASS
+  - `node downloader/test_studio_workspace.js`: PASS
+  - `node studio-browser/test_threads_upload.cjs`: PASS (전용 브라우저 큐 등록·예약 취소·즉시 실행·중단 시 `uncertain` 복구 검증)
+  - `node studio-browser/test_isolated_scenarios.cjs` & `node studio-browser/test_shutdown.cjs`: PASS
+
+

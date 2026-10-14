@@ -19,12 +19,62 @@ def official_cli():
     return [binary] if binary else None
 
 def extract_video_ids(text):
-    return list(dict.fromkeys(re.findall(r'https?://(?:www\.)?(?:youtube\.com/(?:shorts/|watch\?v=|embed/)|youtu\.be/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])',text)))[:50]
+    return list(dict.fromkeys(re.findall(r'https?://(?:(?:www|m)\.)?(?:youtube\.com/(?:shorts/|watch\?v=|embed/)|youtu\.be/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])',text)))[:50]
 
-def parse_antigravity_events(events):
-    searches=set();sources=[];seen_source_urls=set();accumulated_deltas=[];final={}
+def antigravity_transcript_sources(conversation_id,brain_root=None):
+    if not conversation_id or not re.fullmatch(r'[A-Za-z0-9_-]{8,80}',str(conversation_id)):return []
+    root=Path(brain_root) if brain_root else Path.home()/'.gemini'/'antigravity-cli'/'brain'
+    logs=root/str(conversation_id)/'.system_generated'/'logs'
+    sources=[];seen=set()
+    for name in ('transcript_full.jsonl','transcript.jsonl'):
+        path=logs/name
+        if not path.is_file():continue
+        for line in path.read_text(encoding='utf-8',errors='replace').splitlines():
+            try:obj=json.loads(line)
+            except ValueError:continue
+            if obj.get('type')!='GENERIC':continue
+            content=obj.get('content','') or ''
+            for title,url in re.findall(r'\[([^\]]+)\]\((https?://[^\)\s"<>]+)\)',content):
+                if url not in seen:
+                    seen.add(url)
+                    sources.append({'url':url,'title':title or 'Antigravity 웹 검색 출처'})
+            for url in re.findall(r'https?://[^\)\s"<>]+',content):
+                if url not in seen:
+                    seen.add(url)
+                    sources.append({'url':url,'title':'Antigravity 웹 검색 출처'})
+        if sources:break
+    return sources
+
+def resolve_grounding_redirects(sources,timeout=4):
+    resolved=[];seen=set()
+    for source in sources:
+        if not isinstance(source,dict) or not source.get('url'):continue
+        url=source['url'];target=url
+        if 'vertexaisearch.cloud.google.com/grounding-api-redirect/' in url:
+            try:
+                resp=requests.head(url,allow_redirects=False,timeout=timeout,headers={'User-Agent':'Mozilla/5.0'})
+                loc=resp.headers.get('Location') or resp.headers.get('location')
+                if not loc and resp.status_code in (403,405):
+                    resp=requests.get(url,allow_redirects=False,timeout=timeout,stream=True,headers={'User-Agent':'Mozilla/5.0'})
+                    loc=resp.headers.get('Location') or resp.headers.get('location')
+                    resp.close()
+                if loc and loc.startswith(('http://','https://')):target=loc
+            except requests.RequestException:pass
+        if target not in seen:
+            seen.add(target)
+            item=dict(source);item['url']=target
+            if target!=url:item['redirect_url']=url
+            resolved.append(item)
+    return resolved
+
+def parse_antigravity_events(events,brain_root=None,resolve_redirects=True):
+    searches=set();sources=[];seen_source_urls=set();accumulated_deltas=[];final={};conversation_id=''
     for event in events:
+        if event.get('conversation_id') and not conversation_id:
+            conversation_id=event['conversation_id']
         update=event.get('step_update',{})
+        if update.get('conversation_id') and not conversation_id:
+            conversation_id=update['conversation_id']
         tool=update.get('tool_name') or update.get('tool_info',{}).get('name')
         if tool in ('google_web_search','search_web','web_search'):
             searches.add(update.get('step_index'))
@@ -37,10 +87,19 @@ def parse_antigravity_events(events):
             accumulated_deltas.append(update['text_delta'])
         if event.get('event')=='result' and isinstance(event.get('result'),dict):
             final=event['result']
+            if final.get('conversation_id') and not conversation_id:
+                conversation_id=final['conversation_id']
             for source in final.get('sources',[]) or []:
                 if isinstance(source,dict) and source.get('url') and source['url'] not in seen_source_urls:
                     seen_source_urls.add(source['url'])
                     sources.append(source)
+    if searches and not sources and conversation_id:
+        for source in antigravity_transcript_sources(conversation_id,brain_root=brain_root):
+            if source['url'] not in seen_source_urls:
+                seen_source_urls.add(source['url'])
+                sources.append(source)
+    if resolve_redirects and sources:
+        sources=resolve_grounding_redirects(sources)
     text=final.get('response','') or ''.join(accumulated_deltas)
     return text,sources,len(searches),final
 
@@ -70,6 +129,7 @@ def grounded_search(provider,key,model,prompt,audit_dir):
             if block.get('type')=='text':
                 text+='\n'+block.get('text','')
                 sources.extend({'url':a.get('url',''),'title':a.get('title','')} for a in block.get('annotations',[]) if a.get('type')=='url_citation')
+        if sources:sources=resolve_grounding_redirects(sources)
         usage=data.get('usage',{})
     else:
         command=official_cli()
