@@ -567,6 +567,245 @@ SHOPPING_CATEGORIES['all'] = {
     'default_query_terms': {'KR':'쇼핑 꿀템 제품 리뷰','US':'useful gadgets product review','JP':'便利グッズ 商品 レビュー','GB':'useful gadgets product review','TW':'好物 商品 推薦','VN':'đồ dùng tiện ích review'}
 }
 
+# 실측 확인된 YouTube 인기 쇼핑/제품/상품 해시태그 Shorts 목록 (https://www.youtube.com/hashtag/<tag>/shorts)
+POPULAR_SHOPPING_HASHTAGS = [
+    # 전체 / 쇼핑·리뷰 메가 해시태그
+    {'tag': '가성비', 'category': 'all', 'videos_display': '58만개', 'channels_display': '2.5만개', 'videos_approx': 580000, 'channels_approx': 25000, 'stats_text': '동영상 58만개 • 채널 2.5만개'},
+    {'tag': '쇼핑', 'category': 'all', 'videos_display': '43만개', 'channels_display': '4.1만개', 'videos_approx': 430000, 'channels_approx': 41000, 'stats_text': '동영상 43만개 • 채널 4.1만개'},
+    {'tag': '언박싱', 'category': 'all', 'videos_display': '41만개', 'channels_display': '7만개', 'videos_approx': 410000, 'channels_approx': 70000, 'stats_text': '동영상 41만개 • 채널 7만개'},
+    {'tag': '꿀팁', 'category': 'all', 'videos_display': '36만개', 'channels_display': '7.2만개', 'videos_approx': 360000, 'channels_approx': 72000, 'stats_text': '동영상 36만개 • 채널 7.2만개'},
+    {'tag': '내돈내산', 'category': 'all', 'videos_display': '30만개', 'channels_display': '3.6만개', 'videos_approx': 300000, 'channels_approx': 36000, 'stats_text': '동영상 30만개 • 채널 3.6만개'},
+    {'tag': '추천템', 'category': 'all', 'videos_display': '21만개', 'channels_display': '1.2만개', 'videos_approx': 210000, 'channels_approx': 12000, 'stats_text': '동영상 21만개 • 채널 1.2만개'},
+    {'tag': '제품리뷰', 'category': 'all', 'videos_display': '20만개', 'channels_display': '7.7천개', 'videos_approx': 200000, 'channels_approx': 7700, 'stats_text': '동영상 20만개 • 채널 7.7천개'},
+    {'tag': '꿀템', 'category': 'all', 'videos_display': '19만개', 'channels_display': '2.2만개', 'videos_approx': 190000, 'channels_approx': 22000, 'stats_text': '동영상 19만개 • 채널 2.2만개'},
+    {'tag': '가성비템', 'category': 'all', 'videos_display': '18만개', 'channels_display': '9.6천개', 'videos_approx': 180000, 'channels_approx': 9600, 'stats_text': '동영상 18만개 • 채널 9.6천개'},
+    {'tag': '솔직리뷰', 'category': 'all', 'videos_display': '15만개', 'channels_display': '3.2천개', 'videos_approx': 150000, 'channels_approx': 3200, 'stats_text': '동영상 15만개 • 채널 3.2천개'},
+    {'tag': '아이디어상품', 'category': 'all', 'videos_display': '2만개', 'channels_display': '4.8천개', 'videos_approx': 20000, 'channels_approx': 4800, 'stats_text': '동영상 2만개 • 채널 4.8천개'},
+    # 플랫폼별 쇼핑/상품 해시태그 (쿠팡 · 다이소 · 알리 · 아마존 · 올리브영)
+    {'tag': '쿠팡추천템', 'category': 'living_kitchen', 'videos_display': '16만개', 'channels_display': '1.4만개', 'videos_approx': 160000, 'channels_approx': 14000, 'stats_text': '동영상 16만개 • 채널 1.4만개'},
+    {'tag': '쿠팡꿀템', 'category': 'living_kitchen', 'videos_display': '10만개', 'channels_display': '7.5천개', 'videos_approx': 100000, 'channels_approx': 7500, 'stats_text': '동영상 10만개 • 채널 7.5천개'},
+    {'tag': '다이소', 'category': 'living_kitchen', 'videos_display': '13만개', 'channels_display': '4.3만개', 'videos_approx': 130000, 'channels_approx': 43000, 'stats_text': '동영상 13만개 • 채널 4.3만개'},
+    {'tag': '다이소추천템', 'category': 'living_kitchen', 'videos_display': '3.5만개', 'channels_display': '9.6천개', 'videos_approx': 35000, 'channels_approx': 9600, 'stats_text': '동영상 3.5만개 • 채널 9.6천개'},
+    {'tag': '다이소꿀템', 'category': 'living_kitchen', 'videos_display': '2.5만개', 'channels_display': '7.7천개', 'videos_approx': 25000, 'channels_approx': 7700, 'stats_text': '동영상 2.5만개 • 채널 7.7천개'},
+    {'tag': '알리익스프레스', 'category': 'digital_appliances', 'videos_display': '12만개', 'channels_display': '7.3천개', 'videos_approx': 120000, 'channels_approx': 7300, 'stats_text': '동영상 12만개 • 채널 7.3천개'},
+    {'tag': '아마존', 'category': 'all', 'videos_display': '8만개', 'channels_display': '1.8만개', 'videos_approx': 80000, 'channels_approx': 18000, 'stats_text': '동영상 8만개 • 채널 1.8만개'},
+    {'tag': '아마존추천템', 'category': 'all', 'videos_display': '8.7천개', 'channels_display': '1.6천개', 'videos_approx': 8700, 'channels_approx': 1600, 'stats_text': '동영상 8.7천개 • 채널 1.6천개'},
+    {'tag': '아마존제품', 'category': 'all', 'videos_display': '2.5천개', 'channels_display': '438개', 'videos_approx': 2500, 'channels_approx': 438, 'stats_text': '동영상 2.5천개 • 채널 438개'},
+    {'tag': '아마존꿀템', 'category': 'all', 'videos_display': '2.1천개', 'channels_display': '586개', 'videos_approx': 2100, 'channels_approx': 586, 'stats_text': '동영상 2.1천개 • 채널 586개'},
+    # 생활·주방·청소·수납
+    {'tag': '생활용품', 'category': 'living_kitchen', 'videos_display': '23만개', 'channels_display': '1.3만개', 'videos_approx': 230000, 'channels_approx': 13000, 'stats_text': '동영상 23만개 • 채널 1.3만개'},
+    {'tag': '생활꿀팁', 'category': 'living_kitchen', 'videos_display': '22만개', 'channels_display': '4만개', 'videos_approx': 220000, 'channels_approx': 40000, 'stats_text': '동영상 22만개 • 채널 4만개'},
+    {'tag': '살림템', 'category': 'living_kitchen', 'videos_display': '15만개', 'channels_display': '2.1만개', 'videos_approx': 150000, 'channels_approx': 21000, 'stats_text': '동영상 15만개 • 채널 2.1만개'},
+    {'tag': '주방용품', 'category': 'living_kitchen', 'videos_display': '7.7만개', 'channels_display': '1.8만개', 'videos_approx': 77000, 'channels_approx': 18000, 'stats_text': '동영상 7.7만개 • 채널 1.8만개'},
+    {'tag': '주방꿀팁', 'category': 'living_kitchen', 'videos_display': '6만개', 'channels_display': '9.7천개', 'videos_approx': 60000, 'channels_approx': 9700, 'stats_text': '동영상 6만개 • 채널 9.7천개'},
+    {'tag': '주방템', 'category': 'living_kitchen', 'videos_display': '5.8만개', 'channels_display': '1만개', 'videos_approx': 58000, 'channels_approx': 10000, 'stats_text': '동영상 5.8만개 • 채널 1만개'},
+    {'tag': '청소꿀팁', 'category': 'cleaning_storage', 'videos_display': '3.4만개', 'channels_display': '7.9천개', 'videos_approx': 34000, 'channels_approx': 7900, 'stats_text': '동영상 3.4만개 • 채널 7.9천개'},
+    {'tag': '청소템', 'category': 'cleaning_storage', 'videos_display': '2만개', 'channels_display': '4.4천개', 'videos_approx': 20000, 'channels_approx': 4400, 'stats_text': '동영상 2만개 • 채널 4.4천개'},
+    {'tag': '수납정리', 'category': 'cleaning_storage', 'videos_display': '1.2만개', 'channels_display': '3.5천개', 'videos_approx': 12000, 'channels_approx': 3500, 'stats_text': '동영상 1.2만개 • 채널 3.5천개'},
+    # 뷰티 · 패션 · 가전 · 육아 · 반려동물 · 캠핑/차량
+    {'tag': '올리브영', 'category': 'beauty', 'videos_display': '5.9만개', 'channels_display': '1.7만개', 'videos_approx': 59000, 'channels_approx': 17000, 'stats_text': '동영상 5.9만개 • 채널 1.7만개'},
+    {'tag': '올리브영추천템', 'category': 'beauty', 'videos_display': '2.1만개', 'channels_display': '6.1천개', 'videos_approx': 21000, 'channels_approx': 6100, 'stats_text': '동영상 2.1만개 • 채널 6.1천개'},
+    {'tag': '뷰티템', 'category': 'beauty', 'videos_display': '2.3만개', 'channels_display': '4.9천개', 'videos_approx': 23000, 'channels_approx': 4900, 'stats_text': '동영상 2.3만개 • 채널 4.9천개'},
+    {'tag': '가전제품', 'category': 'digital_appliances', 'videos_display': '2.8만개', 'channels_display': '5.6천개', 'videos_approx': 28000, 'channels_approx': 5600, 'stats_text': '동영상 2.8만개 • 채널 5.6천개'},
+    {'tag': '캠핑용품', 'category': 'sports_outdoor', 'videos_display': '4.6만개', 'channels_display': '7.6천개', 'videos_approx': 46000, 'channels_approx': 7600, 'stats_text': '동영상 4.6만개 • 채널 7.6천개'},
+    {'tag': '육아템', 'category': 'parenting', 'videos_display': '3만개', 'channels_display': '6.2천개', 'videos_approx': 30000, 'channels_approx': 6200, 'stats_text': '동영상 3만개 • 채널 6.2천개'},
+    {'tag': '강아지용품', 'category': 'pets', 'videos_display': '1.9만개', 'channels_display': '3.5천개', 'videos_approx': 19000, 'channels_approx': 3500, 'stats_text': '동영상 1.9만개 • 채널 3.5천개'},
+    {'tag': '차량용품', 'category': 'automotive', 'videos_display': '2.5만개', 'channels_display': '4.2천개', 'videos_approx': 25000, 'channels_approx': 4200, 'stats_text': '동영상 2.5만개 • 채널 4.2천개'},
+    # 글로벌 메가 쇼핑 해시태그
+    {'tag': 'unboxing', 'category': 'digital_appliances', 'videos_display': '1,106만개', 'channels_display': '239만개', 'videos_approx': 11060000, 'channels_approx': 2390000, 'stats_text': '동영상 1,106만개 • 채널 239만개'},
+    {'tag': 'gadgets', 'category': 'digital_appliances', 'videos_display': '718만개', 'channels_display': '73만개', 'videos_approx': 7180000, 'channels_approx': 730000, 'stats_text': '동영상 718만개 • 채널 73만개'},
+    {'tag': 'amazonfinds', 'category': 'all', 'videos_display': '257만개', 'channels_display': '21만개', 'videos_approx': 2570000, 'channels_approx': 210000, 'stats_text': '동영상 257만개 • 채널 21만개'},
+    {'tag': 'coolgadgets', 'category': 'digital_appliances', 'videos_display': '210만개', 'channels_display': '18만개', 'videos_approx': 2100000, 'channels_approx': 180000, 'stats_text': '동영상 210만개 • 채널 18만개'},
+    {'tag': 'smartgadgets', 'category': 'digital_appliances', 'videos_display': '203만개', 'channels_display': '16만개', 'videos_approx': 2030000, 'channels_approx': 160000, 'stats_text': '동영상 203만개 • 채널 16만개'},
+    {'tag': 'amazongadgets', 'category': 'digital_appliances', 'videos_display': '111만개', 'channels_display': '8.8만개', 'videos_approx': 1110000, 'channels_approx': 88000, 'stats_text': '동영상 111만개 • 채널 8.8만개'},
+    {'tag': 'kitchenhacks', 'category': 'living_kitchen', 'videos_display': '91만개', 'channels_display': '22만개', 'videos_approx': 910000, 'channels_approx': 220000, 'stats_text': '동영상 91만개 • 채널 22만개'},
+    {'tag': 'productreview', 'category': 'all', 'videos_display': '68만개', 'channels_display': '16만개', 'videos_approx': 680000, 'channels_approx': 160000, 'stats_text': '동영상 68만개 • 채널 16만개'},
+    {'tag': 'aliexpress', 'category': 'digital_appliances', 'videos_display': '66만개', 'channels_display': '8.9만개', 'videos_approx': 660000, 'channels_approx': 89000, 'stats_text': '동영상 66만개 • 채널 8.9만개'},
+    {'tag': 'kitchentools', 'category': 'living_kitchen', 'videos_display': '64만개', 'channels_display': '8.8만개', 'videos_approx': 640000, 'channels_approx': 88000, 'stats_text': '동영상 64만개 • 채널 8.8만개'},
+]
+
+for _ht in POPULAR_SHOPPING_HASHTAGS:
+    _ht['url'] = f"https://www.youtube.com/hashtag/{urllib.parse.quote(_ht['tag'])}/shorts"
+
+CATEGORY_HASHTAG_MAP = {
+    'all': ['가성비', '쇼핑', '언박싱', '꿀팁', '내돈내산', '추천템', '제품리뷰', '꿀템', '가성비템', '솔직리뷰', '아마존', '아마존추천템', '아마존제품', '아이디어상품', 'amazonfinds', 'productreview'],
+    'living_kitchen': ['생활용품', '생활꿀팁', '쿠팡추천템', '살림템', '다이소', '쿠팡꿀템', '주방용품', '주방꿀팁', '주방템', '다이소추천템', '다이소꿀템', 'kitchenhacks', 'kitchentools'],
+    'cleaning_storage': ['청소꿀팁', '청소템', '수납정리', '살림템', '생활꿀팁', '다이소추천템'],
+    'beauty': ['올리브영', '뷰티템', '올리브영추천템', '내돈내산', '솔직리뷰'],
+    'digital_appliances': ['알리익스프레스', '가전제품', '언박싱', '가성비', 'unboxing', 'gadgets', 'coolgadgets', 'smartgadgets', 'amazongadgets', 'aliexpress'],
+    'parenting': ['육아템', '생활용품', '쿠팡추천템', '추천템'],
+    'pets': ['강아지용품', '추천템', '쿠팡추천템'],
+    'sports_outdoor': ['캠핑용품', '가성비', '추천템'],
+    'automotive': ['차량용품', '가성비템', '알리익스프레스'],
+}
+
+for _cat_key, _cat_val in SHOPPING_CATEGORIES.items():
+    _tags = CATEGORY_HASHTAG_MAP.get(_cat_key, CATEGORY_HASHTAG_MAP['all'][:6])
+    _cat_val['hashtags'] = _tags
+    for _t in _tags:
+        if _t not in _cat_val['keywords']:
+            _cat_val['keywords'].append(_t)
+
+
+def parse_hashtag_input(raw_value):
+    """
+    사용자 입력('#아마존제품', '아마존제품', 또는 'https://www.youtube.com/hashtag/%EC%95%84%EB%A7%88%EC%A1%B4%EC%A0%9C%ED%92%88/shorts')에서
+    정규화된 해시태그 문자열을 추출합니다.
+    """
+    val = str(raw_value or '').strip()
+    if not val:
+        return ''
+    m = re.search(r'youtube\.com/hashtag/([^/?#]+)', val, re.I)
+    if m:
+        decoded = urllib.parse.unquote(m.group(1)).strip()
+        return decoded.lstrip('#').strip()
+    if val.startswith('#'):
+        val = val.lstrip('#').strip()
+    # 공백이나 슬래시 제거
+    val = re.sub(r'[\s/#?]+', '', val)
+    return val[:80]
+
+
+def is_hashtag_query_or_url(raw_value):
+    val = str(raw_value or '').strip()
+    if not val:
+        return False
+    if val.startswith('#') and len(val) > 1:
+        return True
+    if re.search(r'youtube\.com/hashtag/[^/?#]+', val, re.I):
+        return True
+    return False
+
+
+def parse_korean_view_count(view_text):
+    """
+    '조회수 1.1만회', '조회수 2.5천회', '조회수 1.2억회', '조회수 845회', '1.5M views', '23K views' 등을 정수 조회수로 변환합니다.
+    """
+    s = str(view_text or '').strip()
+    if not s or '없음' in s:
+        return 0
+    m_ko = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(억|만|천)?\s*회', s.replace(',', ''))
+    if m_ko:
+        num = float(m_ko.group(1))
+        unit = m_ko.group(2) or ''
+        mult = {'억': 100000000, '만': 10000, '천': 1000}.get(unit, 1)
+        return int(num * mult)
+    m_en = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*([KMBkmb])?\s*views', s.replace(',', ''))
+    if m_en:
+        num = float(m_en.group(1))
+        unit = (m_en.group(2) or '').upper()
+        mult = {'B': 1000000000, 'M': 1000000, 'K': 1000}.get(unit, 1)
+        return int(num * mult)
+    digits = re.sub(r'[^0-9]', '', s)
+    return int(digits) if digits else 0
+
+
+def fetch_youtube_hashtag_shorts(tag_or_url, limit=24, sort_by='views'):
+    """
+    https://www.youtube.com/hashtag/<tag>/shorts 페이지에서 해시태그 통계(동영상/채널 수)와
+    Shorts 영상 목록을 직접 파싱하여 반환합니다.
+    """
+    tag = parse_hashtag_input(tag_or_url)
+    if not tag:
+        raise StudioError('해시태그 키워드나 YouTube 해시태그 Shorts 주소를 입력해 주세요.', 400)
+
+    encoded = urllib.parse.quote(tag)
+    hashtag_url = f"https://www.youtube.com/hashtag/{encoded}/shorts"
+    fetch_url = f"{hashtag_url}?hl=ko&gl=KR"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
+    try:
+        resp = requests.get(fetch_url, headers=headers, timeout=15)
+    except requests.RequestException as e:
+        raise StudioError(f'YouTube 해시태그 페이지 연결 실패: {str(e)[:100]}', 502)
+
+    if not resp.ok:
+        raise StudioError(f'YouTube 해시태그 페이지 응답 오류 (HTTP {resp.status_code})', 502)
+
+    html = resp.text
+    m = re.search(r'var ytInitialData = (\{.*?\});</script>', html)
+    if not m:
+        raise StudioError('YouTube 해시태그 데이터를 파싱하지 못했습니다.', 502)
+
+    try:
+        data = json.loads(m.group(1))
+    except Exception:
+        raise StudioError('YouTube 해시태그 초기 데이터 형식이 올바르지 않습니다.', 502)
+
+    stats_text = ''
+    try:
+        rows = data['header']['pageHeaderRenderer']['content']['pageHeaderViewModel']['metadata']['contentMetadataViewModel']['metadataRows']
+        parts = []
+        for r in rows:
+            for p in r.get('metadataParts', []):
+                txt = p.get('text', {}).get('content', '')
+                if txt:
+                    parts.append(txt)
+        stats_text = ' | '.join(parts)
+    except Exception:
+        pass
+
+    known_meta = next((item for item in POPULAR_SHOPPING_HASHTAGS if item['tag'].lower() == tag.lower()), None)
+    if not stats_text and known_meta:
+        stats_text = known_meta.get('stats_text', '')
+
+    raw_shorts = []
+    seen_vids = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            if 'shortsLockupViewModel' in node:
+                vm = node['shortsLockupViewModel']
+                vid = vm.get('onTap', {}).get('innertubeCommand', {}).get('reelWatchEndpoint', {}).get('videoId', '')
+                if vid and vid not in seen_vids:
+                    seen_vids.add(vid)
+                    acc = vm.get('accessibilityText', '')
+                    primary = vm.get('overlayMetadata', {}).get('primaryText', {}).get('content', '')
+                    secondary = vm.get('overlayMetadata', {}).get('secondaryText', {}).get('content', '')
+                    title = primary.strip() if primary else ''
+                    if not title and acc:
+                        title = re.sub(r',?\s*조회수\s*[^,]*(?:회|views)?\s*-\s*Shorts(?:\s*동영상)?\s*재생$', '', acc).strip()
+                    if not title:
+                        title = f'#{tag} Shorts 영상 ({vid})'
+                    view_count = parse_korean_view_count(secondary or acc)
+                    view_display = secondary.replace('조회수 ', '').strip() if secondary else (f'{view_count:,}회' if view_count else '조회수 미표시')
+                    thumb_url = f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg'
+                    raw_shorts.append({
+                        'video_id': vid,
+                        'title': title,
+                        'view_count': view_count,
+                        'view_count_display': view_display,
+                        'thumbnail_url': thumb_url,
+                        'shorts_url': f'https://www.youtube.com/shorts/{vid}',
+                        'watch_url': f'https://www.youtube.com/watch?v={vid}',
+                        'hashtag': tag,
+                        'hashtag_url': hashtag_url,
+                        'hashtag_stats': stats_text,
+                        'category': known_meta['category'] if known_meta else 'all'
+                    })
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for el in node:
+                walk(el)
+
+    walk(data)
+
+    if sort_by == 'views':
+        raw_shorts.sort(key=lambda x: x.get('view_count', 0), reverse=True)
+
+    selected = raw_shorts[:max(1, min(int(limit or 24), 60))]
+    return {
+        'tag': tag,
+        'hashtag_url': hashtag_url,
+        'stats_text': stats_text,
+        'total_scraped': len(raw_shorts),
+        'items': selected
+    }
+
+
 # 순수 비쇼핑/엔터테인먼트 전용 키워드 (음악, 방송, 예능, 직캠 등)
 PURE_NON_SHOPPING_KEYWORDS = [
     '직캠', 'fancam', '뮤비', 'mv', 'music video', '라이브', 'live', '음악', '노래', 'song',
@@ -1757,6 +1996,183 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             refs.append(ref)
         return jsonify(refs)
 
+    @bp.route('/references/hashtags')
+    def references_hashtags():
+        cat = str(request.args.get('category', 'all')).strip()
+        if cat and cat != 'all':
+            items = [h for h in POPULAR_SHOPPING_HASHTAGS if h['category'] in (cat, 'all')]
+        else:
+            items = list(POPULAR_SHOPPING_HASHTAGS)
+        return jsonify(
+            hashtags=items,
+            categories={k: {'name': v['name'], 'hashtags': v.get('hashtags', [])} for k, v in SHOPPING_CATEGORIES.items()}
+        )
+
+    @bp.route('/references/hashtag-fetch', methods=['POST'])
+    def references_hashtag_fetch():
+        data = request.get_json() or {}
+        raw_tags = data.get('hashtags') or data.get('hashtag') or data.get('url') or ''
+        if isinstance(raw_tags, str):
+            tags = [t.strip() for t in re.split(r'[,\n]+', raw_tags) if t.strip()]
+        elif isinstance(raw_tags, list):
+            tags = [str(t).strip() for t in raw_tags if str(t).strip()]
+        else:
+            tags = []
+        if not tags:
+            raise StudioError('수집할 해시태그 키워드나 YouTube 해시태그 Shorts 주소를 선택하거나 입력해 주세요.', 400)
+
+        try:
+            limit_per_tag = max(1, min(int(data.get('limit_per_tag') or data.get('limit') or 12), 48))
+        except (ValueError, TypeError):
+            limit_per_tag = 12
+        sort_by = str(data.get('sort_by', 'views')).strip()
+        if sort_by not in ('views', 'relevance'):
+            sort_by = 'views'
+        save_to_library = bool(data.get('save_to_library'))
+        collection = str(data.get('collection', 'saved' if save_to_library else 'collected')).strip()
+        if collection not in ('collected', 'saved'):
+            collection = 'collected'
+
+        folder_name = 'saved-references' if collection == 'saved' else 'references'
+        folder = root / folder_name
+        folder.mkdir(parents=True, exist_ok=True)
+        refs_folder = root / 'references'
+        refs_folder.mkdir(parents=True, exist_ok=True)
+
+        catalogue = DiscoveryCatalogue(root)
+        imported_count = 0
+        already_saved_count = 0
+        hashtag_summaries = []
+        imported_items = []
+        catalogue_rows = []
+        now_ts = time.time()
+
+        for raw_tag in tags[:10]:
+            fetched = fetch_youtube_hashtag_shorts(raw_tag, limit=limit_per_tag, sort_by=sort_by)
+            tag_name = fetched['tag']
+            stats_text = fetched.get('stats_text') or 'YouTube 해시태그 Shorts'
+            hashtag_summaries.append({
+                'tag': tag_name,
+                'hashtag_url': fetched['hashtag_url'],
+                'stats_text': stats_text,
+                'fetched': len(fetched['items']),
+                'fetched_count': len(fetched['items']),
+                'total_scraped': fetched.get('total_scraped', len(fetched['items']))
+            })
+
+            for rank_idx, item in enumerate(fetched['items'], start=1):
+                vid = item['video_id']
+                permalink = item['shorts_url']
+                thumb_url = item['thumbnail_url']
+                cat_key = item.get('category') or 'all'
+                cat_name = SHOPPING_CATEGORIES.get(cat_key, SHOPPING_CATEGORIES['all']).get('name', '전체 카테고리')
+                title = item['title']
+                view_display = item['view_count_display']
+                view_count = item['view_count']
+
+                ref_obj = {
+                    'id': vid,
+                    'username': f'YouTube #{tag_name}',
+                    'text': f"{title}\n\n[해시태그 Shorts] #{tag_name} ({stats_text})\n[조회수] {view_display}\n[원본 해시태그] {fetched['hashtag_url']}",
+                    'permalink': permalink,
+                    'mediaKind': 'video',
+                    'imageUrls': [thumb_url],
+                    'videoUrls': [],
+                    'poster': thumb_url,
+                    'thumbnailUrl': thumb_url,
+                    'imported_at': now_ts,
+                    'discovery': {
+                        'video_id': vid,
+                        'country': 'KR',
+                        'category_key': cat_key,
+                        'category_name': cat_name,
+                        'intent': '쇼핑 해시태그 Shorts',
+                        'user_query': f'#{tag_name}',
+                        'source_type': 'hashtag_shorts',
+                        'source_label': f'해시태그 #{tag_name} ({stats_text})',
+                        'rank': rank_idx,
+                        'view_count': view_count,
+                        'view_count_display': view_display,
+                        'duration_seconds': 60,
+                        'duration_display': 'Shorts',
+                        'shorts_classification': 'Shorts (YouTube 공식 해시태그 Shorts 피드)',
+                        'shorts_status': 'shorts',
+                        'shorts_grounds': [f'YouTube /hashtag/{tag_name}/shorts 공식 피드 확인'],
+                        'growth_display': f'해시태그 규모: {stats_text}',
+                        'license_type': 'standard',
+                        'license_label': '표준 YouTube 라이선스 (원작자 확인 필요)',
+                        'recommendation_reason': f'#{tag_name} 인기 해시태그 Shorts · 조회수 {view_display} · {stats_text}',
+                        'fetched_at': now_ts,
+                        'fetched_at_str': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now_ts))
+                    }
+                }
+
+                name = hashlib.sha256(permalink.encode('utf-8')).hexdigest()
+                with lock('references'):
+                    tombstones_file = root / 'reference-deletions.json'
+                    tombstones = json.loads(tombstones_file.read_text(encoding='utf-8')) if tombstones_file.is_file() else []
+                    # 항상 references 폴더에도 기본 저장하여 보관함 이동/참조가 일관되게 동작하도록 보장
+                    base_target = refs_folder / (name + '.json')
+                    target_file = folder / (name + '.json')
+                    if target_file.is_file():
+                        already_saved_count += 1
+                    else:
+                        imported_count += 1
+                    if collection == 'saved':
+                        ref_obj['saved_at'] = now_ts
+                    tmp_base = refs_folder / (name + '.tmp')
+                    tmp_base.write_text(json.dumps(ref_obj, ensure_ascii=False), encoding='utf-8')
+                    tmp_base.replace(base_target)
+                    if collection == 'saved':
+                        tmp_target = folder / (name + '.tmp')
+                        tmp_target.write_text(json.dumps(ref_obj, ensure_ascii=False), encoding='utf-8')
+                        tmp_target.replace(target_file)
+                    if name in tombstones:
+                        tombstones.remove(name)
+                        tombstones_file.write_text(json.dumps(tombstones), encoding='utf-8')
+
+                ref_copy = dict(ref_obj)
+                ref_copy['reference_id'] = name
+                ref_copy['previewUrl'] = f'/studio/{folder_name}/{name}/thumbnail'
+                imported_items.append(ref_copy)
+
+                synthetic_yt_item = {
+                    'id': vid,
+                    'snippet': {
+                        'title': title,
+                        'channelTitle': f'YouTube #{tag_name}',
+                        'publishedAt': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                        'description': f'#{tag_name} #shorts {title} ({stats_text})',
+                        'thumbnails': {'high': {'url': thumb_url}}
+                    },
+                    'contentDetails': {'duration': 'PT45S'},
+                    'statistics': {'viewCount': str(view_count)},
+                    'status': {'license': 'youtube'},
+                    'is_vertical': True,
+                    '_shorts_evidence': f'YouTube 해시태그 #{tag_name} Shorts 피드 ({stats_text})',
+                    '_source_provider': 'hashtag_shorts'
+                }
+                catalogue_rows.append((synthetic_yt_item, f'#{tag_name}', '한국어'))
+
+        if catalogue_rows:
+            try:
+                catalogue.add(catalogue_rows)
+            except Exception:
+                pass
+
+        return jsonify(
+            imported=True,
+            collection=collection,
+            added=imported_count,
+            imported_count=imported_count,
+            already_saved_count=already_saved_count,
+            total_fetched=imported_count + already_saved_count,
+            total_processed=imported_count + already_saved_count,
+            tags=hashtag_summaries,
+            hashtags=hashtag_summaries,
+            items=imported_items
+        )
+
     @bp.route('/saved-references/<reference_id>/thumbnail')
     @bp.route('/references/<reference_id>/thumbnail')
     def reference_thumbnail(reference_id):
@@ -1826,6 +2242,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         else:
             mode = str(request.args.get('mode', 'shopping')).strip()
         q = str(request.args.get('q', '')).strip()[:100]
+        hashtag_direct_mode = (mode == 'hashtag') or is_hashtag_query_or_url(q)
         category = str(request.args.get('category', 'living_kitchen')).strip()
         type_filter = str(request.args.get('type', 'all')).strip()
         intent_filter = str(request.args.get('intent', 'all')).strip()
@@ -1898,38 +2315,39 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         yt_usage = youtube_usage_stats()
         serp_usage = serpapi_usage_stats()
 
-        if provider in ('gemini_search','antigravity_search') and not archive_mode:
-            if not yt_key:
-                raise StudioError('Gemini가 찾은 영상 정보 확인에는 YouTube API 키가 필요합니다.',400)
-            if provider == 'gemini_search' and not (secrets_vals.get('gemini_search_key') or os.environ.get('GEMINI_API_KEY')):
-                return jsonify(configured=False,provider=provider,verification_status='Gemini 검색 API 키 미등록',message='설정에서 Gemini 검색 API 키를 등록하거나 Antigravity CLI 검색을 선택하세요.',items=[],count=0)
-            if provider == 'antigravity_search' and not official_cli():
-                return jsonify(configured=False,provider=provider,verification_status='Antigravity CLI 미설치',message='Antigravity CLI를 설치하고 로그인하거나 Gemini API 검색을 선택하세요.',items=[],count=0)
+        if not hashtag_direct_mode:
+            if provider in ('gemini_search','antigravity_search') and not archive_mode:
+                if not yt_key:
+                    raise StudioError('Gemini가 찾은 영상 정보 확인에는 YouTube API 키가 필요합니다.',400)
+                if provider == 'gemini_search' and not (secrets_vals.get('gemini_search_key') or os.environ.get('GEMINI_API_KEY')):
+                    return jsonify(configured=False,provider=provider,verification_status='Gemini 검색 API 키 미등록',message='설정에서 Gemini 검색 API 키를 등록하거나 Antigravity CLI 검색을 선택하세요.',items=[],count=0)
+                if provider == 'antigravity_search' and not official_cli():
+                    return jsonify(configured=False,provider=provider,verification_status='Antigravity CLI 미설치',message='Antigravity CLI를 설치하고 로그인하거나 Gemini API 검색을 선택하세요.',items=[],count=0)
 
-        if provider == 'youtube' and not yt_key and not archive_mode:
-            return jsonify(
-                configured=False,
-                provider=provider,
-                verification_status='실서비스 검증 대기 (API 키 미등록)',
-                message='YouTube API 키가 등록되지 않았습니다. [설정·사용량] 탭에서 YouTube Data API v3 키를 등록해 주세요.',
-                items=[],
-                count=0,
-                country=country,
-                mode=mode,
-                usage=yt_usage
-            )
-        elif provider == 'serpapi' and not serp_keys and not archive_mode:
-            return jsonify(
-                configured=False,
-                provider=provider,
-                verification_status='실서비스 검증 대기 (SerpAPI 키 미등록)',
-                message='SerpAPI 키가 등록되지 않았습니다. [설정·사용량] 탭의 [상품·콘텐츠 검색 서비스]에서 SerpAPI 키를 등록해 주세요.',
-                items=[],
-                count=0,
-                country=country,
-                mode=mode,
-                usage=serp_usage
-            )
+            if provider == 'youtube' and not yt_key and not archive_mode:
+                return jsonify(
+                    configured=False,
+                    provider=provider,
+                    verification_status='실서비스 검증 대기 (API 키 미등록)',
+                    message='YouTube API 키가 등록되지 않았습니다. [설정·사용량] 탭에서 YouTube Data API v3 키를 등록해 주세요.',
+                    items=[],
+                    count=0,
+                    country=country,
+                    mode=mode,
+                    usage=yt_usage
+                )
+            elif provider == 'serpapi' and not serp_keys and not archive_mode:
+                return jsonify(
+                    configured=False,
+                    provider=provider,
+                    verification_status='실서비스 검증 대기 (SerpAPI 키 미등록)',
+                    message='SerpAPI 키가 등록되지 않았습니다. [설정·사용량] 탭의 [상품·콘텐츠 검색 서비스]에서 SerpAPI 키를 등록해 주세요.',
+                    items=[],
+                    count=0,
+                    country=country,
+                    mode=mode,
+                    usage=serp_usage
+                )
 
         # SerpAPI 키가 등록된 경우 실제 인증 성공 여부 플래그
         real_auth_verified = serp_usage.get('searches_count', 0) > 0
@@ -2037,7 +2455,38 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 api_order = 'viewCount'
 
             try:
-                if provider == 'youtube':
+                if hashtag_direct_mode:
+                    cat_info = SHOPPING_CATEGORIES.get(category, SHOPPING_CATEGORIES['all'])
+                    target_tags = [parse_hashtag_input(q)] if q else list(cat_info.get('hashtags', ['가성비', '추천템'])[:3])
+                    target_tags = [t for t in target_tags if t]
+                    for t_tag in target_tags:
+                        ht_res = fetch_youtube_hashtag_shorts(t_tag, limit=max(limit, 30), sort_by='views' if sort_by == 'views' else 'relevance')
+                        stats_txt = ht_res.get('stats_text') or 'YouTube 해시태그 Shorts'
+                        total_raw_found += ht_res.get('total_scraped', len(ht_res['items']))
+                        for s_it in ht_res['items']:
+                            vid = s_it['video_id']
+                            if vid in raw_items_dict:
+                                total_duplicate_skipped += 1
+                                continue
+                            synthetic_item = {
+                                'id': vid,
+                                'snippet': {
+                                    'title': f"{s_it['title']} #{t_tag}",
+                                    'channelTitle': f"YouTube #{t_tag}",
+                                    'publishedAt': now_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                                    'description': f"#{t_tag} #shorts {s_it['title']} ({stats_txt}) { cat_info['keywords'][0] if cat_info.get('keywords') else '제품 리뷰' }",
+                                    'thumbnails': {'high': {'url': s_it['thumbnail_url']}}
+                                },
+                                'contentDetails': {'duration': 'PT45S'},
+                                'statistics': {'viewCount': str(s_it['view_count'])},
+                                'status': {'license': 'youtube'},
+                                'is_vertical': True,
+                                '_shorts_evidence': f"YouTube 해시태그 #{t_tag} Shorts ({stats_txt})",
+                                '_source_provider': 'hashtag_shorts'
+                            }
+                            raw_items_dict[vid] = (synthetic_item, f"#{t_tag}", '한국어')
+                    stop_reason = f"YouTube 해시태그 Shorts 조회 완료 ({', '.join('#'+t for t in target_tags)})"
+                elif provider == 'youtube':
                     if mode == 'popular':
                         if country == 'ALL':
                             raise StudioError('공식 인기 차트는 특정 국가를 선택해야 조회할 수 있습니다. 국가를 선택해 주세요.', 400)

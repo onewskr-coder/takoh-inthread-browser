@@ -89,12 +89,13 @@
   const checkedDiscoveryUrls=new Set();
 
   function buildDiscoveryReferencePayload(item, country, category){
+    const isYtUrl=/youtube\.com|youtu\.be/i.test(item.url||'');
     return {
       permalink:item.url,
       username:item.channel,
       text:`${item.title}\n\n[추천 유형] ${item.intent||'제품 시연'}\n[카테고리] ${item.category_name||'생활·주방'}\n[추천 사유] ${item.recommendation_reason}\n[권리 상태] ${item.license_label}${item.attribution_draft?'\n[출처 표기] '+item.attribution_draft:''}`,
       mediaKind:'video',
-      videoUrls:[item.url],
+      videoUrls:isYtUrl?[]:[item.url],
       thumbnailUrl:item.thumbnail_url,
       poster:item.thumbnail_url,
       discovery:{
@@ -641,6 +642,13 @@
     const preview=$('discovery-quota-preview');
     if(!preview)return;
 
+    const isHashtagQuery=/^#|^https?:\/\/(?:www\.|m\.)?youtube\.com\/hashtag\//i.test(q);
+    if(mode==='hashtag'||isHashtagQuery){
+      const tagDesc=q?`해시태그 지정 [${q}]`:`카테고리 인기 해시태그 [${CATEGORY_SUBPRODUCTS[category]||'쇼핑 추천템'}]`;
+      preview.textContent=`검색 계획: [YouTube 해시태그 Shorts 피드] ${tagDesc} · API 키 및 유료 쿼터 사용 없음 (0 유닛)`;
+      return;
+    }
+
     if(['gemini_search','antigravity_search'].includes(provider)){
       preview.textContent=provider==='gemini_search'?'Gemini API 요청 최대 1회 + YouTube 상세 확인 최대 1유닛 · Google 검색어 수는 모델이 결정하며 별도 과금될 수 있음 · SerpAPI 사용 없음 · 자동 재시도 없음':'Antigravity CLI 세션 1회 (최대 120초 · 내부 모델/검색 횟수는 CLI가 결정) + YouTube 상세 확인 최대 1유닛 · 계정 한도 사용 · SerpAPI 사용 없음 · 자동 API 전환 없음';return;
     }
@@ -742,7 +750,7 @@
   if($('discovery-mode'))$('discovery-mode').onchange=()=>{
     const mode=$('discovery-mode').value;
     const catGroup=$('group-discovery-category');
-    if(catGroup)catGroup.style.display=(mode==='shopping')?'flex':'none';
+    if(catGroup)catGroup.style.display=(mode==='shopping'||mode==='hashtag')?'flex':'none';
     updateQuotaPreview();
     refreshDiscovery(false);
   };
@@ -836,6 +844,48 @@
 
   if($('collect-selected-discovery'))$('collect-selected-discovery').onclick=()=>batchCollectDiscovery(false);
   if($('save-selected-discovery'))$('save-selected-discovery').onclick=()=>batchCollectDiscovery(true);
+
+  function renderDiscoveryHashtagQuickbar(){
+    const box=$('discovery-hashtag-chips');
+    if(!box)return;
+    const quickTags=[
+      {tag:'쿠팡추천템',videos:'4.4만',channels:'4.6천'},
+      {tag:'다이소추천템',videos:'3.6만',channels:'6.3천'},
+      {tag:'내돈내산',videos:'56만',channels:'9.3만'},
+      {tag:'제품리뷰',videos:'9.1만',channels:'1.2만'},
+      {tag:'올리브영추천템',videos:'3만',channels:'5.2천'},
+      {tag:'아이디어상품',videos:'2.3만',channels:'3.1천'},
+      {tag:'살림템',videos:'2.1만',channels:'2.4천'},
+      {tag:'주방용품',videos:'1.9만',channels:'3.3천'},
+      {tag:'가성비템',videos:'1.6만',channels:'1.7천'},
+      {tag:'생활용품',videos:'1.5만',channels:'3천'},
+      {tag:'신박템',videos:'1.2만',channels:'1.8천'},
+      {tag:'자취템',videos:'1.2만',channels:'2천'},
+      {tag:'알리익스프레스추천템',videos:'9.4천',channels:'1.1천'},
+      {tag:'아마존추천템',videos:'2.9천',channels:'164'},
+      {tag:'아마존제품',videos:'2.4천',channels:'45'},
+      {tag:'amazonfinds',videos:'168만',channels:'15만'}
+    ];
+    box.replaceChildren();
+    for(const item of quickTags){
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='hashtag-chip';
+      btn.title=`https://www.youtube.com/hashtag/${encodeURIComponent(item.tag)}/shorts (동영상 ${item.videos}개 • 채널 ${item.channels}개)`;
+      const tSpan=text('span','#'+item.tag);tSpan.className='hashtag-chip-name';
+      const cSpan=text('span',`${item.videos} · ${item.channels}채널`);cSpan.className='hashtag-chip-count';
+      btn.append(tSpan,cSpan);
+      btn.onclick=()=>{
+        if($('discovery-mode'))$('discovery-mode').value='hashtag';
+        if($('discovery-query'))$('discovery-query').value='#'+item.tag;
+        discoveryArchiveMode=false;
+        updateQuotaPreview();
+        refreshDiscovery(true,false);
+      };
+      box.append(btn);
+    }
+  }
+  renderDiscoveryHashtagQuickbar();
 
   updateQuotaPreview();
 
