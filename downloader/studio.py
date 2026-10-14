@@ -1671,6 +1671,16 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         catalogue.migrate_caches()
         return jsonify(**catalogue.stats(), registered_channels=catalogue.channels())
 
+    @bp.route('/discovery/channels/delete', methods=['POST'])
+    def discovery_channel_delete():
+        data = request.get_json() or {}
+        cid = str(data.get('channel_id', '')).strip()
+        if not cid:
+            raise StudioError('삭제할 채널 ID를 확인해 주세요.', 400)
+        catalogue = DiscoveryCatalogue(root)
+        catalogue.remove_channel(cid)
+        return jsonify(deleted=cid, **catalogue.stats(), registered_channels=catalogue.channels())
+
     @bp.route('/discovery/subscribers/refresh', methods=['POST'])
     def discovery_subscribers_refresh():
         from studio_secrets import load
@@ -2817,6 +2827,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         for idx, (it, src_query, src_lang) in enumerate(raw_items_with_meta):
             vid = it.get('id')
             snippet = it.get('snippet', {})
+            channel_id_filter = str(request.args.get('channel_id', '')).strip()
+            if channel_id_filter and snippet.get('channelId') != channel_id_filter:
+                excluded_filters_count += 1
+                continue
             content_details = it.get('contentDetails', {})
             statistics = it.get('statistics', {})
             status_obj = it.get('status', {})

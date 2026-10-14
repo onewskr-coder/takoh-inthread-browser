@@ -71,7 +71,17 @@ class DiscoveryCatalogue:
             db.executemany('UPDATE videos SET shown=? WHERE id=?', [(time.time(),v) for v in ids])
     def channels(self):
         with self.connect() as db:
-            return [dict(zip(('id','name','uploads','last_checked'),r)) for r in db.execute('SELECT id,name,uploads,last_checked FROM channels ORDER BY last_checked,id')]
+            rows = db.execute('''
+                SELECT c.id, c.name, c.uploads, c.last_checked, s.subscribers, s.hidden
+                FROM channels c
+                LEFT JOIN channel_statistics s ON c.id = s.id
+                ORDER BY c.last_checked, c.id
+            ''').fetchall()
+            return [dict(zip(('id','name','uploads','last_checked','subscribers','hidden'), r)) for r in rows]
+    def remove_channel(self, cid):
+        with self.connect() as db:
+            db.execute('DELETE FROM channels WHERE id=?', (cid,))
+            db.execute('DELETE FROM channel_statistics WHERE id=?', (cid,))
     def stats(self):
         with self.connect() as db:
             return {'videos':db.execute('SELECT COUNT(*) FROM videos').fetchone()[0], 'channels':db.execute('SELECT COUNT(*) FROM channels').fetchone()[0], 'unseen':db.execute('SELECT COUNT(*) FROM videos WHERE shown=0').fetchone()[0]}

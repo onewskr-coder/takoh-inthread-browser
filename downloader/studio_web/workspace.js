@@ -350,6 +350,8 @@
 
   let discoveryAbortController = null;
   let discoveryRequestId = 0;
+  let activeDiscoveryChannelId = '';
+  let activeDiscoveryChannelName = '';
 
   async function refreshDiscovery(explicitRefresh=false, appendPage=false){
     const grid=$('discovery-grid'),banner=$('discovery-status-banner'),telemetryStrip=$('discovery-telemetry-strip'),paginationBar=$('discovery-pagination-bar'),pageIndicator=$('discovery-page-indicator'),moreBtn=$('discovery-more-btn'),fetchBtn=$('discovery-fetch-btn'),cancelBtn=$('discovery-cancel-btn');
@@ -414,7 +416,8 @@
     currentDiscoveryLimit=parseInt(limit,10)||30;
 
     const refreshParam=explicitRefresh?'&refresh=1':'';
-    const queryParams=`archive=${discoveryArchiveMode?1:0}&unseen=${$('discovery-unseen')?.checked?1:0}&provider=${provider}&country=${country}&mode=${mode}&category=${category}&q=${q}&intent=${encodeURIComponent(intent)}&type=${type}&license=${license}&published_range=${publishedRange}&published_after=${encodeURIComponent(customAfter)}&published_before=${encodeURIComponent(customBefore)}&min_views=${minViews}&sort_by=${sortBy}&limit=${limit}&page=${currentDiscoveryPage}${refreshParam}`;
+    const channelParam=activeDiscoveryChannelId?`&channel_id=${encodeURIComponent(activeDiscoveryChannelId)}`:'';
+    const queryParams=`archive=${discoveryArchiveMode?1:0}&unseen=${$('discovery-unseen')?.checked?1:0}&provider=${provider}&country=${country}&mode=${mode}&category=${category}&q=${q}&intent=${encodeURIComponent(intent)}&type=${type}&license=${license}&published_range=${publishedRange}&published_after=${encodeURIComponent(customAfter)}&published_before=${encodeURIComponent(customBefore)}&min_views=${minViews}&sort_by=${sortBy}&limit=${limit}&page=${currentDiscoveryPage}${refreshParam}${channelParam}`;
 
     if(mode==='popular' && country==='ALL'){
       discoveryLoading=false;
@@ -653,6 +656,7 @@
 
     const isHashtagQuery=/^#|^https?:\/\/(?:www\.|m\.)?youtube\.com\/hashtag\//i.test(q);
     const activeParts=[
+      activeDiscoveryChannelName?`📺 채널: ${activeDiscoveryChannelName}`:'',
       (mode==='hashtag'||isHashtagQuery)?'YouTube 해시태그 피드':providerLabel,
       countryLabel,
       rangeText,
@@ -736,25 +740,140 @@
     catch(error){$('gemini-search-settings-status').textContent=error.message;}
   };
   refreshGeminiSearchSettings().catch(()=>{});
-  async function refreshCatalogueSummary(){
-    const data=await api('discovery/catalogue');
-    $('discovery-catalogue-summary').textContent=`누적 영상 ${data.videos}개 · 등록 채널 ${data.channels}개 · 미열람 ${data.unseen}개`;
-    const list=$('discovery-registered-channels');list.replaceChildren();
-    for(const channel of data.registered_channels||[]){
-      const link=document.createElement('a');link.href='https://www.youtube.com/channel/'+encodeURIComponent(channel.id);link.target='_blank';link.rel='noopener';link.textContent=channel.name||channel.id;
-      const row=document.createElement('p');row.append(link);list.append(row);
+
+  let cachedRegisteredChannels=[];
+  function formatSubscribersBadge(subCount,hidden){
+    if(hidden)return '구독자 비공개';
+    if(subCount==null||isNaN(subCount))return '';
+    const n=Number(subCount);
+    if(n>=10000)return `${(n/10000).toFixed(1).replace(/\.0$/,'')}만명`;
+    if(n>=1000)return `${(n/1000).toFixed(1).replace(/\.0$/,'')}천명`;
+    return `${n.toLocaleString()}명`;
+  }
+  function renderRegisteredChannelsList(){
+    const list=$('discovery-registered-channels');
+    if(!list)return;
+    list.replaceChildren();
+    const q=($('discovery-channel-filter-input')?.value||'').trim().toLowerCase();
+    const filtered=cachedRegisteredChannels.filter(ch=>{
+      const name=(ch.name||ch.id||'').toLowerCase();
+      return !q||name.includes(q)||String(ch.id||'').toLowerCase().includes(q);
+    });
+    if(activeDiscoveryChannelId){
+      const clearBtn=document.createElement('button');
+      clearBtn.type='button';
+      clearBtn.className='channel-chip active';
+      clearBtn.textContent=`전체 채널 보기 (${activeDiscoveryChannelName} 필터 해제 ×)`;
+      clearBtn.onclick=()=>{
+        activeDiscoveryChannelId='';
+        activeDiscoveryChannelName='';
+        updateQuotaPreview();
+        renderRegisteredChannelsList();
+        discoveryArchiveMode=true;
+        refreshDiscovery(false);
+      };
+      list.append(clearBtn);
+    }
+    if(!filtered.length){
+      const empty=text('span',cachedRegisteredChannels.length?'검색어와 일치하는 채널이 없습니다.':'아직 등록된 채널이 없습니다. 영상을 탐색하면 채널이 자동 등록됩니다.');
+      empty.className='hint';
+      list.append(empty);
+      return;
+    }
+    for(const channel of filtered){
+      const chip=document.createElement('div');
+      const isActive=activeDiscoveryChannelId===channel.id;
+      chip.className='channel-chip'+(isActive?' active':'');
+
+      const selectBtn=document.createElement('button');
+      selectBtn.type='button';
+      selectBtn.className='channel-chip-main';
+      selectBtn.title=`클릭하여 [${channel.name||channel.id}] 채널의 누적 영상만 모아보기`;
+      const nameSpan=text('span',channel.name||channel.id);
+      nameSpan.className='channel-chip-name';
+      selectBtn.append(nameSpan);
+      const subLabel=formatSubscribersBadge(channel.subscribers,channel.hidden);
+      if(subLabel){
+        const subSpan=text('span',subLabel);
+        subSpan.className='channel-chip-sub';
+        selectBtn.append(subSpan);
+      }
+      selectBtn.onclick=()=>{
+        if(activeDiscoveryChannelId===channel.id){
+          activeDiscoveryChannelId='';
+          activeDiscoveryChannelName='';
+        }else{
+          activeDiscoveryChannelId=channel.id;
+          activeDiscoveryChannelName=channel.name||channel.id;
+        }
+        updateQuotaPreview();
+        renderRegisteredChannelsList();
+        discoveryArchiveMode=true;
+        refreshDiscovery(false);
+      };
+
+      const extLink=document.createElement('a');
+      extLink.href='https://www.youtube.com/channel/'+encodeURIComponent(channel.id)+'/shorts';
+      extLink.target='_blank';
+      extLink.rel='noopener';
+      extLink.className='channel-chip-ext';
+      extLink.title='YouTube 채널 Shorts 탭 열기 (새 창)';
+      extLink.textContent='↗';
+
+      const delBtn=document.createElement('button');
+      delBtn.type='button';
+      delBtn.className='channel-chip-del';
+      delBtn.title='등록 채널 목록에서 제외';
+      delBtn.textContent='×';
+      delBtn.onclick=async(ev)=>{
+        ev.stopPropagation();
+        try{
+          const data=await api('discovery/channels/delete',{channel_id:channel.id});
+          if(activeDiscoveryChannelId===channel.id){
+            activeDiscoveryChannelId='';
+            activeDiscoveryChannelName='';
+            updateQuotaPreview();
+          }
+          applyCatalogueSummaryData(data);
+          message(`[${channel.name||channel.id}] 채널을 관리 목록에서 제외했습니다.`);
+        }catch(err){
+          message(err.message,true);
+        }
+      };
+
+      chip.append(selectBtn,extLink,delBtn);
+      list.append(chip);
     }
   }
-  if($('discovery-archive-btn'))$('discovery-archive-btn').onclick=()=>{discoveryArchiveMode=true;refreshDiscovery(false);};
+  function applyCatalogueSummaryData(data){
+    if(!data)return;
+    if($('discovery-catalogue-summary')){
+      $('discovery-catalogue-summary').textContent=`누적 ${data.videos||0}개 · 채널 ${data.channels||0}개 · 미열람 ${data.unseen||0}개`;
+    }
+    cachedRegisteredChannels=Array.isArray(data.registered_channels)?data.registered_channels:[];
+    const chBtn=$('btn-toggle-channel-drawer');
+    const chDrawer=$('discovery-channel-drawer');
+    if(chBtn){
+      const isOpen=chDrawer&&!chDrawer.hidden;
+      chBtn.textContent=`📺 채널 관리 (${cachedRegisteredChannels.length}) ${isOpen?'▴':'▾'}`;
+    }
+    renderRegisteredChannelsList();
+  }
+  async function refreshCatalogueSummary(){
+    const data=await api('discovery/catalogue');
+    applyCatalogueSummaryData(data);
+  }
+  if($('discovery-channel-filter-input'))$('discovery-channel-filter-input').oninput=renderRegisteredChannelsList;
+  if($('discovery-archive-btn'))$('discovery-archive-btn').onclick=()=>{activeDiscoveryChannelId='';activeDiscoveryChannelName='';updateQuotaPreview();renderRegisteredChannelsList();discoveryArchiveMode=true;refreshDiscovery(false);};
   if($('discovery-unseen'))$('discovery-unseen').onchange=()=>{discoveryArchiveMode=true;refreshDiscovery(false);};
   if($('discovery-subscribers-refresh'))$('discovery-subscribers-refresh').onclick=async()=>{
     const button=$('discovery-subscribers-refresh');button.disabled=true;
-    try{const data=await api('discovery/subscribers/refresh',{});discoveryArchiveMode=true;await refreshDiscovery(false);$('discovery-status-banner').textContent+=` · 구독자 ${data.checked_channels}채널 확인 · YouTube ${data.youtube_requests}회 · SerpAPI 0회`;}
+    try{const data=await api('discovery/subscribers/refresh',{});discoveryArchiveMode=true;await refreshDiscovery(false);await refreshCatalogueSummary();$('discovery-status-banner').textContent+=` · 구독자 ${data.checked_channels}채널 확인 · YouTube ${data.youtube_requests}회 · SerpAPI 0회`;}
     catch(error){$('discovery-status-banner').textContent=error.message;}
     finally{button.disabled=false;}
   };
   if($('discovery-channel-shorts-refresh'))$('discovery-channel-shorts-refresh').onclick=async()=>{
-    const button=$('discovery-channel-shorts-refresh');button.disabled=true;button.textContent='등록 채널 숏폼 확인 중…';
+    const button=$('discovery-channel-shorts-refresh');button.disabled=true;button.textContent='채널 숏폼 확인 중…';
     try{
       const data=await api('discovery/channels/shorts/refresh',{});
       discoveryArchiveMode=true;
@@ -763,7 +882,7 @@
       await refreshDiscovery(false);
       $('discovery-status-banner').textContent+=` · 채널 ${data.checked_channels}/${data.registered_channels}개 확인 · 숏폼 후보 ${data.matched}개 · 신규 저장 ${data.added}개 · YouTube ${data.youtube_requests}유닛 · SerpAPI 0회 · ${data.scope}`;
     }catch(error){$('discovery-status-banner').textContent=error.message;}
-    finally{button.disabled=false;button.textContent='등록 채널 숏폼 수집 · 조회수 순';await refreshCatalogueSummary();}
+    finally{button.disabled=false;button.textContent='채널 숏폼 수집 (조회수 순)';await refreshCatalogueSummary();}
   };
   if($('discovery-channel-refresh'))$('discovery-channel-refresh').onclick=async()=>{
     const button=$('discovery-channel-refresh');button.disabled=true;
@@ -773,7 +892,7 @@
   };
   refreshCatalogueSummary().catch(()=>{});
   if($('reload-discovery'))$('reload-discovery').onclick=()=>{discoveryArchiveMode=true;refreshDiscovery(false);};
-  if($('discovery-fetch-btn'))$('discovery-fetch-btn').onclick=()=>{discoveryArchiveMode=false;refreshDiscovery(true, false);};
+  if($('discovery-fetch-btn'))$('discovery-fetch-btn').onclick=()=>{activeDiscoveryChannelId='';activeDiscoveryChannelName='';updateQuotaPreview();renderRegisteredChannelsList();discoveryArchiveMode=false;refreshDiscovery(true, false);};
   if($('discovery-more-btn'))$('discovery-more-btn').onclick=()=>refreshDiscovery(false, true);
 
   if($('discovery-provider'))$('discovery-provider').onchange=()=>{
@@ -827,6 +946,8 @@
   if($('discovery-type'))$('discovery-type').onchange=()=>{updateQuotaPreview();refreshDiscovery(false);};
   if($('discovery-license'))$('discovery-license').onchange=()=>{updateQuotaPreview();refreshDiscovery(false);};
   if($('btn-reset-discovery-filters'))$('btn-reset-discovery-filters').onclick=()=>{
+    activeDiscoveryChannelId='';
+    activeDiscoveryChannelName='';
     if($('discovery-provider'))$('discovery-provider').value='youtube';
     if($('discovery-country'))$('discovery-country').value='ALL';
     if($('discovery-limit'))$('discovery-limit').value='30';
@@ -837,6 +958,7 @@
     if($('discovery-intent'))$('discovery-intent').value='all';
     if($('discovery-type'))$('discovery-type').value='all';
     if($('discovery-license'))$('discovery-license').value='all';
+    renderRegisteredChannelsList();
     updateQuotaPreview();
     refreshDiscovery(false);
     message('상세 검색 필터를 기본값으로 초기화했습니다.');
@@ -1025,24 +1147,27 @@
       }
     }catch{}
   }
-  if($('btn-toggle-adv-filters'))$('btn-toggle-adv-filters').onclick=()=>{
-    const drawer=$('discovery-advanced-drawer');
-    const btn=$('btn-toggle-adv-filters');
-    if(!drawer||!btn)return;
-    const nextHidden=!drawer.hidden;
-    drawer.hidden=nextHidden;
-    btn.setAttribute('aria-expanded',String(!nextHidden));
-    btn.textContent=nextHidden?'상세 조건 ▾':'상세 조건 ▴';
-  };
-  if($('btn-toggle-hashtag-drawer'))$('btn-toggle-hashtag-drawer').onclick=()=>{
-    const drawer=$('discovery-hashtag-drawer');
-    const btn=$('btn-toggle-hashtag-drawer');
-    if(!drawer||!btn)return;
-    const nextHidden=!drawer.hidden;
-    drawer.hidden=nextHidden;
-    btn.setAttribute('aria-expanded',String(!nextHidden));
-    btn.textContent=nextHidden?'🔥 인기 해시태그 48개 ▾':'🔥 인기 해시태그 48개 ▴';
-  };
+  function toggleDiscoveryDrawer(targetDrawerId){
+    const drawers=[
+      {id:'discovery-advanced-drawer',btnId:'btn-toggle-adv-filters',label:()=>'상세 조건'},
+      {id:'discovery-hashtag-drawer',btnId:'btn-toggle-hashtag-drawer',label:()=>'🔥 인기 해시태그 48개'},
+      {id:'discovery-channel-drawer',btnId:'btn-toggle-channel-drawer',label:()=>`📺 채널 관리 (${cachedRegisteredChannels.length})`}
+    ];
+    const targetDrawer=$(targetDrawerId);
+    const willOpen=targetDrawer?targetDrawer.hidden:false;
+    for(const d of drawers){
+      const el=$(d.id);
+      const btn=$(d.btnId);
+      if(!el||!btn)continue;
+      const open=(d.id===targetDrawerId)&&willOpen;
+      el.hidden=!open;
+      btn.setAttribute('aria-expanded',String(open));
+      btn.textContent=`${d.label()} ${open?'▴':'▾'}`;
+    }
+  }
+  if($('btn-toggle-adv-filters'))$('btn-toggle-adv-filters').onclick=()=>toggleDiscoveryDrawer('discovery-advanced-drawer');
+  if($('btn-toggle-hashtag-drawer'))$('btn-toggle-hashtag-drawer').onclick=()=>toggleDiscoveryDrawer('discovery-hashtag-drawer');
+  if($('btn-toggle-channel-drawer'))$('btn-toggle-channel-drawer').onclick=()=>toggleDiscoveryDrawer('discovery-channel-drawer');
   if($('discovery-hashtag-category'))$('discovery-hashtag-category').onchange=renderDiscoveryHashtagQuickbar;
   if($('btn-add-custom-hashtag'))$('btn-add-custom-hashtag').onclick=()=>{
     const raw=$('discovery-hashtag-custom-input')?.value?.trim()||'';
