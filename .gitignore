@@ -247,3 +247,5 @@ test_user_data/
 app-profile.lock
 check_proc.*
 graceful_shutdown.ps1
+test_*.py
+test_*.cjs
