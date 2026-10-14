@@ -70,13 +70,21 @@ window.fetch = async (url, options = {}) => {
   }
   if (urlStr.includes('/studio/references/import')) {
     const body = JSON.parse(options.body || '{}');
-    const ref = body.reference;
-    const exists = mockStore.references.some(r => r.permalink === ref.permalink);
-    if (exists) {
-      return { ok: true, json: async () => ({ ...ref, already_saved: true }) };
+    const ref = { ...body.reference, reference_id: 'ref_' + (mockStore.references.length + 1) };
+    const existing = mockStore.references.find(r => r.permalink === ref.permalink);
+    if (existing) {
+      return { ok: true, json: async () => ({ ...existing, already_saved: true }) };
     }
     mockStore.references.push(ref);
     return { ok: true, json: async () => ({ ...ref, already_saved: false }) };
+  }
+  if (urlStr.includes('/studio/references/save')) {
+    const body = JSON.parse(options.body || '{}');
+    const ids = body.ids || [];
+    for (const r of mockStore.references) {
+      if (ids.includes(r.reference_id)) r.saved_at = '2026-10-14T00:00:00Z';
+    }
+    return { ok: true, json: async () => ({ saved: ids.length, references: mockStore.references }) };
   }
   if (urlStr.includes('/studio/references')) {
     return { ok: true, json: async () => mockStore.references };
@@ -292,6 +300,29 @@ dom.window.eval(studioJs + '\n' + workspaceJs);
   const prepareBtn = refCard.querySelector('.btn-prepare-ref');
   assert.ok(prepareBtn, '“이 콘텐츠로 원본 준비 →” button exists to connect to analysis stage');
   console.log('✓ 6. 보관함 카드에서 발견 출처·추천근거·CC초안 확인 및 원본 준비 경로 연결 검증');
+
+  // Test 7: Discovery Checkbox Select-All & Batch Save to Library
+  discoveryTab.click();
+  await new Promise(r => setTimeout(r, 50));
+  const selectAllDiscovery = document.getElementById('select-all-discovery');
+  const collectSelectedBtn = document.getElementById('collect-selected-discovery');
+  const saveSelectedBtn = document.getElementById('save-selected-discovery');
+  assert.ok(selectAllDiscovery && collectSelectedBtn && saveSelectedBtn, 'Discovery batch controls exist');
+  assert.equal(collectSelectedBtn.disabled, true, 'Batch collect disabled initially');
+  assert.equal(saveSelectedBtn.disabled, true, 'Batch save disabled initially');
+
+  selectAllDiscovery.checked = true;
+  selectAllDiscovery.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(collectSelectedBtn.disabled, false, 'Batch collect enabled when selected');
+  assert.equal(collectSelectedBtn.textContent, '선택 수집함에 담기 (2)', 'Batch collect shows count 2');
+  assert.equal(saveSelectedBtn.textContent, '선택 보관함에 바로 저장 (2)', 'Batch save shows count 2');
+
+  saveSelectedBtn.click();
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(mockStore.references.length, 2, 'Both discovery videos imported');
+  assert.equal(mockStore.references.filter(r => r.saved_at).length, 2, 'Both discovery videos saved to library');
+  assert.equal(selectAllDiscovery.checked, false, 'Select-all reset after batch save');
+  console.log('✓ 7. 콘텐츠 발견 탭 체크박스 전체 선택 및 일괄 수집/보관함 바로 저장 검증');
 
   console.log('\nAll Studio Discovery UI & Reference Library DOM tests PASSED successfully!');
   process.exit(0);

@@ -165,3 +165,32 @@
 #discovery-workspace .discovery-card-details summary{font-size:11px;color:#7b897d}
 @media(max-width:1150px){.discovery-primary-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.discovery-primary-controls .search-input-group{grid-column:1/-1}.discovery-primary-controls .filter-btn-group{grid-column:1/-1;width:100%}}
 @media(max-width:600px){.discovery-primary-controls{grid-template-columns:minmax(0,1fr)}.discovery-primary-controls .filter-group{grid-column:1/-1}.discovery-advanced-controls .filter-group{flex:1 1 100%;min-width:0}.discovery-advanced-controls select{width:100%}#discovery-catalogue-summary{margin-left:0;flex-basis:100%}}
+
+/* Stage 1~4 Menu & Sub-panel Layout Organization */
+.stage-section-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #e4eae2}
+.stage-section-header h2{margin:4px 0 6px;font-size:20px;letter-spacing:-0.4px}
+.stage-section-header .hint{margin:0}
+.stage-badge{display:inline-block;background:#e5efe2;color:#2f5738;font-size:11px;font-weight:750;padding:3px 9px;border-radius:12px;letter-spacing:0.4px}
+.stage-header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sub-panel{background:#f9fbf8;border:1px solid #e1e8df;border-radius:12px;padding:18px;margin-bottom:16px}
+.sub-panel h3{margin:0 0 8px;font-size:15px;color:#26402e}
+.sub-panel>.hint{margin:0 0 12px}
+.inline-action-form,.inline-action-row{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.inline-action-form label,.inline-action-row label{flex:1 1 240px;margin:0}
+.inline-action-form button,.inline-action-row button{flex:0 0 auto;height:41px;white-space:nowrap}
+.manual-upload-grid{margin-top:12px;padding-top:10px;border-top:1px dashed #d6dfd3}
+.stage-action-bar{margin:16px 0;padding:12px 14px;background:#f2f6f0;border:1px solid #dce5d9;border-radius:10px;align-items:center}
+.hook-editor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:14px}
+.hook-editor-grid .sub-panel{margin-bottom:0}
+.publish-panels-grid{align-items:start}
+.upload-queue-box{margin-top:14px;padding-top:14px;border-top:1px dashed #d7e0d4}
+.upload-queue-box h4{margin:0 0 8px;font-size:13px;color:#355b3e}
+.publication-status-badge{margin-top:12px;padding:10px 12px;background:#eef3ec;border-radius:8px;font-weight:500}
+
+/* Content Discovery Checkbox & Batch Bar */
+.discovery-batch-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;width:100%;padding-top:8px;margin-top:4px;border-top:1px solid #dce5d9}
+.discovery-card.checked{border-color:#2b553f;box-shadow:0 0 0 2px #c8e0c8}
+.discovery-check-badge{position:absolute;top:8px;right:8px;z-index:2;display:inline-flex;align-items:center;gap:5px;margin:0;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,0.93);color:#23332f;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.2);user-select:none}
+.discovery-check-badge input{width:14px;height:14px;margin:0;cursor:pointer;accent-color:#2b553f}
+#collect-selected-discovery:not(:disabled){background:#355b3e;color:#fff}
+#save-selected-discovery:not(:disabled){background:#22432c;color:#fff}

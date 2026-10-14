@@ -86,10 +86,78 @@
   let currentDiscoveryItems=[];
   let currentDiscoveryHasMore=false;
   let currentDiscoveryLimit=30;
+  const checkedDiscoveryUrls=new Set();
+
+  function buildDiscoveryReferencePayload(item, country, category){
+    return {
+      permalink:item.url,
+      username:item.channel,
+      text:`${item.title}\n\n[추천 유형] ${item.intent||'제품 시연'}\n[카테고리] ${item.category_name||'생활·주방'}\n[추천 사유] ${item.recommendation_reason}\n[권리 상태] ${item.license_label}${item.attribution_draft?'\n[출처 표기] '+item.attribution_draft:''}`,
+      mediaKind:'video',
+      videoUrls:[item.url],
+      thumbnailUrl:item.thumbnail_url,
+      poster:item.thumbnail_url,
+      discovery:{
+        video_id:item.video_id,
+        country:item.country||country,
+        category_key:item.category_key||category,
+        category_name:item.category_name||'생활·주방',
+        intent:item.intent||'제품 시연',
+        user_query:item.user_query||$('discovery-query')?.value?.trim()||'',
+        source_type:item.source_type,
+        source_label:item.source_label,
+        rank:item.rank,
+        view_count:item.view_count,
+        view_count_display:item.view_count_display,
+        duration_seconds:item.duration_seconds,
+        duration_display:item.duration_display,
+        shorts_classification:item.shorts_classification,
+        shorts_status:item.shorts_status,
+        shorts_grounds:item.shorts_grounds,
+        growth_display:item.growth_display,
+        growth_rate:item.growth_rate,
+        license_type:item.license_type,
+        license_label:item.license_label,
+        license_url:item.license_url,
+        attribution_draft:item.attribution_draft,
+        legal_notice:item.legal_notice,
+        limitation_notice:item.limitation_notice,
+        recommendation_reason:item.recommendation_reason,
+        fetched_at:item.fetched_at,
+        fetched_at_str:item.fetched_at_str
+      }
+    };
+  }
+
+  function updateDiscoverySelectionUi(){
+    for(const url of Array.from(checkedDiscoveryUrls)){
+      if(!currentDiscoveryItems.some(item=>item.url===url))checkedDiscoveryUrls.delete(url);
+    }
+    const total=currentDiscoveryItems.length,count=checkedDiscoveryUrls.size;
+    const selectAll=$('select-all-discovery'),collectBtn=$('collect-selected-discovery'),saveBtn=$('save-selected-discovery'),summary=$('discovery-selection-summary');
+    if(selectAll){
+      selectAll.disabled=total===0;
+      selectAll.checked=total>0&&count===total;
+      selectAll.indeterminate=count>0&&count<total;
+    }
+    if(collectBtn){
+      collectBtn.disabled=count===0;
+      collectBtn.textContent=count?`선택 수집함에 담기 (${count})`:'선택 수집함에 담기';
+    }
+    if(saveBtn){
+      saveBtn.disabled=count===0;
+      saveBtn.textContent=count?`선택 보관함에 바로 저장 (${count})`:'선택 보관함에 바로 저장';
+    }
+    if(summary){
+      summary.textContent=count?`${count}개 선택됨`:'';
+    }
+  }
 
   function renderDiscoveryCard(item, country, category, isCompact){
     const card=document.createElement('div');
-    card.className='discovery-card';
+    const isChecked=checkedDiscoveryUrls.has(item.url);
+    card.className='discovery-card'+(isChecked?' checked':'');
+    card.dataset.url=item.url;
 
     const thumbWrap=document.createElement('div');
     thumbWrap.className='discovery-thumb-wrap';
@@ -99,6 +167,23 @@
     img.loading='lazy';
     img.referrerPolicy='no-referrer';
     thumbWrap.append(img);
+
+    const checkLabel=document.createElement('label');
+    checkLabel.className='discovery-check-badge';
+    checkLabel.onclick=e=>e.stopPropagation();
+    const checkInput=document.createElement('input');
+    checkInput.type='checkbox';
+    checkInput.className='discovery-select-checkbox';
+    checkInput.checked=isChecked;
+    checkInput.setAttribute('aria-label',(item.title||'영상')+' 선택');
+    checkInput.onchange=()=>{
+      if(checkInput.checked)checkedDiscoveryUrls.add(item.url);
+      else checkedDiscoveryUrls.delete(item.url);
+      card.classList.toggle('checked',checkInput.checked);
+      updateDiscoverySelectionUi();
+    };
+    checkLabel.append(checkInput,text('span','선택'));
+    thumbWrap.append(checkLabel);
 
     if(item.rank){
       const rankBadge=text('span',`#${item.rank}`);
@@ -227,44 +312,7 @@
       saveBtn.disabled=true;
       saveBtn.textContent='저장 중…';
       try{
-        const refPayload={
-          permalink:item.url,
-          username:item.channel,
-          text:`${item.title}\n\n[추천 유형] ${item.intent||'제품 시연'}\n[카테고리] ${item.category_name||'생활·주방'}\n[추천 사유] ${item.recommendation_reason}\n[권리 상태] ${item.license_label}${item.attribution_draft?'\n[출처 표기] '+item.attribution_draft:''}`,
-          mediaKind:'video',
-          videoUrls:[item.url],
-          thumbnailUrl:item.thumbnail_url,
-          poster:item.thumbnail_url,
-          discovery:{
-            video_id:item.video_id,
-            country:item.country||country,
-            category_key:item.category_key||category,
-            category_name:item.category_name||'생활·주방',
-            intent:item.intent||'제품 시연',
-            user_query:item.user_query||$('discovery-query')?.value?.trim()||'',
-            source_type:item.source_type,
-            source_label:item.source_label,
-            rank:item.rank,
-            view_count:item.view_count,
-            view_count_display:item.view_count_display,
-            duration_seconds:item.duration_seconds,
-            duration_display:item.duration_display,
-            shorts_classification:item.shorts_classification,
-            shorts_status:item.shorts_status,
-            shorts_grounds:item.shorts_grounds,
-            growth_display:item.growth_display,
-            growth_rate:item.growth_rate,
-            license_type:item.license_type,
-            license_label:item.license_label,
-            license_url:item.license_url,
-            attribution_draft:item.attribution_draft,
-            legal_notice:item.legal_notice,
-            limitation_notice:item.limitation_notice,
-            recommendation_reason:item.recommendation_reason,
-            fetched_at:item.fetched_at,
-            fetched_at_str:item.fetched_at_str
-          }
-        };
+        const refPayload=buildDiscoveryReferencePayload(item, country, category);
         const res=await api('references/import',{reference:refPayload});
         saveBtn.disabled=false;
         if(res.already_saved){
@@ -296,6 +344,7 @@
     for(const item of items){
       grid.append(renderDiscoveryCard(item, country, category, isCompact));
     }
+    updateDiscoverySelectionUi();
   }
 
   let discoveryAbortController = null;
@@ -739,6 +788,54 @@
       renderDiscoveryList(currentDiscoveryItems, $('discovery-country')?.value||'ALL', $('discovery-category')?.value||'living_kitchen');
     };
   });
+
+  if($('select-all-discovery'))$('select-all-discovery').onchange=e=>{
+    const checked=Boolean(e.target.checked);
+    checkedDiscoveryUrls.clear();
+    if(checked)for(const item of currentDiscoveryItems)checkedDiscoveryUrls.add(item.url);
+    document.querySelectorAll('#discovery-grid .discovery-card').forEach(card=>{
+      const cb=card.querySelector('.discovery-select-checkbox');
+      if(cb)cb.checked=checked;
+      card.classList.toggle('checked',checked);
+    });
+    updateDiscoverySelectionUi();
+  };
+
+  async function batchCollectDiscovery(saveToLibrary){
+    const selectedItems=currentDiscoveryItems.filter(item=>checkedDiscoveryUrls.has(item.url));
+    if(!selectedItems.length)return;
+    const country=$('discovery-country')?.value||'ALL';
+    const category=$('discovery-category')?.value||'living_kitchen';
+    await act(saveToLibrary?'선택한 영상을 보관함에 저장하는 중…':'선택한 영상을 수집함에 담는 중…',async()=>{
+      const importedIds=[];
+      let addedCount=0;
+      for(const item of selectedItems){
+        const refPayload=buildDiscoveryReferencePayload(item, country, category);
+        const res=await api('references/import',{reference:refPayload});
+        if(res?.reference_id)importedIds.push(res.reference_id);
+        if(!res?.already_saved)addedCount++;
+      }
+      if(saveToLibrary&&importedIds.length){
+        await api('references/save',{ids:importedIds});
+      }
+      document.querySelectorAll('#discovery-grid .discovery-card').forEach(card=>{
+        if(checkedDiscoveryUrls.has(card.dataset.url)){
+          const btn=card.querySelector('.btn-save-ref');
+          if(btn)btn.textContent='✓ 보관함 담김';
+          const cb=card.querySelector('.discovery-select-checkbox');
+          if(cb)cb.checked=false;
+          card.classList.remove('checked');
+        }
+      });
+      checkedDiscoveryUrls.clear();
+      updateDiscoverySelectionUi();
+      if(typeof refreshReferences==='function')await refreshReferences();
+      message(saveToLibrary?`선택한 영상 ${selectedItems.length}개를 수집함 및 보관함에 저장했습니다.`:`선택한 영상 ${selectedItems.length}개를 수집한 레퍼런스에 담았습니다.`);
+    });
+  }
+
+  if($('collect-selected-discovery'))$('collect-selected-discovery').onclick=()=>batchCollectDiscovery(false);
+  if($('save-selected-discovery'))$('save-selected-discovery').onclick=()=>batchCollectDiscovery(true);
 
   updateQuotaPreview();
 
