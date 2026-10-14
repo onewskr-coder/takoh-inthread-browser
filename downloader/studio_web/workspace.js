@@ -638,45 +638,82 @@
     const q=$('discovery-query')?.value?.trim()||'';
     const limit=parseInt($('discovery-limit')?.value||'30',10);
     const range=$('discovery-published-range')?.value||'90d';
-    const rangeText={'7d':'최근 7일','30d':'최근 30일','90d':'최근 90일','1y':'최근 1년','all':'전체 기간','custom':'직접 지정'}[range]||range;
-    const preview=$('discovery-quota-preview');
-    if(!preview)return;
+    const minViews=$('discovery-min-views')?.value||'0';
+    const intent=$('discovery-intent')?.value||'all';
+    const vType=$('discovery-type')?.value||'all';
+    const license=$('discovery-license')?.value||'all';
+
+    const rangeText={'7d':'최근 7일','30d':'최근 30일','90d':'최근 90일','1y':'최근 1년','all':'전체 기간','custom':'직접 기간'}[range]||range;
+    const providerLabel={'youtube':'YouTube API','serpapi':'SerpAPI','gemini_search':'Gemini 검색','antigravity_search':'Antigravity CLI'}[provider]||provider;
+    const countryLabel={'ALL':'전체 국가','KR':'한국(KR)','US':'미국(US)','JP':'일본(JP)','GB':'영국(GB)','TW':'대만(TW)','VN':'베트남(VN)'}[country]||country;
+    const typeLabel={'all':'','shopping_shorts':'쇼핑 쇼츠만','shorts':'3분 이하 숏폼','long':'롱폼','unconfirmed':'형식 미확인'}[vType]||'';
+    const intentLabel={'all':'','scene':'시연·작동 중심','hook':'후킹·리뷰 중심','reusable':'CC 재사용 후보'}[intent]||'';
+    const licenseLabel={'all':'','creative_common':'CC 라이선스','standard':'표준 라이선스','unconfirmed':'라이선스 미확인'}[license]||'';
+    const viewsLabel=minViews==='0'?'':(minViews==='custom'?`조회수 ${$('discovery-custom-views-input')?.value||0}회+`:`조회수 ${Number(minViews).toLocaleString()}회+`);
 
     const isHashtagQuery=/^#|^https?:\/\/(?:www\.|m\.)?youtube\.com\/hashtag\//i.test(q);
+    const activeParts=[
+      (mode==='hashtag'||isHashtagQuery)?'YouTube 해시태그 피드':providerLabel,
+      countryLabel,
+      rangeText,
+      `목표 ${limit}개`,
+      viewsLabel,
+      typeLabel,
+      intentLabel,
+      licenseLabel
+    ].filter(Boolean);
+
+    const activeSummaryEl=$('discovery-active-filters-summary');
+    if(activeSummaryEl)activeSummaryEl.textContent=activeParts.join(' · ');
+
+    const preview=$('discovery-quota-preview');
+    const detailEl=$('discovery-plan-detail');
+    if(!preview)return;
+
     if(mode==='hashtag'||isHashtagQuery){
-      const tagDesc=q?`해시태그 지정 [${q}]`:`카테고리 인기 해시태그 [${CATEGORY_SUBPRODUCTS[category]||'쇼핑 추천템'}]`;
-      preview.textContent=`검색 계획: [YouTube 해시태그 Shorts 피드] ${tagDesc} · API 키 및 유료 쿼터 사용 없음 (0 유닛)`;
+      const tagDesc=q?`해시태그 [${q}]`:`카테고리 인기 해시태그 [${CATEGORY_SUBPRODUCTS[category]||'쇼핑 추천템'}]`;
+      preview.textContent='쿼터 0 유닛 (무료 피드)';
+      preview.className='discovery-quota-pill zero-quota';
+      if(detailEl)detailEl.textContent=`검색 계획: YouTube 해시태그 Shorts 피드 직접 파싱 (${tagDesc}) · API 키 및 유료 쿼터 소모 없음 (0 유닛)`;
       return;
     }
 
+    preview.className='discovery-quota-pill';
     if(['gemini_search','antigravity_search'].includes(provider)){
-      preview.textContent=provider==='gemini_search'?'Gemini API 요청 최대 1회 + YouTube 상세 확인 최대 1유닛 · Google 검색어 수는 모델이 결정하며 별도 과금될 수 있음 · SerpAPI 사용 없음 · 자동 재시도 없음':'Antigravity CLI 세션 1회 (최대 120초 · 내부 모델/검색 횟수는 CLI가 결정) + YouTube 상세 확인 최대 1유닛 · 계정 한도 사용 · SerpAPI 사용 없음 · 자동 API 전환 없음';return;
+      preview.textContent=provider==='gemini_search'?'Gemini 1회 + YT 1유닛':'CLI 1회 + YT 1유닛';
+      if(detailEl)detailEl.textContent=provider==='gemini_search'?'검색 계획: Gemini Google 검색 최대 1회 + YouTube 상세 확인 최대 1유닛 (SerpAPI 미사용 · 자동 재시도 없음)':'검색 계획: Antigravity CLI 세션 1회(최대 120초) + YouTube 상세 확인 최대 1유닛 (SerpAPI 미사용)';
+      return;
     }
     if(provider === 'serpapi'){
-      const planDesc = q ? `제품 한정 검색 [${q}]` : `카테고리 탐색 [${CATEGORY_SUBPRODUCTS[category]||'주방·수납·조리 도구'}]`;
+      const planDesc = q ? `제품 검색 [${q}]` : `카테고리 [${CATEGORY_SUBPRODUCTS[category]||'주방·수납·조리 도구'}]`;
       const serpCalls = country === 'ALL' ? 6 : 2;
-      preview.textContent=`검색 계획: [SerpAPI YouTube] ${planDesc} (${rangeText} · 목표 ${limit}개 · 기간/라이선스 사후 적용) | 호출 상한: 언어별 최대 2페이지 · 총 ${serpCalls}회 요청 (실패 시 자동 재시도 0회 · 사용자 명시 선택 시에만 추가 키 재시도 허용, 총 호출 상한 ${serpCalls}회) · YouTube 상세 확인 최대 6회 · 실제 표시 수는 필터 통과 후보 수`;
+      preview.textContent=`SerpAPI 최대 ${serpCalls}회 + YT 6유닛`;
+      if(detailEl)detailEl.textContent=`검색 계획: [SerpAPI] ${planDesc} (${rangeText} · 목표 ${limit}개) · 언어별 최대 2페이지(총 ${serpCalls}회) + YouTube 상세 확인 최대 6유닛`;
       return;
     }
 
     if(mode==='popular'){
-      preview.textContent='검색 계획: [YouTube API] 선택 국가 공식 인기 순위 차트 | 호출 상한: 최초 1회 요청 (재시도 0회 · 총 호출 상한 1회, 1 유닛)';
+      preview.textContent='예상 1회 · 1 유닛';
+      if(detailEl)detailEl.textContent='검색 계획: [YouTube API] 선택 국가 공식 인기 순위 차트 조회 (최초 1회 요청 · 총 1 유닛)';
     }else if(mode==='shopping'){
-      const planDesc = q ? `제품 한정 검색 [${q}]` : `카테고리 탐색 [${CATEGORY_SUBPRODUCTS[category]||'주방·수납·조리 도구'}]`;
+      const planDesc = q ? `제품 검색 [${q}]` : `카테고리 [${CATEGORY_SUBPRODUCTS[category]||'주방·수납·조리 도구'}]`;
       if(country==='ALL'){
         const estimatedCalls = limit <= 30 ? 6 : (limit <= 60 ? 9 : 12);
         const estimatedQuota = estimatedCalls * 100 + estimatedCalls;
-        preview.textContent=`검색 계획: [YouTube API] ${planDesc} (${rangeText} · 목표 ${limit}개 · 한/영/일 다국어 교차 · nextPageToken 연속 탐색) | 호출 상한: 최초 및 연속 탐색 포함 총 호출 상한 ${estimatedCalls}회 (최대 ${estimatedQuota} 유닛, 자동 재시도 0회)`;
+        preview.textContent=`예상 ${estimatedCalls}회 · 최대 ${estimatedQuota} 유닛`;
+        if(detailEl)detailEl.textContent=`검색 계획: [YouTube API] ${planDesc} (${rangeText} · 목표 ${limit}개 · 한/영/일 다국어 교차 탐색) · 최대 ${estimatedCalls}회 요청 (최대 ${estimatedQuota} 유닛)`;
       }else{
         const estimatedCalls = limit <= 30 ? 2 : (limit <= 60 ? 3 : 4);
         const estimatedQuota = estimatedCalls * 100 + 1;
-        preview.textContent=`검색 계획: [YouTube API] ${planDesc} (${rangeText} · 목표 ${limit}개 · nextPageToken 연속 탐색) | 호출 상한: 총 호출 상한 ${estimatedCalls}회 (최대 ${estimatedQuota} 유닛, 자동 재시도 0회)`;
+        preview.textContent=`예상 ${estimatedCalls}회 · 최대 ${estimatedQuota} 유닛`;
+        if(detailEl)detailEl.textContent=`검색 계획: [YouTube API] ${planDesc} (${rangeText} · 목표 ${limit}개 · ${countryLabel}) · 최대 ${estimatedCalls}회 요청 (최대 ${estimatedQuota} 유닛)`;
       }
     }else{
-      const planDesc = q ? `키워드 검색 [${q}]` : '전체 키워드 검색';
+      const planDesc = q ? `키워드 [${q}]` : '전체 키워드';
       const maxCalls = country === 'ALL' ? 6 : 2;
       const maxQuota = country === 'ALL' ? 603 : 201;
-      preview.textContent=`검색 계획: [YouTube API] ${planDesc} (${rangeText} · 목표 ${limit}개) | 호출 상한: 총 호출 상한 ${maxCalls}회 (최대 ${maxQuota} 유닛, 자동 재시도 0회)`;
+      preview.textContent=`예상 ${maxCalls}회 · 최대 ${maxQuota} 유닛`;
+      if(detailEl)detailEl.textContent=`검색 계획: [YouTube API] ${planDesc} (${rangeText} · 목표 ${limit}개) · 최대 ${maxCalls}회 요청 (최대 ${maxQuota} 유닛)`;
     }
   }
 
@@ -773,17 +810,33 @@
     const v=$('discovery-min-views').value;
     const vGroup=$('group-discovery-custom-views');
     if(vGroup)vGroup.style.display=(v==='custom')?'flex':'none';
+    updateQuotaPreview();
     refreshDiscovery(false);
   };
-  if($('discovery-custom-views-input'))$('discovery-custom-views-input').onchange=()=>refreshDiscovery(false);
+  if($('discovery-custom-views-input'))$('discovery-custom-views-input').onchange=()=>{updateQuotaPreview();refreshDiscovery(false);};
   if($('discovery-sort-by'))$('discovery-sort-by').onchange=()=>refreshDiscovery(false);
   if($('discovery-limit'))$('discovery-limit').onchange=()=>{
     updateQuotaPreview();
     refreshDiscovery(false);
   };
-  if($('discovery-intent'))$('discovery-intent').onchange=()=>refreshDiscovery(false);
-  if($('discovery-type'))$('discovery-type').onchange=()=>refreshDiscovery(false);
-  if($('discovery-license'))$('discovery-license').onchange=()=>refreshDiscovery(false);
+  if($('discovery-intent'))$('discovery-intent').onchange=()=>{updateQuotaPreview();refreshDiscovery(false);};
+  if($('discovery-type'))$('discovery-type').onchange=()=>{updateQuotaPreview();refreshDiscovery(false);};
+  if($('discovery-license'))$('discovery-license').onchange=()=>{updateQuotaPreview();refreshDiscovery(false);};
+  if($('btn-reset-discovery-filters'))$('btn-reset-discovery-filters').onclick=()=>{
+    if($('discovery-provider'))$('discovery-provider').value='youtube';
+    if($('discovery-country'))$('discovery-country').value='ALL';
+    if($('discovery-limit'))$('discovery-limit').value='30';
+    if($('discovery-published-range'))$('discovery-published-range').value='90d';
+    if($('group-discovery-custom-dates'))$('group-discovery-custom-dates').style.display='none';
+    if($('discovery-min-views'))$('discovery-min-views').value='0';
+    if($('group-discovery-custom-views'))$('group-discovery-custom-views').style.display='none';
+    if($('discovery-intent'))$('discovery-intent').value='all';
+    if($('discovery-type'))$('discovery-type').value='all';
+    if($('discovery-license'))$('discovery-license').value='all';
+    updateQuotaPreview();
+    refreshDiscovery(false);
+    message('상세 검색 필터를 기본값으로 초기화했습니다.');
+  };
   if($('discovery-query'))$('discovery-query').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();refreshDiscovery(true);}};
 
   document.querySelectorAll('input[name="discovery-view-mode"]').forEach(radio=>{
