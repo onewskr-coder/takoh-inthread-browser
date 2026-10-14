@@ -139,7 +139,7 @@ class StudioDiscoveryTests(unittest.TestCase):
         self.assertEqual(it0['license_type'], 'creative_common')
         self.assertIn('출처: 꿀팁TV', it0['attribution_draft'])
         self.assertIn('자동 보장하지 않습니다', it0['legal_notice'])
-        self.assertIn('최초 관측', it0['growth_display'])
+        self.assertIn('측정 대기 · 1시간 이상 간격의 조회수 기록 필요', it0['growth_display'])
 
         # Check Item 1: Shorts candidate (under 3m but ratio unconfirmed)
         it1 = items[1]
@@ -181,18 +181,19 @@ class StudioDiscoveryTests(unittest.TestCase):
         res1 = self.client.get('/studio/discovery?country=US&topic=tech', headers=self.headers)
         self.assertEqual(res1.status_code, 200)
         item1 = res1.json['items'][0]
-        self.assertIn('최초 관측', item1['growth_display'])
+        self.assertIn('측정 대기 · 1시간 이상 간격의 조회수 기록 필요', item1['growth_display'])
         self.assertIsNone(item1['growth_rate'])
 
         # Simulate second observation with increased views 1 hour later
         t0 = time.time()
         with patch('time.time', return_value=t0 + 3600):
-            from studio import record_video_observation
+            from studio import record_video_observation, discovery_growth
             history = record_video_observation(vid_id, 15000, self.data.name)
             self.assertEqual(len(history), 2)
-            delta_sec = history[-1]['timestamp'] - history[-2]['timestamp']
-            rate = round(((history[-1]['views'] - history[-2]['views']) / delta_sec) * 3600)
+            rate, pct, display = discovery_growth(history)
             self.assertEqual(rate, 5000)
+            self.assertEqual(pct, 50.0)
+            self.assertIn('시간당 +5,000회', display)
 
     def test_reference_import_deduplication_and_discovery_metadata_preservation(self):
         """Saving video to reference library preserves discovery metadata and flags duplicates."""

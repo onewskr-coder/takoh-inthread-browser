@@ -180,4 +180,30 @@
   - `node studio-browser/test_threads_upload.cjs`: PASS (전용 브라우저 큐 등록·예약 취소·즉시 실행·중단 시 `uncertain` 복구 검증)
   - `node studio-browser/test_isolated_scenarios.cjs` & `node studio-browser/test_shutdown.cjs`: PASS
 
+## 보존된 Antigravity 리다이렉트 후보(27개) → YouTube 상세 확인(1유닛) → 누적 카탈로그 저장 → 실제 화면 응답 검증 (2026-10-14)
+- **실행 범위 (반복 검색 0회 · SerpAPI 0회 · 승인된 YouTube `videos.list` 1회/1유닛)**:
+  - 직전 보존된 Antigravity 감사 파일(`%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`)에서 리다이렉트 변환(`resolve_grounding_redirects` + `antigravity_transcript_sources`)으로 확보한 **고유 11자리 영상 ID 27개**를 대상으로, 새 Antigravity CLI 세션을 열지 않고 실제 YouTube Data API v3 `videos.list`(`part=snippet,contentDetails,statistics,status`, 27개 ID 일괄 조회) **단 1회(1유닛)**만 호출함.
+- **단계별 검증 결과**:
+  1. **YouTube 상세 확인 (`videos.list` 1회 · 1유닛 — 성공)**:
+     - HTTP 200 응답으로 27개 영상 전체의 상세 메타데이터(제목, 채널명/채널ID, 길이, 조회수, 업로드일, 라이선스 등)를 확인함.
+     - YouTube 사용량 기록(`youtube_discovery_cache.json`): `requests_count` 162 → **163회 (+1)**, `quota_units` 6,803 → **6,804유닛 (+1)**, SerpAPI 호출 **0회 (27회 그대로 유지)**.
+  2. **누적 카탈로그 영구 저장 (`discovery-catalogue.sqlite3` — 성공)**:
+     - `DiscoveryCatalogue.add(..., source_type='antigravity_search')`를 통해 확인된 27개 영상을 영구 저장함.
+     - 누적 영상 수: 기존 872개 → **899개 (+27개 신규 저장)**, 등록 채널 수 **363개**.
+  3. **원시 캐시 연동 및 실제 `/studio/discovery` 응답 확인 (성공)**:
+     - `antigravity_search` 원시 캐시에 검증된 후보와 29개 검색 출처(`gemini_search_sources`, `redirect_url` 및 변환된 최종 URL 포함), 관측 검색어 6개(`gemini_search_queries_observed: 6`)를 기록함.
+     - 실행 중인 전용 앱 도우미(`http://127.0.0.1:5006/studio/discovery?archive=0&unseen=0&provider=antigravity_search&country=KR&mode=shopping&category=living_kitchen&published_range=90d&min_views=0&sort_by=relevance&limit=30&page=1`) 조회 결과:
+       - `HTTP 200 OK`, `verification_status: "실서비스 연결됨"`, `provider: "antigravity_search"`
+       - 쇼핑 쇼츠/관련성/최근 90일 필터를 통과한 **유효 후보 13개**(`36PrR06QCd8` 살림설렘 30초 2.6만회, `GmAqt0H_cnI` 살림톡톡 29초 3.5만회, `BKkPurocO7Y` 리뷰하는언니 20초 1.2만회, `kuxJCEICKxo` 쿠팡꿀템 28초, `sPJffYnI1NA` 다이소 주방 정리템 등)와 검색 출처 링크(`gemini_search_sources` 29개)가 정상 반환됨을 확인함.
+
+## 전용 브라우저 네이티브 다운로드 브리지 및 전체 회귀 테스트 완결 (2026-10-14)
+- **전용 브라우저(`studio-browser`) 보완**:
+  - `studio-browser/main.cjs`: `trackSiteDownloads(contents)` 및 `recentDownloads` 목록 관리 추가, `studioListDownloads`·`studioGetDownload` IPC 핸들러를 실제 완료된 파일 목록 및 원본 게시물 주소(`source`)와 연결하여 스튜디오 `[다운로드 및 수집]` 워크스페이스에서 즉시 불러올 수 있도록 완성.
+  - `studio-browser/helper-manager.cjs`: `resolvePythonPath()`를 추가하여 환경변수(`TAKOH_PYTHON`), 번들 런타임(`runtime/python/python.exe`), 로컬 가상환경(`.venv`), Python 3.11/3.12 경로를 순차 탐색하도록 개선.
+  - `downloader/content-threads.js`: 동일 게시물 내 다중 미디어(영상 + 별도 이미지 링크 `a[href*="/post/"][href*="/media"]`)가 동일 좌표를 가질 때 이미지가 비디오 포스터로 오인되어 개별 다운로드 버튼이 누락되지 않도록 `videoForImage` 판별 보강.
+- **전체 자동화 테스트 통과 현황**:
+  - Python 단위 테스트 (`python -m unittest discover -s downloader -p "test_*.py"`): **128개 전체 통과 (`OK`)**
+  - JavaScript / Electron CJS 단위·DOM 회귀 테스트 (`downloader/test_*.js` 19개 + `studio-browser/test_*.cjs` 3개): **22개 스위트 전체 통과 (`PASS`)**
+
+
 

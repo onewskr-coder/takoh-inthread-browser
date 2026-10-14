@@ -60,9 +60,11 @@
     const modal=img.closest('div[role="dialog"], div[aria-modal="true"]');
     const scope=modal||post;
     if(!scope)return null;
+    const mediaLink=img.closest('a[href*="/post/"][href*="/media"]');
     const r=img.getBoundingClientRect();
     return Array.from(scope.querySelectorAll('video')).find(video=>{
       if(video.poster&&(video.poster===(img.currentSrc||img.src)))return true;
+      if(mediaLink && !mediaLink.contains(video))return false;
       const v=video.getBoundingClientRect();
       return r.width>0&&r.height>0&&v.width>0&&v.height>0&&Math.abs(r.left-v.left)<2&&Math.abs(r.top-v.top)<2&&Math.abs(r.width-v.width)<2&&Math.abs(r.height-v.height)<2;
     });
@@ -248,7 +250,10 @@
         modalControls = null;
       }
       for (const controls of threadControls.values()) {
-        controls.removeAttribute('data-takoh-hidden');
+        if (controls.hasAttribute('data-takoh-hidden')) {
+          controls.removeAttribute('data-takoh-hidden');
+          controls.style.removeProperty('display');
+        }
       }
     }
 
@@ -261,11 +266,12 @@
       const enabled=controls.__takohCandidates.some(m=>m.tagName==='VIDEO'?config.enableVideos:config.enableImages);
       if(!enabled) {
         controls.style.setProperty('display','none','important');
-      } else {
+      } else if (controls.style.display === 'none') {
         controls.style.removeProperty('display');
       }
       for(const button of controls.querySelectorAll('.threads-download-btn')){const label=button.querySelector('span');if(label&&button.dataset.mediaType!=='batch')label.textContent='저장';}
     }
+    window.TAKCore?.updateMediaControlPositions?.();
   }
   window.addEventListener('scroll',updateThreadButtons,true);
   window.addEventListener('resize',updateThreadButtons);

@@ -26,7 +26,39 @@ const profileGuard=ownsApp?lockProfile(profilePath):{acquired:false,release(){}}
 app.on('will-quit',()=>profileGuard.release());
 if(!ownsApp||!profileGuard.acquired){console.error('QUIT REASON:',{ownsApp,acquired:profileGuard.acquired});app.quit();}else{app.on('second-instance',()=>{if(win){win.show();win.focus();}});}
 const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
-let win,toolbar,active,currentWork='';const views=new Map();
+let win,toolbar,active,currentWork='';const views=new Map();const recentDownloads=new Map();
+function trackSiteDownloads(contents){
+  if(contents.session.__takohDownloadsTracked)return;
+  contents.session.__takohDownloadsTracked=true;
+  contents.session.on('will-download',(_event,item,webContents)=>{
+    const id=Date.now()+Math.floor(Math.random()*1000);
+    const source=webContents&&!webContents.isDestroyed()?webContents.getURL():'';
+    const updateEntry=()=>{
+      const savePath=item.getSavePath();
+      if(!savePath)return;
+      const name=path.basename(savePath);
+      const ext=path.extname(name).toLowerCase();
+      const type=['.jpg','.jpeg','.png','.webp','.gif','.bmp'].includes(ext)?'image':'video';
+      recentDownloads.set(id,{
+        downloadId:id,
+        name,
+        path:savePath,
+        source,
+        type,
+        completed:item.getState()==='completed',
+        modified:Date.now()
+      });
+    };
+    item.on('updated',updateEntry);
+    item.once('done',(_e,state)=>{
+      updateEntry();
+      if(state==='completed'){
+        const studioView=views.get('studio');
+        if(studioView&&!studioView.webContents.isDestroyed())studioView.webContents.send('native-collection-changed');
+      }
+    });
+  });
+}
 function resize(){if(!win)return;const [width,height]=win.getContentSize();toolbar.setBounds({x:0,y:0,width,height});active?.setBounds({x:168,y:96,width:Math.max(0,width-168),height:Math.max(0,height-124)});}
 async function recoverStudioPage() {
   const view=views.get('studio');
@@ -50,7 +82,7 @@ function configurePopups(contents,key){
   contents.on('will-redirect',(event,url)=>{if(blockedGoogle(url)){event.preventDefault();explainGoogle();}});
   contents.on('did-create-window',popup=>{configurePopups(popup.webContents,key);popup.webContents.on('will-navigate',(event,url)=>{try{if(!['https:','about:'].includes(new URL(url).protocol))event.preventDefault();}catch{event.preventDefault();}});});
 }
-function select(key){if(!sites[key])return;if(active&&active===views.get(key)){currentWork='';resize();return;}currentWork='';if(active)win.contentView.removeChildView(active);let view=views.get(key);if(!view){view=new WebContentsView({webPreferences:{partition:key==='studio'?'persist:studio':'persist:sites',preload:path.join(__dirname,'site-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});views.set(key,view);view.loadFailed=false;view.webContents.on('did-fail-load',(_event,code,_description,_url,isMainFrame)=>{if(isMainFrame&&code!==-3)view.loadFailed=true;});view.webContents.on('did-finish-load',()=>{view.loadFailed=false;});view.webContents.on('render-process-gone',(_event,details)=>{restartNotice='페이지 표시 중단 · '+details.reason+' · 새로고침으로 다시 열 수 있습니다.';console.error('Renderer stopped:',key,details.reason,details.exitCode);});view.webContents.on('unresponsive',()=>{restartNotice='페이지 응답 대기 중 · 작성 내용 보존을 위해 자동 새로고침하지 않습니다.';});view.webContents.on('responsive',()=>{restartNotice='';});view.webContents.on('dom-ready',async()=>{try{if(native.trusted(view.webContents.getURL())){await helperReady;await view.webContents.insertCSS(fs.readFileSync(path.join(__dirname,'..','downloader','content.css'),'utf8'));const currentPlatform=navigation.platform(view.webContents.getURL());if(currentPlatform)await view.webContents.executeJavaScript(native.injection(currentPlatform));}}catch(error){console.error('Site integration:',error.message);}});configurePopups(view.webContents,key);view.webContents.on('will-navigate',(event,url)=>{try{const u=new URL(url);if(!['https:','http:'].includes(u.protocol)||u.protocol==='http:'&&u.hostname!=='127.0.0.1')event.preventDefault();}catch{event.preventDefault();}});view.initialLoad=view.webContents.loadURL(sites[key]);view.initialLoad.catch(error=>console.error(error.message));}active=view;win.contentView.addChildView(view);resize();}
+function select(key){if(!sites[key])return;if(active&&active===views.get(key)){currentWork='';resize();return;}currentWork='';if(active)win.contentView.removeChildView(active);let view=views.get(key);if(!view){view=new WebContentsView({webPreferences:{partition:key==='studio'?'persist:studio':'persist:sites',preload:path.join(__dirname,'site-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});views.set(key,view);trackSiteDownloads(view.webContents);view.loadFailed=false;view.webContents.on('did-fail-load',(_event,code,_description,_url,isMainFrame)=>{if(isMainFrame&&code!==-3)view.loadFailed=true;});view.webContents.on('did-finish-load',()=>{view.loadFailed=false;});view.webContents.on('render-process-gone',(_event,details)=>{restartNotice='페이지 표시 중단 · '+details.reason+' · 새로고침으로 다시 열 수 있습니다.';console.error('Renderer stopped:',key,details.reason,details.exitCode);});view.webContents.on('unresponsive',()=>{restartNotice='페이지 응답 대기 중 · 작성 내용 보존을 위해 자동 새로고침하지 않습니다.';});view.webContents.on('responsive',()=>{restartNotice='';});view.webContents.on('dom-ready',async()=>{try{if(native.trusted(view.webContents.getURL())){await helperReady;await view.webContents.insertCSS(fs.readFileSync(path.join(__dirname,'..','downloader','content.css'),'utf8'));const currentPlatform=navigation.platform(view.webContents.getURL());if(currentPlatform)await view.webContents.executeJavaScript(native.injection(currentPlatform));}}catch(error){console.error('Site integration:',error.message);}});configurePopups(view.webContents,key);view.webContents.on('will-navigate',(event,url)=>{try{const u=new URL(url);if(!['https:','http:'].includes(u.protocol)||u.protocol==='http:'&&u.hostname!=='127.0.0.1')event.preventDefault();}catch{event.preventDefault();}});view.initialLoad=view.webContents.loadURL(sites[key]);view.initialLoad.catch(error=>console.error(error.message));}active=view;win.contentView.addChildView(view);resize();}
 async function ensureThreadsView(){
   select('threads');
   const view=views.get('threads');
@@ -80,7 +112,12 @@ ipcMain.handle('native-media',async(event,message)=>{
     await helperReady;
     if(studioSender){
       if(message?.action==='studioListReferences')return {success:true,data:await native.helper('references')};
-      if(message?.action==='studioListDownloads')return {success:true,data:[]};
+      if(message?.action==='studioListDownloads')return {success:true,data:[...recentDownloads.values()].filter(x=>x.completed&&x.path&&fs.existsSync(x.path)).sort((a,b)=>b.modified-a.modified)};
+      if(message?.action==='studioGetDownload'){
+        const found=recentDownloads.get(Number(message.downloadId))||[...recentDownloads.values()].find(x=>String(x.downloadId)===String(message.downloadId));
+        if(!found||!found.path||!fs.existsSync(found.path))return {success:false,error:'다운로드한 파일을 찾을 수 없습니다.'};
+        return {success:true,data:{path:found.path,name:found.name,source:found.source||''}};
+      }
       if(message?.action==='studioQueueUpload'&&uploadManager)return {success:true,data:await uploadManager.queueUpload(message.packet)};
       if(message?.action==='studioUploadStatus'&&uploadManager)return {success:true,data:await uploadManager.status()};
       if(message?.action==='studioCancelUpload'&&uploadManager)return {success:true,data:await uploadManager.cancel(message.packet)};

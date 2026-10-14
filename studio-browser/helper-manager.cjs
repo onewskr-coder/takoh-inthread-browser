@@ -120,6 +120,22 @@ class HelperManager {
     return this.start();
   }
 
+  resolvePythonPath() {
+    const candidates = [
+      this.python,
+      process.env.TAKOH_PYTHON,
+      this.sourceDir ? path.join(this.sourceDir, 'runtime', 'python', 'python.exe') : '',
+      this.sourceDir ? path.join(this.sourceDir, '.venv', 'Scripts', 'python.exe') : '',
+      path.join(__dirname, '..', 'runtime', 'python', 'python.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe')
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    return candidates[0] || path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe');
+  }
+
   async boot() {
     this.status = { state: 'starting', message: '도우미 연결 준비 중' };
 
@@ -143,7 +159,7 @@ class HelperManager {
     }
 
     // 3. 신규 자동 시작 (창 없이 실행)
-    const python = this.python || path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe');
+    const python = this.resolvePythonPath();
     if (!fs.existsSync(python)) {
       throw new Error('Python 실행 파일을 찾지 못했습니다. Python 3.11 설치 경로를 확인하세요.');
     }

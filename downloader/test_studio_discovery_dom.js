@@ -19,6 +19,7 @@ const dom = new JSDOM(rawHtml, {
 
 const { window } = dom;
 const { document } = window;
+window.AbortController = globalThis.AbortController;
 
 // Mock fetch for Studio API calls
 const mockStore = {
@@ -79,6 +80,37 @@ window.fetch = async (url, options = {}) => {
   }
   if (urlStr.includes('/studio/references')) {
     return { ok: true, json: async () => mockStore.references };
+  }
+  if (urlStr.includes('/studio/discovery/gemini-settings')) {
+    return {
+      ok: true,
+      json: async () => ({
+        api_configured: false,
+        model: 'gemini-2.5-flash',
+        cli_installed: true,
+        cli_model: 'gemini-2.5-flash'
+      })
+    };
+  }
+  if (urlStr.includes('/studio/discovery/catalogue')) {
+    return {
+      ok: true,
+      json: async () => ({
+        videos: 899,
+        channels: 132,
+        unseen: 889,
+        registered_channels: []
+      })
+    };
+  }
+  if (urlStr.includes('/studio/discovery/status')) {
+    return {
+      ok: true,
+      json: async () => ({
+        ok: true,
+        supported_providers: ['youtube', 'serpapi', 'gemini_search', 'antigravity_search']
+      })
+    };
   }
   if (urlStr.includes('/studio/discovery')) {
     if (!mockStore.youtube_configured) {
@@ -165,9 +197,8 @@ window.fetch = async (url, options = {}) => {
   return { ok: true, json: async () => ({}) };
 };
 
-// Execute studio.js and workspace.js in JSDOM
-dom.window.eval(studioJs);
-dom.window.eval(workspaceJs);
+// Execute studio.js and workspace.js in JSDOM (shared browser global lexical scope)
+dom.window.eval(studioJs + '\n' + workspaceJs);
 
 (async () => {
   // Test 1: Navigation to Discovery workspace
@@ -183,8 +214,8 @@ dom.window.eval(workspaceJs);
 
   // Test 2: Unconfigured API key state
   const banner = document.getElementById('discovery-status-banner');
-  assert.ok(banner.classList.contains('unconfigured'), 'Banner shows unconfigured state');
-  assert.ok(banner.textContent.includes('실서비스 검증 대기'), 'Banner explains waiting for key verification');
+  assert.ok(banner.classList.contains('unconfigured'), 'Banner shows unconfigured state: ' + banner.className);
+  assert.ok(banner.textContent.includes('실서비스 검증 대기'), 'Banner explains waiting for key verification, got: ' + banner.textContent);
   const grid = document.getElementById('discovery-grid');
   assert.ok(grid.textContent.includes('API 키 미등록 상태입니다'), 'Grid explains key registration requirement without fake data');
   console.log('✓ 2. API 키 미등록 시 실서비스 검증 대기 배너 및 모의 자료 날조 방지 확인');
@@ -263,4 +294,5 @@ dom.window.eval(workspaceJs);
   console.log('✓ 6. 보관함 카드에서 발견 출처·추천근거·CC초안 확인 및 원본 준비 경로 연결 검증');
 
   console.log('\nAll Studio Discovery UI & Reference Library DOM tests PASSED successfully!');
+  process.exit(0);
 })();
