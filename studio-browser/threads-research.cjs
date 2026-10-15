@@ -55,7 +55,7 @@ function createThreadsResearch({dataDir,BrowserWindow,helper}){
       if(cancelled())return {status:'cancelled',related:[...related.values()],profile_posts:[...profilePosts.values()],detail:[...detail.values()]};if(!closed)closed=await normalClose();
       const mode=node.kind==='profile'?'profile':false;const result=await readPage(mode);outcome=result.status;
       if(['login_required','invalid_page'].includes(result.status))return {status:result.status,normal_close:closed,related:[...related.values()],profile_posts:[...profilePosts.values()],detail:[...detail.values()]};
-      for(const item of result.items||[])(node.kind==='profile'?profilePosts:related).set(item.id,item);
+      for(const item of result.items||[]){if(node.kind==='profile'){let prior;try{prior=frontier.data.nodes[frontierTarget(item.permalink).key];}catch{continue;}if(prior&&prior.state!=='queued')continue;} (node.kind==='profile'?profilePosts:related).set(item.id,item);}
       if(node.kind==='post'){const own=await readPage(true);for(const item of own.items||[])detail.set(item.id,item);}
       if(node.kind==='profile'&&profilePosts.size>=frontier.data.limits.postsPerProfile)break;
       if(scroll<(node.kind==='profile'?4:3)){await window.webContents.executeJavaScript('window.scrollBy(0,Math.max(300,innerHeight*.85))');await wait(550);}
