@@ -26,7 +26,7 @@ const {lockProfile}=require('./profile-lock.cjs');
 const profileGuard=ownsApp?lockProfile(profilePath):{acquired:false,release(){}};
 app.on('will-quit',()=>profileGuard.release());
 if(!ownsApp||!profileGuard.acquired){console.error('QUIT REASON:',{ownsApp,acquired:profileGuard.acquired});app.quit();}else{app.on('second-instance',()=>{if(win){win.show();win.focus();}});}
-const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://clipcreators.naver.com/web',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
+const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://m.naver.com/shorts/',naver_creator:'https://clipcreators.naver.com/web',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
 let win,toolbar,active,currentWork='';const views=new Map();const recentDownloads=new Map();
 function trackSiteDownloads(contents){
   if(contents.session.__takohDownloadsTracked)return;
@@ -93,7 +93,7 @@ async function recoverStudioPage() {
   }
 }
 function configurePopups(contents,key){
-  if(key==='naver_clip')require('./naver-navigation.cjs').installNaverNavigation(contents);
+  if(key==='naver_clip'||key==='naver_creator')require('./naver-navigation.cjs').installNaverNavigation(contents);
   const blockedGoogle=url=>{try{return new URL(url).hostname==='accounts.google.com';}catch{return false;}};
   const explainGoogle=()=>{dialog.showMessageBox({type:'info',title:'Google 로그인 안내',message:'Google 로그인은 내장 브라우저에서 제한될 수 있습니다.',detail:'외부 브라우저에서 Pinterest 로그인을 진행할 수 있습니다. 외부 로그인은 이 앱으로 자동 전달되지 않습니다. 앱에서는 Pinterest 이메일 로그인을 사용하세요.',buttons:['닫기','외부 Pinterest 열기'],defaultId:0,cancelId:0}).then(({response})=>{if(response===1)shell.openExternal('https://www.pinterest.com/login/');});};
   contents.setWindowOpenHandler(({url})=>{
@@ -147,16 +147,13 @@ function select(key){
   resize();
 }
 async function ensureThreadsView(platform='threads'){
-  const siteKey = (platform==='instagram_reels'||platform==='instagram_carousel'||platform==='instagram') ? 'instagram'
-    : platform==='naver_clip' ? 'naver_clip'
-    : platform==='tiktok' ? 'tiktok'
-    : 'threads';
+  const siteKey=navigation.uploadSiteKey(platform);
   select(siteKey);
   const view=views.get(siteKey);
   if(!view||view.webContents.isDestroyed())throw new Error('업로드할 플랫폼 화면을 열지 못했습니다.');
   const currentUrl=view.webContents.getURL();
   const validPattern = siteKey==='instagram' ? /^https:\/\/(?:www\.)?instagram\.com\//i
-    : siteKey==='naver_clip' ? /^https:\/\/clipcreators\.naver\.com\/web(?:[/?#]|$)/i
+    : siteKey==='naver_creator' ? /^https:\/\/clipcreators\.naver\.com\/web(?:[/?#]|$)/i
     : siteKey==='tiktok' ? /^https:\/\/(?:www\.)?tiktok\.com\/(?:tiktokstudio\/upload|upload|creator)/i
     : /^https:\/\/(?:www\.)?threads\.(?:com|net)\//i;
   if(view.loadFailed||!validPattern.test(currentUrl)){
@@ -171,7 +168,7 @@ async function ensureThreadsView(platform='threads'){
   return view;
 }
 ipcMain.handle('site-location',event=>{if(event.sender!==toolbar?.webContents)return null;const key=[...views.entries()].find(([,view])=>view===active)?.[0];return {key,url:active?.webContents.getURL()||'',work:currentWork};});
-ipcMain.handle('site-navigate',async(event,value)=>{if(event.sender!==toolbar?.webContents)return;try{const url=navigation.address(value);const key=navigation.platform(url)||'browser';select(key);await active.webContents.loadURL(url);return {success:true};}catch(error){return {error:error.message};}});
+ipcMain.handle('site-navigate',async(event,value)=>{if(event.sender!==toolbar?.webContents)return;try{const url=navigation.address(value);const key=navigation.siteKey(url);select(key);await active.webContents.loadURL(url);return {success:true};}catch(error){return {error:error.message};}});
 ipcMain.handle('work-select',async(event,name)=>{if(event.sender!==toolbar?.webContents)return;const destination={discovery:{workspace:'discovery'},library:{workspace:'create',stage:'reference'},create:{workspace:'create',stage:'analysis'},publish:{workspace:'publish'},settings:{workspace:'settings'}}[name];if(!destination)return {error:'알 수 없는 작업 메뉴'};try{await helperReady;select('studio');currentWork=name;const target=active;await recoverStudioPage();await target.initialLoad;await target.webContents.executeJavaScript(`document.querySelector('[data-workspace="${destination.workspace}"]')?.click();`+(destination.stage?`document.querySelector('[data-production-stage="${destination.stage}"]')?.click();`:''));return {success:true};}catch(error){return {error:error.message};}});
 ipcMain.handle('helper-status',async event=>{if(event.sender!==toolbar?.webContents)return null;if(helperManager?.status.state==='ready'&&!await helperManager.probe())helperManager.status={state:'failed',message:'도우미 연결 끊김 · 아래 재연결 버튼을 눌러주세요.'};return helperManager?{...helperManager.status,message:restartNotice||helperManager.status.message}:null;});
 ipcMain.handle('helper-retry',async event=>{if(event.sender!==toolbar?.webContents||!helperManager)return {error:'도우미 관리자를 찾을 수 없습니다.'};try{helperReady=helperManager.retry();await helperReady;await recoverStudioPage();return {success:true,message:helperManager.status.message};}catch(error){return {error:error.message};}});

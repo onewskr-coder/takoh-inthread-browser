@@ -316,3 +316,7 @@ Threads 다크 본문/첨부/반응/댓글, Instagram 피드 및 릴스, TikTok 
 ## 2026-10-15 네이버 로그인 finalize 복귀·미리보기 디테일
 사용자가 제시한 finalize URL의 복귀 대상은 http://clipcreators.naver.com/web이며 기존 앱 외부 HTTP 차단과 충돌 가능성이 있었다. 실제 앱에서 로그인 후 세션을 유지한 채 https://clipcreators.naver.com/web로 이동하자 /web/dashboard의 로그인 계정·대시보드·업로드 버튼이 정상 표시됨을 확인했다. 로그인 완료 자체와 복귀 이동 장애를 구분한다. naver-navigation.cjs는 정확히 clipcreators.naver.com의 HTTP 복귀만 HTTPS로 승격하며 다른 HTTP/악성 유사 호스트·인증정보·비표준 포트는 허용하지 않는다. 메인 및 로그인 팝업의 navigation/redirect에 연결했다. test_naver_navigation.cjs 통과. 변경된 자동 복귀 훅은 정상 앱 재실행 후 적용되며 실제 재로그인 경로는 추가 검증 필요.
 미리보기에는 SVG 하단 탐색, 프로필/더보기 영역, 원본 오디오/음성 없음 표시, 세로 본문·프로필·반응 버튼 간격과 TikTok 만들기 버튼 색상을 추가했다. 플랫폼 실제 계정 정보나 반응 숫자를 만들어 표시하지 않는다. test_preview_calendar.js 및 AI 배정 DOM 테스트 통과. 실제 게시·유료 호출·쿠키 초기화는 없음.
+
+## 2026-10-15 네이버 클립 탐색과 업로드 분리
+실제 앱의 m.naver.com 클립 탭에서 추천 영상 재생을 확인했고, 사용자 제공 seedMediaId URL에서 작성자/해시태그/좋아요/댓글/다음 클립을 확인했다. 특정 영상 없는 https://m.naver.com/shorts/로 이동하니 다른 추천 영상(seedMediaId 자동 부여)이 정상 표시됨을 확인했다. 이를 기본 탐색 주소로 사용한다.
+상단 네이버 클립(naver_clip)은 추천 시청 피드, 별도 클립 업로드(naver_creator)는 clipcreators.naver.com/web를 사용하도록 분리했다. 두 탭은 기존 persist:sites 세션을 공유하고 각 페이지 상태는 독립이다. 업로드 큐의 naver_clip 플랫폼 ID/기존 예약 자료는 변경하지 않으며 uploadSiteKey만 naver_creator로 연결한다. 크리에이터 주소 직접 입력도 전용 업로드 탭을 선택한다. 이전 로그인 HTTP→HTTPS 가드는 양쪽 네이버 탭에서 유지한다. test_clip_split.cjs 및 test_naver_navigation.cjs 통과. 새 탭/메인 프로세스 변경은 정상 재실행 후 적용된다. 재실행은 사용자가 탐색 확인을 먼저 요청하여 보류했다. 실제 업로드/수집 추출까지 검증한 것은 아니다.

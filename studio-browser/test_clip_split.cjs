@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),navigation=require('./navigation.cjs'),fs=require('node:fs'),path=require('node:path');
+assert.equal(navigation.siteKey('https://m.naver.com/shorts/?seedMediaId=abc&serviceType=CLIP'),'naver_clip');
+assert.equal(navigation.siteKey('https://clip.naver.com/@creator'),'naver_clip');
+assert.equal(navigation.siteKey('https://clipcreators.naver.com/web/dashboard'),'naver_creator');
+assert.equal(navigation.siteKey('https://clipcreators.naver.com.evil.test/'),'browser');
+assert.equal(navigation.uploadSiteKey('naver_clip'),'naver_creator');
+assert.equal(navigation.uploadSiteKey('instagram_carousel'),'instagram');
+assert.equal(navigation.uploadSiteKey('threads'),'threads');
+const source=fs.readFileSync(path.join(__dirname,'main.cjs'),'utf8'),html=fs.readFileSync(path.join(__dirname,'toolbar.html'),'utf8');
+assert(source.includes("naver_clip:'https://m.naver.com/shorts/'"));assert(source.includes("naver_creator:'https://clipcreators.naver.com/web'"));
+assert(html.includes('data-site="naver_clip"'));assert(html.includes('data-site="naver_creator"'));
+console.log('PASS: Clip discovery and creator tabs separated; uploads use creator; profile/viewer stays discovery');

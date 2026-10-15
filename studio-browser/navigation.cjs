@@ -15,4 +15,6 @@ function platform(value){
   if(/(^|\.)naver\.com$/.test(host))return 'naver_clip';
   return null;
 }
-module.exports={address,platform};
+function siteKey(value){return new URL(value).hostname==='clipcreators.naver.com'?'naver_creator':platform(value)||'browser';}
+function uploadSiteKey(platform){return ['instagram','instagram_reels','instagram_carousel'].includes(platform)?'instagram':platform==='naver_clip'?'naver_creator':platform==='tiktok'?'tiktok':'threads';}
+module.exports={address,platform,siteKey,uploadSiteKey};
