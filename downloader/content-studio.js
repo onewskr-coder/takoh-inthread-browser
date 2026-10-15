@@ -82,7 +82,7 @@
     let rawText = '';
     if (scope) {
       const clone = scope.cloneNode(true);
-      clone.querySelectorAll?.('.takoh-threads-toolbar, .threads-download-btn-container, .takoh-positioned-controls, [data-takoh-threads-controls]').forEach(el => el.remove());
+      clone.querySelectorAll?.('.takoh-threads-toolbar, .threads-download-btn-container, .takoh-positioned-controls, [data-takoh-threads-controls], [data-takoh-pinterest-toolbar]').forEach(el => el.remove());
       rawText = (clone.innerText || '').trim();
     }
 
@@ -152,6 +152,7 @@
     return {button, directBtn};
   }
   function attach(controls,media,fixed=false) {
+    if(controls.closest?.('[data-takoh-pinterest-toolbar]'))return;
     // On Threads, individual media controls only show the [저장] button;
     // [📌 수집] and [⚡ 바로 제작] are placed ONCE per post via attachPostToolbar!
     if (controls.classList.contains('takoh-threads-media-controls') && !controls.classList.contains('takoh-threads-modal-controls')) {
@@ -278,5 +279,5 @@
     }
   }
 
-  window.TAKStudio={attach,attachPostToolbar,updatePostToolbarPositions,reference,findPostBoundary};
+  window.TAKStudio={attach,attachPostToolbar,updatePostToolbarPositions,reference,findPostBoundary,createStudioActionButtons};
 })();

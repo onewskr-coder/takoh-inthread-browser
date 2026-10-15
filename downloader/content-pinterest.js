@@ -166,8 +166,32 @@
            el.parentElement;
   }
 
+  // One native DOM toolbar per rendered pin media: scrolling moves it with the card.
+  // It is intentionally outside the shared obstacle-placement loop.
+  function mountToolbar(save,media,box){
+    const host=media.closest('[data-test-id="pin-detail-image"], [data-test-id="visual-search-crop-container"]')||media.parentElement||box;
+    if(!host)return;
+    const existing=host.querySelector(':scope > [data-takoh-pinterest-toolbar]');
+    if(existing){save.remove();return;}
+    if(getComputedStyle(host).position==='static')host.style.position='relative';
+    const toolbar=document.createElement('div');toolbar.className='takoh-pinterest-toolbar';toolbar.dataset.takohPinterestToolbar='true';toolbar.__takohMedia=media;
+    toolbar.dataset.kind=media.tagName==='VIDEO'?'video':'image';
+    toolbar.dataset.detail=String(!media.closest('[data-test-id="pin"]')&&Boolean(pinIdFromUrl(location.href)));
+    const actions=window.TAKStudio?.createStudioActionButtons?.(()=>toolbar.__takohMedia);
+    if(actions)toolbar.append(actions.button);
+    toolbar.append(save);
+    if(actions)toolbar.append(actions.directBtn);
+    for(const event of ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'])toolbar.addEventListener(event,e=>e.stopPropagation(),true);
+    host.append(toolbar);
+  }
+
   // Scanner: Attach overlay download buttons to Pinterest Images & Videos
   function scanForPinterestMedia() {
+    // React can replace/recycle media while retaining its surrounding card.
+    for(const toolbar of document.querySelectorAll('[data-takoh-pinterest-toolbar]')){
+      const media=toolbar.__takohMedia;
+      if(!media?.isConnected||!toolbar.parentElement?.contains(media)||(media.tagName==='IMG'&&toolbar.parentElement.querySelector('video')))toolbar.remove();
+    }
     // 1. Process Images
     if (config.enableImages) {
       const images = document.querySelectorAll('img[src*="pinimg.com"]');
@@ -243,14 +267,13 @@
           e.stopImmediatePropagation();
           const origSrc = getOriginalImageUrl(img.src);
           if (origSrc) {
-            const meta = getPostMetadata(targetBox);
+            const meta = getPostMetadata(img);
             meta.filename = `${meta.username}_${meta.postId}.jpg`;
             triggerDownload(origSrc, 'image', meta, 'pinterest');
           }
         }, true);
 
-        targetBox.appendChild(btn);
-        window.TAKCore.anchorMediaControls?.(btn, img);
+        mountToolbar(btn,img,targetBox);
       });
     }
 
@@ -343,8 +366,7 @@
           } finally { btn.disabled = false; }
         }, true);
 
-        targetBox.appendChild(btn);
-        window.TAKCore.anchorMediaControls?.(btn, videoEl);
+        mountToolbar(btn,videoEl,targetBox);
       });
     }
   }

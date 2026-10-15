@@ -664,6 +664,7 @@ console.log("[TAKOH Downloader] Core Engine initialized on:", window.location.hr
   const overlaySelector = '.threads-download-btn-container, .youtube-shorts-download-btn-container, .takoh-video-overlay-btn, .takoh-image-overlay-btn';
   function anchorMediaControls(controls, media, fixed = false) {
     if (!controls || !media) return;
+    if(controls.closest?.('[data-takoh-pinterest-toolbar]'))return;
     if(isComposerMedia(media)){controls.remove();return;}
     window.TAKStudio?.attach(controls, media, fixed);
     positionedControls.set(controls, {media, fixed});
@@ -693,6 +694,7 @@ console.log("[TAKOH Downloader] Core Engine initialized on:", window.location.hr
     if (!document.querySelectorAll) return;
     // Preserve platform wrappers and deduplication markers; only move their controls.
     for (const control of document.querySelectorAll(overlaySelector)) {
+      if(control.closest('[data-takoh-pinterest-toolbar]'))continue;
       if (control.hasAttribute('data-takoh-threads-controls') || positionedControls.has(control)) continue;
       if (control.closest('.threads-download-btn-container, .youtube-shorts-download-btn-container') !== control && control.closest('.threads-download-btn-container, .youtube-shorts-download-btn-container')) continue;
       const host = control.parentElement;
