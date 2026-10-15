@@ -182,6 +182,7 @@ ipcMain.handle('native-media',async(event,message)=>{
     await helperReady;
     if(studioSender){
       if(message?.action==='studioThreadsResearch'&&researchManager){if(JSON.stringify(message).length>10000)throw Error('요청 크기 초과');return {success:true,data:await researchManager.request(message.packet?.action,message.packet)};}
+      if(message?.action==='studioBrowseThreadsForResearch'){select('threads');return {success:true};}
       if(message?.action==='studioListReferences')return {success:true,data:await native.helper('references')};
       if(message?.action==='studioListDownloads')return {success:true,data:[...recentDownloads.values()].filter(x=>x.completed&&x.path&&fs.existsSync(x.path)).sort((a,b)=>b.modified-a.modified)};
       if(message?.action==='studioGetDownload'){
@@ -216,6 +217,10 @@ ipcMain.handle('native-media',async(event,message)=>{
       return {success:false,error:'제작 화면에서 지원하지 않는 동작입니다.'};
     }
     if(!message||JSON.stringify(message).length>200000)throw Error('요청 크기 초과');
+    if(message.action==='studioFindProducts'){
+      const origin=new URL(event.sender.getURL());if(!['threads.com','www.threads.com','threads.net','www.threads.net'].includes(origin.hostname))throw Error('Threads 게시물에서만 제품 찾기를 시작할 수 있습니다.');
+      const result=await researchManager.request('start-from-post',{url:message.url});select('studio');currentWork='discovery';await recoverStudioPage();const view=views.get('studio');await view.initialLoad;await view.webContents.executeJavaScript("document.querySelector('[data-workspace=research]')?.click();window.dispatchEvent(new Event('takoh-research-started'));");return {success:true,data:{started:true}};
+    }
     if(message.action==='studioSaveReference'){
       if(!native.trusted(message.reference?.permalink))throw Error('지원 사이트 게시물 주소가 필요합니다.');
       await native.helper('references/import',{reference:message.reference});const studioView=views.get('studio');if(studioView&&!studioView.webContents.isDestroyed())studioView.webContents.send('native-collection-changed');return {success:true};

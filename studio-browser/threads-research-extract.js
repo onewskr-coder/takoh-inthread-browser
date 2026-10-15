@@ -12,7 +12,7 @@ function extractThreadsResearch(detail=false){
   const joinPrompt=[...document.querySelectorAll('div,span,button,a')].some(n=>{if(n.childElementCount>2||!visible(n)||!/^(Threads에서 소통해보세요|Instagram으로 계속하기|Join Threads|Continue with Instagram)$/i.test((n.innerText||n.textContent||'').trim()))return false;const r=n.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight;});
   if(login||joinPrompt)return {status:'login_required',items:[]};
   const heading=[...document.querySelectorAll('h1,h2,h3,[role="heading"],span,div')].find(n=>n.childElementCount<3&&visible(n)&&/^(관련\s*스레드|related\s*threads)$/i.test((n.innerText||n.textContent||'').trim()));
-  if(!heading&&!detail)return {status:'related_not_observed',items:[]};
+  if(!heading&&!detail)return {status:'related_not_observed',related_section_observed:false,items:[]};
   const count=text=>{const m=String(text).replace(/[,\u200B-\u200D\uFEFF]/g,'').replace(/(\d)([가-힣A-Za-z])/g,'$1 $2').match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(만|천|[KMB])?(?:\s|$)/i);if(!m)return null;return Math.round(Number(m[1])*({만:10000,천:1000,k:1000,m:1000000,b:1000000000}[(m[2]||'').toLowerCase()]||1));};
   const items=[],seen=new Set();
   for(const link of document.querySelectorAll('a[href*="/post/"]')){
@@ -37,6 +37,6 @@ function extractThreadsResearch(detail=false){
     if(detail&&!profileMode&&post.id!==source.id&&!/작성자|author/i.test(card.innerText||card.textContent||''))continue;
     seen.add(post.id);items.push({...post,text,thumbnail_url:thumbnail,media_checked:true,media_assets:mediaAssets,topic_tags:[...new Set(topicTags)],links:[...new Set(links)].slice(0,20),metrics,published_at:time,evidence_scope:profileMode?'visible_profile_post':detail&&post.id!==source.id?'visible_author_reply':'visible_post_card',comments_checked:false});
   }
-  return {status:items.length?'captured':detail?'detail_not_observed':'related_not_observed',source:source.permalink,items,observed_at:new Date().toISOString()};
+  return {related_section_observed:Boolean(heading),status:items.length?'captured':detail?'detail_not_observed':'related_not_observed',source:source.permalink,items,observed_at:new Date().toISOString()};
 }
 if(typeof module!=='undefined')module.exports={extractThreadsResearch};

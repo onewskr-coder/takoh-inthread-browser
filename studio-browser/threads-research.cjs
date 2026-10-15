@@ -60,11 +60,11 @@ function createThreadsResearch({dataDir,BrowserWindow,helper,mediaCache}){
       const mode=node.kind==='profile'?'profile':false;const result=await readPage(mode);outcome=result.status;
       if(['login_required','invalid_page'].includes(result.status))return {status:result.status,normal_close:closed,related:[...related.values()],profile_posts:[...profilePosts.values()],detail:[...detail.values()]};
       for(const item of result.items||[]){if(node.kind==='profile'){let prior;try{prior=frontier.data.nodes[frontierTarget(item.permalink).key];}catch{continue;}if(prior&&prior.state!=='queued')continue;} (node.kind==='profile'?profilePosts:related).set(item.id,item);}
-      if(node.kind==='post'){const own=await readPage(true);for(const item of own.items||[])detail.set(item.id,item);}
+      if(node.kind==='post'){const own=await readPage(true);for(const item of own.items||[])detail.set(item.id,item);if(result.status==='related_not_observed')break;}
       if(node.kind==='profile'&&profilePosts.size>=frontier.data.limits.postsPerProfile)break;
       if(scroll<(node.kind==='profile'?4:3)){await window.webContents.executeJavaScript('window.scrollBy(0,Math.max(300,innerHeight*.85))');await wait(550);}
     }
-    return {status:related.size||profilePosts.size||detail.size?'captured':outcome,normal_close:closed,related:[...related.values()],profile_posts:[...profilePosts.values()],detail:[...detail.values()]};
+    return {related_status:node.kind==='profile'?'not_applicable':outcome==='related_not_observed'?'not_observed':related.size?'captured':'empty',status:related.size||profilePosts.size||detail.size?'captured':outcome,normal_close:closed,related:[...related.values()],profile_posts:[...profilePosts.values()],detail:[...detail.values()]};
   },async ingest(node,result){
     const seed=frontier.data.seed,product=frontier.data.product,own=(result.detail||[]).find(p=>p.permalink===node.url);
     if(own&&(own.media_assets?.length||store.data.posts[own.id])){store.capture(seed,{status:'captured',items:[own]},product,{allowSource:true,kind:'visited_post',from:node.from});store.enrich(own.id,{status:'captured',source:node.url,items:result.detail});}
@@ -75,6 +75,9 @@ function createThreadsResearch({dataDir,BrowserWindow,helper,mediaCache}){
     if(!store)throw Error('관련 콘텐츠 저장 자료를 읽지 못했습니다. 기존 파일은 보존됩니다.');
     if(action==='list'||action==='crawl-status'){const list=store.list();return {...list,frontier:runner?{...runner.status(),new_posts:Math.max(0,list.posts.length-(frontier.data.start_posts||0)),new_accounts:Math.max(0,list.accounts.length-(frontier.data.start_accounts||0))}:null};}
     if(action==='crawl-pause'){runner?.pause();guest?.webContents.stop?.();return {...store.list(),frontier:runner?.status()||null};}
+    if(action==='start-from-post'){
+      if(pending)throw Error('페이지 확인이 진행 중입니다. 완료 후 다시 눌러 주세요.');if(!runner)throw Error('탐색 대기열을 읽지 못했습니다.');const url=postUrl(packet.url);pending=true;try{runner.pause();await runner.settled();frontier.configure(url,'',{keepQueue:true,maxPages:20,maxDepth:5,postsPerProfile:10,maxSeconds:180});const node=frontier.data.nodes[frontierTarget(url).key];if(!node)throw Error('탐색 대기열 한도에 도달했습니다.');node.relation='selected_seed';node.state='queued';node.depth=0;node.branch=url;frontier.data.selected_branch=url;frontier.save();source=url;frontier.data.start_posts=Object.keys(store.data.posts).length;frontier.data.start_accounts=store.list().accounts.length;runner.start();return {...store.list(),frontier:runner.status(),selected_seed:url};}finally{pending=false;}
+    }
     if(action==='crawl-start'){
       if(pending)throw Error('페이지를 여는 중입니다. 로딩 후 탐색을 시작하세요.');
       if(!runner)throw Error('탐색 대기열을 읽지 못했습니다. 기존 파일은 보존됩니다.');if(runner.isRunning())return {...store.list(),frontier:runner.status()};

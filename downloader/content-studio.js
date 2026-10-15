@@ -255,6 +255,11 @@
     const {button, directBtn} = createStudioActionButtons(() => findPostBoundary(row) || postEl);
     toolbar.appendChild(button);
     toolbar.appendChild(directBtn);
+    if(window.takohNative&&/(^|\.)(threads\.com|threads\.net)$/.test(location.hostname)){
+      const find=document.createElement('button');find.type='button';find.className='takoh-find-products';find.textContent='제품 찾기';find.title='이 게시물에서 비로그인 관련 제품 탐색 시작';find.style.cssText=button.style.cssText;stopEvents(find);
+      find.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(find.disabled)return;find.disabled=true;try{const ref=reference(findPostBoundary(row)||postEl);const r=await window.takohNative.request({action:'studioFindProducts',url:ref.permalink});if(!r?.success)throw Error(r?.error||'탐색 시작 실패');}catch(error){window.TAKCore.showToast('research-'+Date.now(),'제품 찾기',error.message,'error');}finally{find.disabled=false;}},true);toolbar.append(find);
+    }
+
 
     // 액션 바(row)가 flex/grid 줄 안에서 자연스럽게 나란히 배치되도록 최소한의 안전한 스타일만 보강
     const rowStyle = window.getComputedStyle(row);
