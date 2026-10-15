@@ -26,7 +26,7 @@ async function act(label, action, success='저장했습니다.') {
   try {await action();message(success);} catch(error) {message(error.message,true);}
   finally {busy=false;document.body.classList.remove('busy');}
 }
-function credentials(){return {provider:$('ai-provider').value,key:$('key').value.trim(),model:$('model').value.trim(),fallback_model:$('fallback-model').value.trim()};}
+function credentials(role){const selected={provider:$('ai-provider').value,key:$('key').value.trim(),model:$('model').value.trim(),fallback_model:$('fallback-model').value.trim()};return window.studioTaskCredentials?window.studioTaskCredentials(role,selected):selected;}
 function writingCounts(){for(const id of ['script','body']){const count=Array.from($(id).value).length;$(id+'-count').textContent=count+' / 500자';}for(const [button,field] of [['copy-intro','script'],['copy-draft-body','body']])$(button).disabled=!$(field).value.trim()||Array.from($(field).value).length>500;}
 for(const id of ['script','body'])$(id).addEventListener('input',writingCounts);
 for(const [button,field] of [['copy-intro','script'],['copy-draft-body','body']])$(button).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(field).value);},'문단을 유지해 복사했습니다.');
@@ -71,7 +71,7 @@ function renderEditor(){
   $('subtitle-treatment').value='auto_subtitles';$('subtitle-region').hidden=true;regionBox();
 }
 $('hook-candidate').onchange=()=>{const select=$('hook-candidate');$('hook-start').value=select.value;refreshHookFocus();const option=select.selectedOptions[0];$('hook-reason').textContent=option?.dataset.reason||'';const timestamp=Number(option?.dataset.timestamp||0);const frame=[...job.evidence.frames].sort((a,b)=>Math.abs(a.timestamp-timestamp)-Math.abs(b.timestamp-timestamp))[0];if(frame)$('subtitle-region-image').src=`/studio/jobs/${job.id}/media/${frame.file}`;};
-$('recommend-hook').onclick=()=>act('영상 전체에서 후킹 후보를 비교하는 중…',async()=>{job=await api(`jobs/${job.id}/hook-recommend`,credentials());editJobId=null;render();await refreshJobs();},'추천 1순위를 선택했습니다. 원본 구간을 확인하고 인트로 효과를 고르세요.');
+$('recommend-hook').onclick=()=>act('영상 전체에서 후킹 후보를 비교하는 중…',async()=>{job=await api(`jobs/${job.id}/hook-recommend`,credentials('analysis'));editJobId=null;render();await refreshJobs();},'추천 1순위를 선택했습니다. 원본 구간을 확인하고 인트로 효과를 고르세요.');
 $('preview-hook').onclick=()=>{$('preview').currentTime=Number($('hook-start').value);$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
 $('create-hook-edit').onclick=()=>act('후킹 편집과 자막 처리 중… 원본은 보관됩니다.',async()=>{
   const sourceId=job.id,rectangle={};for(const key of ['x','y','w','h'])rectangle[key]=Number($('subtitle-'+key).value);
@@ -432,7 +432,7 @@ $('image-form').onsubmit=event=>{event.preventDefault();const file=$('image-file
 if($('btn-save-source-text'))$('btn-save-source-text').onclick=()=>act('원본 게시물 본문 저장 중…',()=>update('repost-meta',{source_text:$('source-post-text').value}),'원본 게시물 글을 저장했습니다. 이제 [2 대본·게시문]에서 한국 스타일로 번역·재작성할 수 있습니다.');
 if($('btn-ocr-media-text'))$('btn-ocr-media-text').onclick=()=>act('화면 속 글자(OCR)를 인식하고 자연스러운 한국어로 번역하는 중…',async()=>{
   const tone=$('ocr-translate-tone')?.value||'natural';
-  await update('media-text-ocr',{...credentials(),tone});
+  await update('media-text-ocr',{...credentials('analysis'),tone});
   const trans=job?.media_ocr?.translated_text||job?.media_ocr?.korean_translation||'';
   if(trans)$('overlay-korean-text').value=trans;
 },'화면 속 글자 인식 및 한국어 번역이 완료되었습니다!');
@@ -441,9 +441,9 @@ if($('btn-ocr-retranslate'))$('btn-ocr-retranslate').onclick=()=>act('인식된 
   const rawText=($('ocr-original-text')?.value||'').trim();
   const tone=$('ocr-translate-tone')?.value||'natural';
   if(!rawText){
-    await update('media-text-ocr',{...credentials(),tone});
+    await update('media-text-ocr',{...credentials('analysis'),tone});
   }else{
-    await update('ocr-translate',{...credentials(),text:rawText,tone});
+    await update('ocr-translate',{...credentials('analysis'),text:rawText,tone});
   }
   const trans=job?.media_ocr?.translated_text||job?.media_ocr?.korean_translation||'';
   if(trans)$('overlay-korean-text').value=trans;
@@ -488,9 +488,9 @@ if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('영상
   if($('upload-platform'))$('upload-platform').value='instagram_carousel';
   if($('upload-format'))$('upload-format').value='carousel';
 },'캐러셀 이미지 세트를 생성했습니다! 아래 슬라이드 미리보기를 확인하고 인스타 캐러셀·쓰레드로 바로 업로드하세요.');
-$('analyze').onclick=()=>act('선택한 영상 데이터를 분석하는 중…',()=>update('analyze',credentials()));
+$('analyze').onclick=()=>act('선택한 영상 데이터를 분석하는 중…',()=>update('analyze',credentials('analysis')));
 $('product-form').onsubmit=event=>{event.preventDefault();const mode=$('affiliate-entry-mode')?.value||'manual';act('상품 저장 중…',()=>{if(mode==='manual'&&!$('affiliate-url').value.trim())throw Error('직접 발급한 제휴 링크를 입력하세요.');return update('product',{platform:$('platform').value,name:$('product-name').value,url:mode==='api'?$('product-url').value:'',link_entry_mode:mode,affiliate_url:$('affiliate-url').value,confirmed:$('confirmed').checked});},'상품과 제휴 링크를 저장했습니다.');};
-$('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials(),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:$('source-post-text')?.value||job?.source_text||''});});
+$('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials('writing'),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:$('source-post-text')?.value||job?.source_text||''});});
 $('prepare').onclick=()=>act('본문과 첫 댓글 확정 저장 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('prepare',{body:$('script').value,script:$('script').value,disclosure:$('disclosure').value,comment:$('comment').value,selected:job?.draft?.selected||0});},'본문과 첫 댓글을 확정 저장했습니다. 이제 원하는 플랫폼(쓰레드·인스타·네이버 클립·틱톡)으로 바로 업로드할 수 있습니다.');
 for(const target of ['body','comment']) $('copy-'+target).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(target).value);}, '복사했습니다. 원하는 채널에 붙여 넣어 주세요.');
 $('new-job').onclick=()=>{job=null;editJobId=null;render();$('upload-form').reset();if($('fetch-url')){$('fetch-url').value='';$('fetch-url').focus();}refreshJobs().catch(e=>message(e.message,true));};
@@ -945,12 +945,13 @@ function populateSearchAndFallbackModels(){
   const provider=$('ai-provider').value;
   const fb=$('fallback-model');
   if(fb&&fb.tagName==='SELECT'){
-    const prevFb=localStorage.getItem('studio-fallback-'+provider)||fb.value||'';
+    const prevFb=localStorage.getItem('studio-fallback-'+provider)||'';
     fb.replaceChildren();
-    const autoOpt=text('option','자동 선택 (권장 · Flash / Luna 대체)');
+    const autoOpt=text('option','자동 · CLI 한도 초과 시 Flash / Luna');
     autoOpt.value='';
     fb.append(autoOpt);
-    const cliModels=provider==='kie_api'?[]:allModels.filter(m=>m.provider===provider||(provider.endsWith('_api')&&m.provider===(provider==='gemini_api'?'antigravity_cli':'codex_cli')));
+    const noneOpt=text('option','사용 안 함 · 대체 실행 중단');noneOpt.value='__none__';fb.append(noneOpt);
+    const cliModels=provider.endsWith('_cli')?allModels.filter(m=>m.provider===provider):[];
     const seenFb=new Set();
     for(const m of cliModels){
       if(!m.model_id||seenFb.has(m.model_id))continue;
@@ -965,6 +966,7 @@ function populateSearchAndFallbackModels(){
       fb.append(extra);
     }
     fb.value=prevFb;
+    if(!provider.endsWith('_cli')){fb.replaceChildren(text('option','사용 안 함 · API 자동 대체 없음'));fb.firstChild.value='';fb.value='';}
   }
   const gs=$('gemini-search-model');
   if(gs&&gs.tagName==='SELECT'){
@@ -1008,7 +1010,7 @@ function chooseProvider(){
   const provider=$('ai-provider').value,cli=provider.endsWith('_cli');
   $('api-key-label').hidden=cli||provider==='kie_api';if($('save-ai-key'))$('save-ai-key').hidden=cli||provider==='kie_api';$('cli-check').hidden=!cli;$('cli-login').hidden=!cli;$('cli-login-help').hidden=!cli;$('cli-status').textContent='';
   if($('kie-inspect-model'))$('kie-inspect-model').disabled=provider!=='kie_api';
-  if(provider==='kie_api'){$('fallback-model').value='';$('fallback-model').disabled=true;}else $('fallback-model').disabled=false;
+  $('fallback-model').disabled=!cli;
   const providerModels=allModels.filter(m=>m.provider===provider);
   $('model-choice').replaceChildren();
   for(const m of providerModels){
@@ -1024,6 +1026,7 @@ function chooseProvider(){
   else if(provider==='kie_api'){$('model').value='';$('model').hidden=true;}
   $('cli-login-help').textContent=provider==='codex_cli'?'ChatGPT 구독(Plus/Pro/Team) 계정으로 Codex CLI가 연결됩니다.':'Google / Antigravity 구독 계정으로 CLI가 연결됩니다.';
   populateSearchAndFallbackModels();
+  document.dispatchEvent(new Event('ai-settings-updated'));
   try{localStorage.setItem('takoh-ai-provider',provider);}catch{}
 }
 
@@ -1094,6 +1097,7 @@ $('refresh-models').onclick=()=>act('계정의 모델 목록을 조회하는 중
 
 async function refreshKieStatus(){
   const data=await api('kie/settings');
+  document.dispatchEvent(new CustomEvent('ai-kie-configured',{detail:{configured:data.configured}}));
   if(data.translation)$('kie-translation-result').textContent=data.translation.text;
   $('kie-status').textContent=!data.configured?'KIE 키 미등록':`키 등록됨 · ${data.auth_verified?'모델 목록 조회로 인증 확인':'인증 미확인'} · ${data.generation_verified?'생성 응답 확인':'실제 생성 미검증'}`;
   if($('ai-provider').value==='kie_api')$('key').placeholder=data.configured?'•••••••• (등록됨 · 변경 시 입력)':'KIE API 키 입력';
@@ -1164,6 +1168,7 @@ async function refreshConnectionsStatus(){
   const grid=$('connections-status-grid');
   try{
     const status=await api('connections-status');
+    document.dispatchEvent(new CustomEvent('ai-connections-updated',{detail:status}));
     const provider=$('ai-provider')?.value;
     if($('key')){
       if(provider==='gemini_api')$('key').placeholder=status.apis?.gemini_api?.configured?'•••••••• (암호화 등록됨 · 변경 시에만 입력)':'키 입력 후 [API 키 암호화 저장] 클릭';
@@ -1442,4 +1447,79 @@ window.addEventListener('message',event=>{
   // Keep button placement consistent for the remaining service cards, too.
   for(const section of [...groups.search.panel.children,...groups.usage.panel.children]){section.classList.add('settings-service-card');for(const actions of section.querySelectorAll('.actions,.stage-action-bar'))actions.classList.add('settings-button-row');}
   byId('ai-provider').addEventListener('change',enhancedUpdate);enhancedUpdate();groups.ai.button.click();
+})();
+
+'use strict';
+/* Task assignments contain model IDs only. Keys stay in the existing secret store. */
+(()=>{
+  const byId=id=>document.getElementById(id), storageKey='takoh-ai-task-routes-v1';
+  const names={gemini_api:'Gemini API',openai_api:'OpenAI API',kie_api:'KIE API',codex_cli:'Codex · 구독 CLI',antigravity_cli:'Antigravity · 구독 CLI'};
+  const roles={writing:'글 작성',analysis:'분석·번역'};
+  let routes={},searchModels={},connections={};try{routes=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}catch{}
+  const valid=r=>r&&Object.hasOwn(names,r.provider)&&typeof r.model==='string'&&r.model.length>0&&typeof r.fallback_model==='string';
+  for(const role of Object.keys(roles))if(!valid(routes[role]))delete routes[role];
+  const current=()=>({provider:byId('ai-provider').value,model:byId('model').value.trim(),fallback_model:byId('fallback-model').value.trim()});
+  const routeFor=role=>routes[role]||current();
+  const subLabel=r=>!r.provider.endsWith('_cli')?'사용 안 함 · API 자동 전환 없음':r.fallback_model==='__none__'?'사용 안 함':r.fallback_model|| (r.provider==='codex_cli'?'자동 · gpt-6-luna':'자동 · 설치 모델 중 3.8 Flash');
+  const describe=r=>(names[r.provider]||r.provider)+' / '+(r.model||'모델 미선택');
+  window.studioTaskCredentials=(role,base)=>{
+    if(!Object.hasOwn(roles,role))return base;
+    const r=routeFor(role);
+    if(!r.model)throw Error(roles[role]+'에 사용할 모델을 먼저 선택하세요.');
+    return {...base,...r,key:r.provider===base.provider?base.key:'',fallback_model:r.provider.endsWith('_cli')?(r.fallback_model==='__none__'?r.model:r.fallback_model):''};
+  };
+  const root=byId('settings-workspace'),nav=root.querySelector('.settings-nav');
+  const section=document.createElement('section');section.className='ai-task-settings';section.id='ai-task-settings';
+  section.innerHTML='<div class="ai-task-heading"><div><h2>작업별 AI 배정</h2><p>메인은 처음 실행할 모델, 서브는 CLI 한도 초과 때 같은 연결에서 한 번 사용하는 대체 모델입니다.</p></div><span class="ai-task-badge">이 브라우저에 저장</span></div><div id="ai-task-grid" class="ai-task-grid"></div><p id="ai-task-save-status" role="status" class="hint">연결 등록과 작업 배정은 별개입니다. 아래에서 연결·모델을 고른 뒤 원하는 작업에 배정하세요.</p>';
+  nav.after(section);
+  const cards={};
+  for(const [role,title]of Object.entries(roles)){
+    const card=document.createElement('article');card.className='ai-task-card';
+    const h=document.createElement('h3');h.textContent=title;
+    const main=document.createElement('p');main.id='ai-role-'+role+'-main';main.className='ai-task-main';
+    const sub=document.createElement('p');sub.id='ai-role-'+role+'-sub';sub.className='hint';
+    const mode=document.createElement('p');mode.className='hint';
+    const connection=document.createElement('p');connection.className='ai-task-connection';
+    const actions=document.createElement('div');actions.className='settings-button-row';
+    const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='연결·모델 편집';edit.id='ai-role-'+role+'-edit';
+    edit.onclick=()=>{const r=routeFor(role);byId('settings-tab-ai').click();byId('ai-provider').value=r.provider;byId('ai-provider').dispatchEvent(new Event('change',{bubbles:true}));byId('model').value=r.model;const choice=byId('model-choice');choice.value=[...choice.options].some(o=>o.value===r.model)?r.model:'custom';byId('model').hidden=choice.value!=='custom';const fb=byId('fallback-model');if(![...fb.options].some(o=>o.value===r.fallback_model)){const o=new Option(r.fallback_model,r.fallback_model);fb.add(o);}fb.value=r.fallback_model;window.refreshAITasks();byId('model-choice').scrollIntoView({block:'center',behavior:'smooth'});byId('model-choice').focus();};
+    const assign=document.createElement('button');assign.type='button';assign.id='ai-role-'+role+'-assign';assign.textContent='현재 선택을 '+title+'에 배정';
+    assign.onclick=()=>{const r=current();if(!r.model){byId('ai-task-save-status').textContent='모델을 먼저 선택하세요. 키나 계정을 등록한 것만으로 모델이 정해지지는 않습니다.';return;}try{const next={...routes,[role]:r};localStorage.setItem(storageKey,JSON.stringify(next));routes=next;byId('ai-task-save-status').textContent=title+' 메인: '+describe(r)+' · 저장했습니다. API 호출은 실행하지 않았습니다.';refresh();}catch{byId('ai-task-save-status').textContent='브라우저 저장에 실패했습니다. 배정은 변경하지 않았습니다.';}};
+    actions.append(edit,assign);card.append(h,main,sub,connection,mode,actions);byId('ai-task-grid').append(card);cards[role]={main,sub,connection,mode,assign};
+  }
+  const search=document.createElement('article');search.className='ai-task-card';search.innerHTML='<h3>콘텐츠 검색</h3><label>검색에 사용할 연결<select id="ai-role-search-provider" aria-label="검색에 사용할 연결"></select></label><p id="ai-role-search-detail" class="hint"></p><p class="hint">글 작성·분석과 별도로 사용합니다. 검색 버튼을 눌러야 새 검색이 실행됩니다. 서브 공급자로 자동 전환하지 않습니다.</p><button id="ai-role-search-edit" type="button" class="secondary">검색 키·모델 설정</button>';
+  byId('ai-task-grid').append(search);
+  const discovery=byId('discovery-provider'),searchSelect=byId('ai-role-search-provider');
+  for(const option of discovery.options)searchSelect.add(new Option(option.textContent,option.value));
+  try{const saved=localStorage.getItem('takoh-search-provider');if([...discovery.options].some(o=>o.value===saved))discovery.value=saved;}catch{}
+  function searchDetail(){const p=discovery.value;searchSelect.value=p;byId('ai-role-search-detail').textContent=p==='gemini_search'?'Gemini API · Google 웹 검색 / '+(searchModels.model||'설정 불러오는 중'):p==='antigravity_search'?'Antigravity 구독 CLI · 웹 검색 / '+(searchModels.cli_model||'설정 불러오는 중'):p==='serpapi'?'SerpAPI 검색 · 영상 상세·조회수 확인은 YouTube Data API':'YouTube Data API · 영상 검색과 상세·조회수 조회';}
+  function saveSearch(){try{localStorage.setItem('takoh-search-provider',discovery.value);}catch{}searchDetail();}
+  searchSelect.onchange=()=>{discovery.value=searchSelect.value;discovery.dispatchEvent(new Event('change',{bubbles:true}));saveSearch();};
+  discovery.addEventListener('change',saveSearch);
+  byId('btn-reset-discovery-filters')?.addEventListener('click',()=>setTimeout(saveSearch,0));
+  byId('ai-role-search-edit').onclick=()=>{byId('settings-tab-search').click();const target=['gemini_search','antigravity_search'].includes(discovery.value)?byId('gemini-search-model'):byId('youtube-settings-section');target.scrollIntoView({block:'center',behavior:'smooth'});};
+  // Keep the fallback editor next to its primary model, not under unrelated commerce keys.
+  const fallbackLabel=byId('fallback-model').closest('label');document.querySelector('.settings-model-step').append(fallbackLabel);
+  fallbackLabel.firstChild.textContent='서브 모델 · CLI 한도 초과 시에만 사용';
+  const explain=document.createElement('p');explain.className='hint';explain.textContent='API 연결은 서브 모델 자동 실행을 지원하지 않습니다. CLI는 같은 공급자 안에서만 대체합니다. 사용 안 함을 선택하면 대체 실행도 중단합니다.';fallbackLabel.after(explain);
+  const applyActions=document.createElement('div');applyActions.className='settings-button-row';
+  for(const [role,title]of Object.entries(roles)){const button=document.createElement('button');button.type='button';button.textContent='이 모델을 '+title+'에 사용';button.onclick=()=>cards[role].assign.click();document.querySelector('.settings-model-step').append(applyActions);applyActions.append(button);}
+  const selected=document.createElement('p');selected.id='ai-editor-selection';selected.className='ai-editor-selection';document.querySelector('.settings-model-step').prepend(selected);
+  root.querySelector('.workspace-heading p').textContent='연결을 등록하고 작업별로 배정하세요. 글 작성·분석·검색에 사용하는 연결을 위에서 바로 확인할 수 있습니다.';
+  document.querySelector('.settings-provider-picker h2').textContent='연결 등록·모델 선택';
+  document.querySelector('.settings-provider-picker p').textContent='등록할 서비스를 선택하세요. 선택만으로 저장된 작업 배정은 바뀌지 않습니다. 연결·모델을 정한 뒤 위 배정 버튼을 누르세요.';
+  function refresh(){
+    const c=current();selected.textContent='지금 편집 중: '+describe(c);
+    for(const [role,card]of Object.entries(cards)){const r=routeFor(role);card.main.textContent='메인 · '+describe(r);card.sub.textContent='서브 · '+subLabel(r);const state=r.provider.endsWith('_cli')?connections.clis?.[r.provider]:connections.apis?.[r.provider];card.connection.textContent=r.provider.endsWith('_cli')?(state?.logged_in?'구독 계정 로그인 확인됨':state?.installed?'CLI 설치됨 · 로그인 미확인':'CLI 연결 상태 미확인'):(state?.configured?'키 등록됨 · 생성 성공은 실행 시 확인':'키 등록 상태 미확인');card.mode.textContent=routes[role]?'작업별 배정 저장됨 · 연결 편집과 독립':'아직 별도 배정 없음 · 현재 공통 선택을 따릅니다';card.assign.disabled=!c.model;}
+    searchDetail();
+    for(const [role,ids]of [['writing',['draft']],['analysis',['analyze','recommend-hook']]])for(const id of ids){const button=byId(id);if(!button)continue;let hint=byId(id+'-ai-route');if(!hint){hint=document.createElement('p');hint.id=id+'-ai-route';hint.className='hint ai-execution-route';button.after(hint);}hint.textContent=roles[role]+' 메인: '+describe(routeFor(role))+' · 서브: '+subLabel(routeFor(role));}
+  }
+  window.refreshAITasks=refresh;
+  for(const id of ['ai-provider','model-choice','model','fallback-model','gemini-search-model','antigravity-search-model'])byId(id)?.addEventListener('change',refresh);
+  byId('model').addEventListener('input',refresh);
+  document.addEventListener('ai-settings-updated',refresh);
+  document.addEventListener('ai-connections-updated',event=>{const kie=connections.apis?.kie_api;connections=event.detail||{};if(kie)connections.apis={...connections.apis,kie_api:kie};refresh();});
+  document.addEventListener('ai-kie-configured',event=>{connections.apis={...connections.apis,kie_api:event.detail};refresh();});
+  document.addEventListener('ai-search-settings-loaded',event=>{searchModels=event.detail||{};refresh();});
+  refresh();
 })();

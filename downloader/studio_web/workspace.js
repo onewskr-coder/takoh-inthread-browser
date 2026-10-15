@@ -749,6 +749,7 @@
     };
     ensureOpt($('gemini-search-model'),data.model);
     ensureOpt($('antigravity-search-model'),data.cli_model);
+    document.dispatchEvent(new CustomEvent('ai-search-settings-loaded',{detail:{model:data.model,cli_model:data.cli_model}}));
     $('gemini-search-settings-status').textContent=`API 키 ${data.api_configured?'•••••••• (암호화 저장됨)':'미등록'} · Antigravity CLI ${data.cli_installed?'설치 확인됨':'미설치'}`;
   }
   if($('save-gemini-search-settings'))$('save-gemini-search-settings').onclick=async()=>{
