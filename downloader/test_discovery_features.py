@@ -339,8 +339,7 @@ class DiscoveryFeatureTests(unittest.TestCase):
             'statistics': {'viewCount': '300'},
             'status': {'license': 'youtube'}
         }
-
-        FILTER_VERSION = 'v4_serp_paging_rawcache'
+        from studio import FILTER_VERSION
         raw_cache_key_str = f"{FILTER_VERSION}:youtube:KR:shopping:living_kitchen::90d:::relevance:30"
         import hashlib
         raw_cache_key = hashlib.sha256(raw_cache_key_str.encode('utf-8')).hexdigest()

@@ -57,14 +57,15 @@ class StudioTests(unittest.TestCase):
 
     def test_custom_styles_persist_update_and_delete(self):
         initial=self.client.get('/studio/styles').json
-        self.assertEqual(len(initial),12)
+        self.assertEqual(len(initial),15)
+        self.assertEqual([s['id'] for s in initial[:4]], ['one_line', 'two_line', 'hook', 'story'])
         result=self.client.post('/studio/styles',json={'name':'내 설명형','instructions':'세 문장으로 차분하게'},headers=self.headers)
         sid=result.json[-1]['id']
         self.assertEqual(self.client.get('/studio/styles').json[-1]['name'],'내 설명형')
         self.assertEqual(self.client.post('/studio/styles',json={'id':sid,'name':'수정','instructions':'한 문장'},headers=self.headers).status_code,200)
         self.assertEqual(self.client.post('/studio/styles',json={'name':'','instructions':''},headers=self.headers).status_code,400)
         self.assertEqual(self.client.delete('/studio/styles/'+sid,headers=self.headers).status_code,200)
-        self.assertEqual(len(self.client.get('/studio/styles').json),12)
+        self.assertEqual(len(self.client.get('/studio/styles').json),15)
 
     def test_usage_records_reported_tokens_errors_and_excludes_api_keys(self):
         job=self.upload()
@@ -312,7 +313,8 @@ class StudioTests(unittest.TestCase):
         job=self.post(job,'product',{'platform':'naver','name':'제품','url':'https://smartstore.naver.com/test','affiliate_url':'https://naver.me/test','confirmed':True}).json
         with patch.object(studio,'generate',return_value=variants):job=self.post(job,'draft',{'key':'test'}).json
         job=self.post(job,'prepare',{'body':job['draft']['variants'][2],'script':job['draft']['variants'][2],'disclosure':'판매 발생 시 수수료를 제공받습니다.','selected':2}).json
-        self.assertTrue(job['comment'].startswith('#광고\n'))
+        self.assertFalse(job['comment'].startswith('#광고'))
+        self.assertTrue(job['comment'].startswith('판매 발생 시 수수료를 제공받습니다.'))
         self.assertIn('수수료',job['comment'])
         self.assertIn('https://naver.me/test',job['comment'])
         when=int(time.time()*1000)+3600000

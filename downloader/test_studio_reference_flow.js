@@ -1,8 +1,8 @@
-const assert=require('node:assert/strict'),fs=require('node:fs');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {JSDOM}=require(process.env.STUDIO_JSDOM||'jsdom');
 const flush=()=>new Promise(r=>setImmediate(r));
 (async()=>{
- const dom=new JSDOM(fs.readFileSync('studio_web/index.html','utf8'),{url:'http://127.0.0.1:5005/studio/',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ const dom=new JSDOM(fs.readFileSync(path.join(__dirname,'studio_web/index.html'),'utf8'),{url:'http://127.0.0.1:5005/studio/',runScripts:'outside-only'}),w=dom.window,d=w.document;
  const id1='a'.repeat(64),id2='b'.repeat(64);
  let refs=[
   {reference_id:id1,permalink:'https://www.threads.com/@owner/post/test',previewUrl:'/studio/references/test/thumbnail',videoUrls:['https://cdn.test/one.mp4','https://cdn.test/two.mp4'],imageUrls:[]},
@@ -19,7 +19,8 @@ const flush=()=>new Promise(r=>setImmediate(r));
   if(url==='/studio/references/delete'){refs=refs.filter(r=>!body.ids.includes(r.reference_id));return {ok:true,json:async()=>({deleted:body.ids.length,collection:body.collection})};}
   return {ok:true,json:async()=>[]};
  };
- w.eval(fs.readFileSync('studio_web/studio.js','utf8')+'\nwindow.reviewRefresh=refreshReferences;');
+ w.eval(fs.readFileSync(path.join(__dirname,'studio_web/studio.js'),'utf8')+'\nwindow.reviewRefresh=refreshReferences;');
+
  await flush();await flush();
  assert.equal(d.querySelectorAll('.ref-thumb-wrap').length,2);
  assert.equal(d.querySelectorAll('.ref-card-body').length,2);
@@ -61,5 +62,56 @@ const flush=()=>new Promise(r=>setImmediate(r));
  assert.deepEqual(deleteCall.body,{collection:'collected',ids:[id1]});
  assert.equal(d.querySelectorAll('.reference-card').length,1);
 
- dom.window.close();console.log('Reference flow: acquisition failure, source, selected media, and batch save/delete verified.');
+ // Test rapid tab switching (collected <-> saved) discards stale responses and pins delete targets
+ const idSaved1='c'.repeat(64),idSaved2='d'.repeat(64);
+ let savedRefs=[
+  {reference_id:idSaved1,permalink:'https://www.threads.com/@owner/post/saved1',previewUrl:'/studio/saved-references/saved1/thumbnail',videoUrls:['https://cdn.test/s1.mp4'],imageUrls:[]},
+  {reference_id:idSaved2,permalink:'https://www.threads.com/@owner/post/saved2',previewUrl:'/studio/saved-references/saved2/thumbnail',videoUrls:['https://cdn.test/s2.mp4'],imageUrls:[]}
+ ];
+ let deferredCollectedResolve=null;
+ w.fetch=async (url,opts)=>{
+  const body=opts?.body?JSON.parse(opts.body):null;
+  apiCalls.push({url,body});
+  if(url==='/studio/references'){
+   if(!deferredCollectedResolve){
+    return new Promise(resolve=>{deferredCollectedResolve=()=>resolve({ok:true,json:async()=>refs});});
+   }
+   return {ok:true,json:async()=>refs};
+  }
+  if(url==='/studio/saved-references')return {ok:true,json:async()=>savedRefs};
+  if(url==='/studio/references/delete'){
+   if(body.collection==='saved')savedRefs=savedRefs.filter(r=>!body.ids.includes(r.reference_id));
+   else refs=refs.filter(r=>!body.ids.includes(r.reference_id));
+   return {ok:true,json:async()=>({deleted:body.ids.length,collection:body.collection})};
+  }
+  return {ok:true,json:async()=>[]};
+ };
+
+ // Trigger slow collected load, then immediately switch to saved tab
+ d.getElementById('show-collected-references').click();
+ assert.ok(deferredCollectedResolve,'slow collected request should be pending');
+ d.getElementById('show-saved-references').click();
+ await flush();await flush();
+ // Saved tab should be rendered with 2 saved items
+ assert.equal(d.getElementById('show-saved-references').getAttribute('aria-pressed'),'true');
+ assert.equal(d.querySelectorAll('.reference-card').length,2);
+ assert.equal(d.querySelector('.reference-card').dataset.collection,'saved');
+ assert.equal(d.querySelector('.reference-card').dataset.refId,idSaved1);
+
+ // Now resolve the stale collected response; it must be discarded and NOT overwrite the saved tab
+ deferredCollectedResolve();
+ await flush();await flush();
+ assert.equal(d.querySelectorAll('.reference-card').length,2);
+ assert.equal(d.querySelector('.reference-card').dataset.collection,'saved');
+ assert.equal(d.querySelector('.reference-card').dataset.refId,idSaved1);
+
+ // Verify delete-all on saved tab sends fixed saved collection and exact saved IDs
+ apiCalls.length=0;
+ d.getElementById('delete-all-references').click();
+ await flush();await flush();
+ const savedDeleteAllCall=apiCalls.find(c=>c.url==='/studio/references/delete');
+ assert.deepEqual(savedDeleteAllCall.body,{collection:'saved',ids:[idSaved1,idSaved2],all:true,confirm_all:true});
+ assert.equal(d.querySelectorAll('.reference-card').length,0);
+
+ dom.window.close();console.log('Reference flow: acquisition failure, source, selected media, batch save/delete, and stale-response/delete pinning verified.');
 })();

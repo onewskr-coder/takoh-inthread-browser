@@ -27,13 +27,16 @@ import requests
 from werkzeug.datastructures import FileStorage
 from studio_gemini_discovery import grounded_search, official_cli, GeminiDiscoveryError
 from studio_catalogue import DiscoveryCatalogue
-from studio_writing import extract_json_safely, draft_prompt, audit_draft, format_post, STYLES
+from studio_writing import extract_json_safely, draft_prompt, repost_draft_prompt, audit_draft, format_post, STYLES
 from studio_ai import QuotaError, generate_other, cli_status, launch_login, antigravity_models, AIError
 from studio_integrations import (IntegrationError, advance_publication, coupang_deeplink,
                                  recover_publication, search_products, search_visual, threads_account)
 
+FILTER_VERSION = 'v5_verified_published_date'
+
 
 class StudioError(Exception):
+
     def __init__(self, message, status=400):
         self.message, self.status = message, status
 
@@ -235,20 +238,58 @@ def safe_fetch_stream(url, max_bytes=300 * 1024 * 1024, timeout=30):
 
 
 BUILTIN_MODELS = [
-    {"id": "builtin_gemini_25_flash", "provider": "gemini_api", "name": "Gemini 2.5 Flash", "model_id": "gemini-2.5-flash", "has_audio": True, "verified": True, "builtin": True},
-    {"id": "builtin_gemini_25_pro", "provider": "gemini_api", "name": "Gemini 2.5 Pro", "model_id": "gemini-2.5-pro", "has_audio": True, "verified": True, "builtin": True},
-    {"id": "builtin_gemini_38_flash", "provider": "gemini_api", "name": "Gemini 3.8 Flash (호출 ID 확인 필요)", "model_id": "gemini-3.8-flash", "has_audio": True, "verified": False, "builtin": True},
+    {"id": "builtin_gemini_25_flash", "provider": "gemini_api", "name": "Gemini 2.5 Flash (기본·빠름)", "model_id": "gemini-2.5-flash", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_25_pro", "provider": "gemini_api", "name": "Gemini 2.5 Pro (고성능)", "model_id": "gemini-2.5-pro", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_25_flash_lite", "provider": "gemini_api", "name": "Gemini 2.5 Flash-Lite (초경량)", "model_id": "gemini-2.5-flash-lite", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_38_flash", "provider": "gemini_api", "name": "Gemini 3.8 Flash", "model_id": "gemini-3.8-flash", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_38_pro", "provider": "gemini_api", "name": "Gemini 3.8 Pro", "model_id": "gemini-3.8-pro", "has_audio": True, "verified": False, "builtin": True},
+    {"id": "builtin_gemini_37_flash", "provider": "gemini_api", "name": "Gemini 3.7 Flash", "model_id": "gemini-3.7-flash", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_36_flash", "provider": "gemini_api", "name": "Gemini 3.6 Flash", "model_id": "gemini-3.6-flash", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_35_flash", "provider": "gemini_api", "name": "Gemini 3.5 Flash", "model_id": "gemini-3.5-flash", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_35_flash_lite", "provider": "gemini_api", "name": "Gemini 3.5 Flash-Lite", "model_id": "gemini-3.5-flash-lite", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_31_pro_preview", "provider": "gemini_api", "name": "Gemini 3.1 Pro Preview", "model_id": "gemini-3.1-pro-preview", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_31_flash_lite", "provider": "gemini_api", "name": "Gemini 3.1 Flash Lite", "model_id": "gemini-3.1-flash-lite", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_30_flash_preview", "provider": "gemini_api", "name": "Gemini 3 Flash Preview", "model_id": "gemini-3-flash-preview", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_4_argon", "provider": "gemini_api", "name": "Gemini 4 Argon", "model_id": "gemini-4-argon", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_omni_11_flash", "provider": "gemini_api", "name": "Gemini Omni 1.1 Flash", "model_id": "gemini-omni-1.1-flash", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_omni_flash_preview", "provider": "gemini_api", "name": "Gemini Omni Flash Preview", "model_id": "gemini-omni-flash-preview", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_flash_latest", "provider": "gemini_api", "name": "Gemini Flash Latest", "model_id": "gemini-flash-latest", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_pro_latest", "provider": "gemini_api", "name": "Gemini Pro Latest", "model_id": "gemini-pro-latest", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_flash_lite_latest", "provider": "gemini_api", "name": "Gemini Flash-Lite Latest", "model_id": "gemini-flash-lite-latest", "has_audio": True, "verified": True, "builtin": True},
+    {"id": "builtin_gemma_4_31b_it", "provider": "gemini_api", "name": "Gemma 4 31B IT", "model_id": "gemma-4-31b-it", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_gemma_4_26b_a4b_it", "provider": "gemini_api", "name": "Gemma 4 26B A4B IT", "model_id": "gemma-4-26b-a4b-it", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_gemini_20_flash", "provider": "gemini_api", "name": "Gemini 2.0 Flash", "model_id": "gemini-2.0-flash", "has_audio": True, "verified": True, "builtin": True},
 
-    {"id": "builtin_gemini_cli_auto", "provider": "antigravity_cli", "name": "자동 (auto)", "model_id": "auto", "has_audio": False, "verified": False, "builtin": True},
+    {"id": "builtin_gemini_cli_auto", "provider": "antigravity_cli", "name": "자동 (auto · 구독 기본)", "model_id": "auto", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gemini_38_flash", "provider": "antigravity_cli", "name": "Gemini 3.8 Flash (구독)", "model_id": "gemini-3.8-flash", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gemini_38_flash_low", "provider": "antigravity_cli", "name": "Gemini 3.8 Flash Low (구독·고속)", "model_id": "gemini-3.8-flash-low", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gemini_38_pro", "provider": "antigravity_cli", "name": "Gemini 3.8 Pro (구독·고성능)", "model_id": "gemini-3.8-pro", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gemini_38_pro_high", "provider": "antigravity_cli", "name": "Gemini 3.8 Pro High (구독·최고성능)", "model_id": "gemini-3.8-pro-high", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gemini_25_pro", "provider": "antigravity_cli", "name": "Gemini 2.5 Pro (구독)", "model_id": "gemini-2.5-pro", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gemini_25_flash", "provider": "antigravity_cli", "name": "Gemini 2.5 Flash (구독)", "model_id": "gemini-2.5-flash", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_claude_sonnet_45", "provider": "antigravity_cli", "name": "Claude Sonnet 4.5 (구독)", "model_id": "claude-sonnet-4-5", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_antigravity_gpt41", "provider": "antigravity_cli", "name": "GPT-4.1 (구독)", "model_id": "gpt-4.1", "has_audio": False, "verified": True, "builtin": True},
 
-    {"id": "builtin_openai_gpt41", "provider": "openai_api", "name": "GPT-4.1", "model_id": "gpt-4.1", "has_audio": False, "verified": True, "builtin": True},
-    {"id": "builtin_openai_gpt41_mini", "provider": "openai_api", "name": "GPT-4.1 mini", "model_id": "gpt-4.1-mini", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt41", "provider": "openai_api", "name": "GPT-4.1 (기본)", "model_id": "gpt-4.1", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt41_mini", "provider": "openai_api", "name": "GPT-4.1 mini (빠름)", "model_id": "gpt-4.1-mini", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt41_nano", "provider": "openai_api", "name": "GPT-4.1 nano (초경량)", "model_id": "gpt-4.1-nano", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt4o", "provider": "openai_api", "name": "GPT-4o", "model_id": "gpt-4o", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt4o_mini", "provider": "openai_api", "name": "GPT-4o mini", "model_id": "gpt-4o-mini", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_o3", "provider": "openai_api", "name": "o3 (추론 특화)", "model_id": "o3", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_o4_mini", "provider": "openai_api", "name": "o4-mini (고속 추론)", "model_id": "o4-mini", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt5", "provider": "openai_api", "name": "GPT-5", "model_id": "gpt-5", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_openai_gpt5_mini", "provider": "openai_api", "name": "GPT-5 mini", "model_id": "gpt-5-mini", "has_audio": False, "verified": True, "builtin": True},
     {"id": "builtin_openai_gpt6_sol", "provider": "openai_api", "name": "GPT-6 Sol", "model_id": "gpt-6-sol", "has_audio": False, "verified": True, "builtin": True},
-    {"id": "builtin_openai_chatgpt61_sol", "provider": "openai_api", "name": "ChatGPT 6.1 Sol (API 권한/ID 확인 필요)", "model_id": "gpt-6.1-sol", "has_audio": False, "verified": False, "builtin": True},
+    {"id": "builtin_openai_chatgpt61_sol", "provider": "openai_api", "name": "ChatGPT 6.1 Sol", "model_id": "gpt-6.1-sol", "has_audio": False, "verified": False, "builtin": True},
 
-    {"id": "builtin_codex_chatgpt61_sol", "provider": "codex_cli", "name": "ChatGPT 6.1 Sol", "model_id": "gpt-6.1-sol", "has_audio": False, "verified": True, "builtin": True},
-    {"id": "builtin_codex_gpt6_sol", "provider": "codex_cli", "name": "GPT-6 Sol", "model_id": "gpt-6-sol", "has_audio": False, "verified": True, "builtin": True},
-    {"id": "builtin_codex_gpt6_astra", "provider": "codex_cli", "name": "GPT-6 Astra", "model_id": "gpt-6-astra", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_chatgpt61_sol", "provider": "codex_cli", "name": "ChatGPT 6.1 Sol (구독 기본)", "model_id": "gpt-6.1-sol", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_gpt6_sol", "provider": "codex_cli", "name": "GPT-6 Sol (구독)", "model_id": "gpt-6-sol", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_gpt6_astra", "provider": "codex_cli", "name": "GPT-6 Astra (구독)", "model_id": "gpt-6-astra", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_gpt6_luna", "provider": "codex_cli", "name": "GPT-6 Luna (구독·경량 대체)", "model_id": "gpt-6-luna", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_gpt5_codex", "provider": "codex_cli", "name": "GPT-5 Codex (구독)", "model_id": "gpt-5-codex", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_o3", "provider": "codex_cli", "name": "o3 (구독 추론)", "model_id": "o3", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_o4_mini", "provider": "codex_cli", "name": "o4-mini (구독 고속 추론)", "model_id": "o4-mini", "has_audio": False, "verified": True, "builtin": True},
+    {"id": "builtin_codex_gpt41", "provider": "codex_cli", "name": "GPT-4.1 (구독)", "model_id": "gpt-4.1", "has_audio": False, "verified": True, "builtin": True},
 ]
 
 
@@ -1172,6 +1213,40 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 keys.append(raw_str)
         return keys
 
+    def extract_gemini_keys(secrets_dict, field='gemini_api_key', list_field='gemini_api_keys', env_name='GEMINI_API_KEY'):
+        keys = []
+        raw_list = secrets_dict.get(list_field)
+        if isinstance(raw_list, list):
+            for item in raw_list:
+                if isinstance(item, str):
+                    for part in re.split(r'[\s,;]+', item.strip()):
+                        if part and part not in keys:
+                            keys.append(part)
+        raw_str = str(secrets_dict.get(field) or os.environ.get(env_name, '')).strip()
+        if raw_str:
+            for part in re.split(r'[\s,;]+', raw_str):
+                if part and part not in keys:
+                    keys.append(part)
+        return keys
+
+    def _append_keys_to_store(values, single_field, list_field, new_raw_value, is_serp=False):
+        val = str(new_raw_value or '').strip()
+        if not val:
+            return
+        if is_serp:
+            existing = extract_serp_keys(values)
+            found = re.findall(r'[a-f0-9]{64}', val.lower())
+            new_items = found if found else [p for p in re.split(r'[\s,;]+', val) if p]
+        else:
+            existing = extract_gemini_keys(values, single_field, list_field, '')
+            new_items = [p for p in re.split(r'[\s,;]+', val) if p]
+        for item in new_items:
+            if item not in existing:
+                existing.append(item)
+        values[list_field] = existing
+        if existing:
+            values[single_field] = existing[-1]
+
     def kie_key(data=None):
         return str((data or {}).get('key') or credential('kie_api_key') or os.environ.get('KIE_API_KEY','')).strip()
 
@@ -1242,12 +1317,142 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         values=load(root)
         if request.method=='POST':
             data=request.get_json() or {}
-            for name in ('serp_key','coupang_access','coupang_secret','youtube_api_key'):
+            for name in ('coupang_access','coupang_secret','youtube_api_key','openai_api_key'):
                 if isinstance(data.get(name),str) and data[name].strip():values[name]=data[name].strip()
+            if isinstance(data.get('serp_key'), str) and data['serp_key'].strip():
+                _append_keys_to_store(values, 'serp_key', 'serpapi_keys', data['serp_key'], is_serp=True)
+            if isinstance(data.get('gemini_api_key'), str) and data['gemini_api_key'].strip():
+                _append_keys_to_store(values, 'gemini_api_key', 'gemini_api_keys', data['gemini_api_key'], is_serp=False)
+            if isinstance(data.get('gemini_search_key'), str) and data['gemini_search_key'].strip():
+                _append_keys_to_store(values, 'gemini_search_key', 'gemini_search_keys', data['gemini_search_key'], is_serp=False)
             if isinstance(data.get('serpapi_keys'), list):
-                values['serpapi_keys']=[str(k).strip() for k in data['serpapi_keys'] if str(k).strip()]
+                for k in data['serpapi_keys']:
+                    _append_keys_to_store(values, 'serp_key', 'serpapi_keys', k, is_serp=True)
             save_secrets(root,values)
         return jsonify(configured=sorted(values))
+
+    @bp.route('/connections-status', methods=['GET', 'POST'])
+    def connections_status():
+        from studio_secrets import load, save as save_secrets
+        try:
+            values = load(root)
+        except ValueError:
+            values = {}
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            for name in ('gemini_api_key', 'openai_api_key', 'serp_key', 'coupang_access', 'coupang_secret', 'youtube_api_key', 'gemini_search_key'):
+                if name in data and isinstance(data[name], str):
+                    val = data[name].strip()
+                    if val:
+                        if name == 'serp_key':
+                            _append_keys_to_store(values, 'serp_key', 'serpapi_keys', val, is_serp=True)
+                        elif name == 'gemini_api_key':
+                            _append_keys_to_store(values, 'gemini_api_key', 'gemini_api_keys', val, is_serp=False)
+                        elif name == 'gemini_search_key':
+                            _append_keys_to_store(values, 'gemini_search_key', 'gemini_search_keys', val, is_serp=False)
+                        else:
+                            values[name] = val
+                    elif data.get('clear_' + name):
+                        values.pop(name, None)
+                        if name == 'serp_key':
+                            values.pop('serpapi_keys', None)
+                        elif name == 'gemini_api_key':
+                            values.pop('gemini_api_keys', None)
+                        elif name == 'gemini_search_key':
+                            values.pop('gemini_search_keys', None)
+            save_secrets(root, values)
+
+        gemini_keys = extract_gemini_keys(values, 'gemini_api_key', 'gemini_api_keys', 'GEMINI_API_KEY')
+        gemini_key = gemini_keys[-1] if gemini_keys else ''
+        openai_key = str(values.get('openai_api_key') or os.environ.get('OPENAI_API_KEY') or '').strip()
+        gemini_search_keys = extract_gemini_keys(values, 'gemini_search_key', 'gemini_search_keys', '')
+        gemini_search_key = gemini_search_keys[-1] if gemini_search_keys else gemini_key
+        serp_keys = extract_serp_keys(values)
+        coupang_access = str(values.get('coupang_access') or '').strip()
+        coupang_secret = str(values.get('coupang_secret') or '').strip()
+        yt_key = str(values.get('youtube_api_key') or os.environ.get('YOUTUBE_API_KEY') or '').strip()
+
+        def safe_cli(prov):
+            try:
+                return cli_status(prov)
+            except Exception as exc:
+                return {'provider': prov, 'installed': False, 'logged_in': False, 'message': str(exc)}
+
+        ag_cli = safe_cli('antigravity_cli')
+        cx_cli = safe_cli('codex_cli')
+
+        ag_ok = bool(ag_cli.get('authenticated') or ag_cli.get('logged_in'))
+        cx_ok = bool(cx_cli.get('authenticated') or cx_cli.get('logged_in'))
+
+        return jsonify({
+            'apis': {
+                'gemini_api': {
+                    'label': 'Gemini API 키 (분석·대본)',
+                    'configured': bool(gemini_keys),
+                    'count': len(gemini_keys),
+                    'masked': f'•••••••• ({len(gemini_keys)}개 암호화 등록됨)' if gemini_keys else '미등록',
+                    'source': f'Windows 암호화 보관 ({len(gemini_keys)}개 누적 등록 · 새로 입력 시 추가됨)' if gemini_keys else '미등록',
+                },
+                'openai_api': {
+                    'label': 'OpenAI / ChatGPT API 키',
+                    'configured': bool(openai_key),
+                    'masked': '•••••••• (암호화 등록됨)' if openai_key else '미등록',
+                    'source': 'Windows 암호화 보관' if values.get('openai_api_key') else ('환경변수(OPENAI_API_KEY)' if os.environ.get('OPENAI_API_KEY') else '미등록'),
+                },
+                'gemini_search': {
+                    'label': 'Gemini 콘텐츠 검색 API 키',
+                    'configured': bool(gemini_search_key),
+                    'count': len(gemini_search_keys) if gemini_search_keys else len(gemini_keys),
+                    'masked': f'•••••••• ({len(gemini_search_keys)}개 전용 키 등록됨)' if gemini_search_keys else (f'•••••••• (기본 Gemini 키 {len(gemini_keys)}개 공유)' if gemini_keys else '미등록'),
+                    'source': f'전용 검색 키 {len(gemini_search_keys)}개' if gemini_search_keys else ('Gemini API 키 공유' if gemini_keys else '미등록'),
+                },
+                'serpapi': {
+                    'label': 'SerpAPI 키 (Google Lens·쇼핑)',
+                    'configured': bool(serp_keys),
+                    'count': len(serp_keys),
+                    'masked': f'•••••••• ({len(serp_keys)}개 암호화 등록됨)' if serp_keys else '미등록',
+                    'source': f'{len(serp_keys)}개 키 누적 등록됨 (새로 입력 시 자동 추가)' if serp_keys else '미등록',
+                },
+                'coupang': {
+                    'label': '쿠팡파트너스 API (Access/Secret)',
+                    'configured': bool(coupang_access and coupang_secret),
+                    'masked': '•••••••• / •••••••• (암호화 등록됨)' if (coupang_access and coupang_secret) else '미등록',
+                    'source': 'Access + Secret 등록됨' if (coupang_access and coupang_secret) else ('일부만 입력됨' if (coupang_access or coupang_secret) else '미등록'),
+                },
+                'youtube_api': {
+                    'label': 'YouTube Data API v3 키',
+                    'configured': bool(yt_key),
+                    'masked': '•••••••• (암호화 등록됨)' if yt_key else '미등록',
+                    'source': 'Windows 암호화 보관' if values.get('youtube_api_key') else ('환경변수(YOUTUBE_API_KEY)' if os.environ.get('YOUTUBE_API_KEY') else '미등록'),
+                },
+            },
+            'clis': {
+                'antigravity_cli': {
+                    'label': 'Antigravity CLI · Google 구독제',
+                    'installed': bool(ag_cli.get('installed')),
+                    'logged_in': ag_ok,
+                    'masked': '•••••••• (Google 구독 로그인됨)' if ag_ok else ('설치됨 · 로그인 필요' if ag_cli.get('installed') else '미설치'),
+                    'message': ag_cli.get('message', ''),
+                    'model_count': len(ag_cli.get('models') or []),
+                },
+                'codex_cli': {
+                    'label': 'Codex CLI · ChatGPT 구독제',
+                    'installed': bool(cx_cli.get('installed')),
+                    'logged_in': cx_ok,
+                    'masked': '•••••••• (ChatGPT 구독 로그인됨)' if cx_ok else ('설치됨 · 로그인 필요' if cx_cli.get('installed') else '미설치'),
+                    'message': cx_cli.get('message', ''),
+                },
+            },
+            'version_info': {
+                'app_version': '3.5.0',
+                'helper_port': 5006,
+                'commit_id': '55cd118',
+                'is_dirty': True,
+                'schema_version': 'v5_verified_published_date',
+                'discovery_engine_version': 'v5_verified_published_date'
+            }
+        })
+
 
     def parse_iso8601_duration(duration_str):
         if not duration_str or not isinstance(duration_str, str):
@@ -1380,9 +1585,11 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     result=kie_generate(root,kie_key(data),model,parts,schema,audit_path,approved=data.get('kie_approved') is True,frame_limit=int(data.get('kie_frame_limit') or 0))
                 except KieError as error:raise StudioError(str(error),422)
             elif provider == 'gemini_api':
-                result = generate(data.get('key') or os.environ.get('GEMINI_API_KEY'), model, parts, schema, audit_path)
+                key = data.get('key') or credential('gemini_api_key') or os.environ.get('GEMINI_API_KEY')
+                result = generate(key, model, parts, schema, audit_path)
             else:
-                result = generate_other(provider, data.get('key') or os.environ.get('OPENAI_API_KEY'), model, parts, schema, audit_path)
+                key = data.get('key') or credential('openai_api_key') or os.environ.get('OPENAI_API_KEY')
+                result = generate_other(provider, key, model, parts, schema, audit_path)
             succeeded = True
             return result
         except QuotaError as error:
@@ -1513,8 +1720,30 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 tmp = path.with_suffix('.tmp')
                 tmp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding='utf-8')
                 tmp.replace(path)
+            combined = list(BUILTIN_MODELS)
+            try:
+                for ag_m in antigravity_models():
+                    if not any(m['provider'] == 'antigravity_cli' and m['model_id'] == ag_m['model_id'] for m in combined):
+                        combined.append(ag_m)
+            except Exception:
+                pass
+            try:
+                from studio_secrets import load as _load_sec
+                g_keys = extract_gemini_keys(_load_sec(root), 'gemini_api_key', 'gemini_api_keys', 'GEMINI_API_KEY')
+                if g_keys:
+                    resp = requests.get('https://generativelanguage.googleapis.com/v1beta/models', headers={'x-goog-api-key': g_keys[-1]}, timeout=6)
+                    if resp.ok:
+                        for gm in resp.json().get('models', []):
+                            if 'generateContent' not in gm.get('supportedGenerationMethods', []):
+                                continue
+                            mid = str(gm.get('name', '')).removeprefix('models/')
+                            if mid and not any(m['provider'] == 'gemini_api' and m['model_id'] == mid for m in combined):
+                                combined.append(dict(id='discovered_' + mid, provider='gemini_api', name=gm.get('displayName') or mid,
+                                                     model_id=mid, has_audio=not mid.startswith('gemma'), verified=True, builtin=True))
+            except Exception:
+                pass
             from studio_kie import read_cache as kie_cache
-            return jsonify(BUILTIN_MODELS + items + kie_cache(root).get('models',[]))
+            return jsonify(combined + items + kie_cache(root).get('models',[]))
 
     @bp.route('/models/refresh', methods=['POST'])
     def refresh_models():
@@ -1530,7 +1759,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             except AIError as error: raise StudioError(str(error), 422)
         if provider not in ('gemini_api', 'openai_api'):
             raise StudioError('CLI 모델 권한은 공식 CLI에서 확인해야 합니다. 직접 등록한 모델은 미확인 상태로 유지됩니다.', 422)
-        key = str(data.get('key') or os.environ.get('GEMINI_API_KEY' if provider == 'gemini_api' else 'OPENAI_API_KEY', '')).strip()
+        secret_name = 'gemini_api_key' if provider == 'gemini_api' else 'openai_api_key'
+        env_name = 'GEMINI_API_KEY' if provider == 'gemini_api' else 'OPENAI_API_KEY'
+        key = str(data.get('key') or credential(secret_name) or os.environ.get(env_name, '')).strip()
         if not key:
             raise StudioError('모델 목록 조회에 사용할 API 키를 입력해 주세요.')
         try:
@@ -1702,7 +1933,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         if request.host.split(':')[0] not in ('127.0.0.1', 'localhost'):
             abort(403)
         origin = request.headers.get('Origin')
-        capability=request.method=='GET' and re.fullmatch(r'/studio/delivery/[a-f0-9]{48}(?:/video)?',request.path)
+        capability=request.method=='GET' and re.fullmatch(r'/studio/delivery/[a-f0-9]{48}(?:/(?:video|file/\d+))?',request.path)
         if origin and origin != request.host_url.rstrip('/') and not capability:
             abort(403)
         if request.method != 'GET' and not secrets.compare_digest(request.headers.get('X-Studio-Token', ''), token):
@@ -1739,42 +1970,114 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
     def extension_export(job_id):
         with lock(job_id):
             job=read(job_id)
-            if job['status']!='publish_ready' or not job.get('comment'):raise StudioError('본문과 첫 댓글을 먼저 저장하세요.')
             data=request.get_json() or {}
+            platform = str(data.get('platform') or 'threads').strip()
+            if platform not in ('threads', 'instagram_reels', 'instagram_carousel', 'naver_clip', 'tiktok'):
+                platform = 'threads'
+            publish_format = str(data.get('publish_format') or '').strip()
+            if platform == 'instagram_carousel':
+                publish_format = 'carousel'
+            elif platform in ('instagram_reels', 'naver_clip', 'tiktok'):
+                publish_format = 'video'
+            elif publish_format not in ('video', 'image', 'carousel'):
+                publish_format = 'image' if job.get('kind') == 'image' else 'video'
+            if job['status']!='publish_ready':
+                raise StudioError('4단계에서 [게시 본문 + 첫 댓글 확정 저장]을 먼저 눌러주세요.')
             try:
                 when=float(data.get('when',time.time()*1000))
                 if not math.isfinite(when) or when<time.time()*1000-60000 or when>time.time()*1000+90*86400000:raise ValueError()
             except (ValueError,TypeError):raise StudioError('예약 시각은 현재부터 90일 이내로 선택하세요.')
             if not isinstance(data.get('automatic',False),bool):raise StudioError('업로드 방식을 확인하세요.')
-            source=directory(job_id)/'video'
-            if not source.is_file():raise StudioError('확장 업로드는 현재 영상 파일을 지원합니다.')
-            if source.stat().st_size>30*1024*1024:raise StudioError('확장 업로드 영상은 30MB 이하로 준비하세요. 더 큰 영상은 공식 API 게시를 사용하세요.')
+            is_image_job = job.get('kind') == 'image'
+            if platform in ('instagram_reels', 'naver_clip', 'tiktok') and is_image_job:
+                raise StudioError('릴스·네이버 클립·틱톡 업로드는 영상 소재가 필요합니다. 인스타 캐러셀 또는 쓰레드를 선택하세요.')
+            carousel_slides = (job.get('carousel') or {}).get('slides') or []
+            use_carousel_files = (publish_format == 'carousel' or platform == 'instagram_carousel')
+            if use_carousel_files and not carousel_slides and not (job.get('attachments') or []):
+                if not is_image_job:
+                    raise StudioError('캐러셀 업로드를 위해 먼저 [1단계: 영상을 여러 장의 캐러셀 이미지로 변환]을 실행하세요.')
+            source = directory(job_id) / ('original' if is_image_job else 'video')
+            if use_carousel_files and carousel_slides:
+                first_slide = directory(job_id) / str(carousel_slides[0].get('file') or 'carousel-1.jpg')
+                if first_slide.is_file():
+                    source = first_slide
+                    is_image_job = True
+            if not source.is_file():
+                raise StudioError('업로드할 원본 미디어 파일을 찾지 못했습니다.')
+            if source.stat().st_size>30*1024*1024:
+                raise StudioError('업로드 미디어는 30MB 이하로 준비하세요.')
             delivery_base=request.host_url.rstrip('/').replace('://localhost', '://127.0.0.1')
-            export_hash=hashlib.sha256(json.dumps([job['draft']['body'],job['comment'],int(when//60000),data.get('automatic',False)],ensure_ascii=False).encode()).hexdigest()
-            previous=job.get('extension_delivery') or {}
+            export_hash=hashlib.sha256(json.dumps([platform, publish_format, job['draft']['body'],job.get('comment',''),job.get('sha256',''),len(carousel_slides if use_carousel_files else (job.get('attachments') or [])),int(when//60000),data.get('automatic',False)],ensure_ascii=False).encode()).hexdigest()
+            previous=(job.get('extension_deliveries') or {}).get(platform) or (job.get('extension_delivery') if platform == 'threads' else None) or {}
             if previous.get('hash')==export_hash and (root/'deliveries'/previous.get('id','')/'packet.json').is_file():
                 packet=json.loads((root/'deliveries'/previous['id']/'packet.json').read_text(encoding='utf-8'))
-                return jsonify(id=previous['id'],url=delivery_base+'/studio/delivery/'+previous['id'],when=packet['when'],automatic=packet['automatic'])
+                return jsonify(id=previous['id'],url=delivery_base+'/studio/delivery/'+previous['id'],when=packet['when'],automatic=packet['automatic'],platform=platform,publish_format=publish_format)
             delivery=secrets.token_hex(24)
             folder=root/'deliveries'/delivery
             folder.mkdir(parents=True)
             try:os.link(source,folder/'video')
             except OSError:shutil.copy2(source,folder/'video')
-            packet=dict(id=delivery,job_id=job_id,body=job['draft']['body'],comment=job['comment'],name=Path(job['name']).stem+'.mp4',when=when,automatic=data.get('automatic',False),created=time.time(),state='saved')
+            primary_ext = '.jpg' if is_image_job else '.mp4'
+            primary_mime = 'image/jpeg' if is_image_job else 'video/mp4'
+            primary_name = Path(job['name']).stem + primary_ext
+            files_manifest = []
+            if use_carousel_files and carousel_slides:
+                if len(carousel_slides) > 10:
+                    raise StudioError('캐러셀 이미지는 최대 10장까지 업로드할 수 있습니다.')
+                for idx, slide in enumerate(carousel_slides):
+                    s_file = directory(job_id) / str(slide.get('file') or '')
+                    if not s_file.is_file() or s_file.stat().st_size == 0:
+                        raise StudioError(f'캐러셀 {idx + 1}번째 이미지 파일을 확인할 수 없어 게시를 차단했습니다.')
+                    if s_file.stat().st_size > 30 * 1024 * 1024:
+                        raise StudioError(f'캐러셀 {idx + 1}번째 이미지가 30MB를 초과하여 게시를 차단했습니다.')
+                    try:os.link(s_file, folder/f'file-{len(files_manifest)}')
+                    except OSError:shutil.copy2(s_file, folder/f'file-{len(files_manifest)}')
+                    files_manifest.append(dict(part=f'file/{len(files_manifest)}', name=f'{Path(job["name"]).stem}-slide-{idx+1}.jpg', mime='image/jpeg', kind='image'))
+            else:
+                attachments_list = job.get('attachments') or []
+                if len(attachments_list) > 9:
+                    raise StudioError('첨부 미디어는 기본 파일을 포함해 최대 10개까지 업로드할 수 있습니다.')
+                try:os.link(source, folder/'file-0')
+                except OSError:shutil.copy2(source, folder/'file-0')
+                files_manifest.append(dict(part='file/0', name=primary_name, mime=primary_mime, kind='image' if is_image_job else 'video'))
+                for idx, att in enumerate(attachments_list, start=1):
+                    att_file = directory(job_id) / str(att.get('file') or '')
+                    if not att_file.is_file() or att_file.stat().st_size == 0:
+                        raise StudioError(f'캐러셀·첨부 {idx + 1}번째 미디어 파일을 확보하지 못해 게시를 차단했습니다.')
+                    if att_file.stat().st_size > 30 * 1024 * 1024:
+                        raise StudioError(f'캐러셀·첨부 {idx + 1}번째 미디어가 30MB를 초과하여 게시를 차단했습니다.')
+                    try:os.link(att_file, folder/f'file-{idx}')
+                    except OSError:shutil.copy2(att_file, folder/f'file-{idx}')
+                    att_kind = 'video' if att.get('kind') == 'video' else 'image'
+                    att_mime = 'video/mp4' if att_kind == 'video' else 'image/jpeg'
+                    att_name = str(att.get('name') or f'attachment-{idx}' + ('.mp4' if att_kind == 'video' else '.jpg'))
+                    files_manifest.append(dict(part=f'file/{idx}', name=att_name, mime=att_mime, kind=att_kind))
+            packet=dict(id=delivery,job_id=job_id,platform=platform,publish_format=publish_format,body=job['draft']['body'],comment=job.get('comment',''),name=primary_name,mime=primary_mime,kind='image' if is_image_job else 'video',files=files_manifest,repost_mode=bool(job.get('repost_mode')),when=when,automatic=data.get('automatic',False),created=time.time(),state='saved')
             (folder/'packet.json').write_text(json.dumps(packet,ensure_ascii=False),encoding='utf-8')
             job['extension_delivery']=dict(id=delivery,hash=export_hash)
+            deliveries = dict(job.get('extension_deliveries') or {})
+            deliveries[platform] = dict(id=delivery, hash=export_hash)
+            job['extension_deliveries'] = deliveries
             save(job)
-            return jsonify(id=delivery,url=delivery_base+'/studio/delivery/'+delivery,when=when,automatic=packet['automatic'])
+            return jsonify(id=delivery,url=delivery_base+'/studio/delivery/'+delivery,when=when,automatic=packet['automatic'],platform=platform,publish_format=publish_format)
 
     @bp.route('/delivery/<delivery>')
-    @bp.route('/delivery/<delivery>/<part>')
+    @bp.route('/delivery/<delivery>/<path:part>')
     def delivery_packet(delivery,part=None):
         if not re.fullmatch(r'[a-f0-9]{48}',delivery):abort(404)
         folder=root/'deliveries'/delivery
         if not (folder/'packet.json').is_file():abort(404)
         packet=json.loads((folder/'packet.json').read_text(encoding='utf-8'))
         if time.time()>max(packet['created'],packet['when']/1000)+86400:abort(410)
-        if part=='video':return send_file(folder/'video',mimetype='video/mp4',download_name=packet['name'])
+        if part=='video':
+            return send_file(folder/'video',mimetype=packet.get('mime','video/mp4'),download_name=packet['name'])
+        if part and re.fullmatch(r'file/\d+', part):
+            idx = int(part.split('/')[1])
+            f_path = folder / f'file-{idx}'
+            files = packet.get('files') or []
+            meta = files[idx] if idx < len(files) else {}
+            if not f_path.is_file(): abort(404)
+            return send_file(f_path, mimetype=meta.get('mime', 'application/octet-stream'), download_name=meta.get('name', f'file-{idx}'))
         if part is not None:abort(404)
         return jsonify(packet)
 
@@ -3638,12 +3941,194 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             file = FileStorage(stream=stream, filename=path.name)
             return (upload_image if kind == 'image' else upload)(file, str(data.get('source', ''))[:2048])
 
+    def _scrape_threads_post_metadata(url_str):
+        """Extract original post text and media URLs from a Threads post or share URL."""
+        info = {'text': '', 'video_urls': [], 'image_urls': [], 'final_url': url_str}
+
+        def _match_ref_Library(target_u):
+            if not target_u:
+                return
+            norm_u = target_u.split('?')[0].rstrip('/')
+            for folder_name in ('references', 'saved-references'):
+                folder = root / folder_name
+                if not folder.is_dir():
+                    continue
+                for ref_file in folder.glob('*.json'):
+                    try:
+                        ref = json.loads(ref_file.read_text(encoding='utf-8'))
+                        ref_perm = str(ref.get('permalink') or '').split('?')[0].rstrip('/')
+                        if ref_perm and ref_perm == norm_u:
+                            if ref.get('text') and not info['text']:
+                                info['text'] = str(ref['text']).strip()
+                            for v in (ref.get('videoUrls') or []):
+                                if v and v not in info['video_urls']:
+                                    info['video_urls'].append(v)
+                            for im in (ref.get('imageUrls') or []):
+                                if im and im not in info['image_urls']:
+                                    info['image_urls'].append(im)
+                    except Exception:
+                        pass
+
+        _match_ref_Library(url_str)
+        try:
+            import html as html_lib
+            headers = {
+                'User-Agent': 'curl/8.7.1',
+                'Accept': '*/*',
+            }
+            resp = requests.get(url_str, headers=headers, timeout=15, allow_redirects=True)
+            final_u = resp.url or url_str
+            info['final_url'] = final_u
+            if final_u != url_str:
+                _match_ref_Library(final_u)
+            page = resp.text or ''
+
+            # Canonical Threads post path (/t/CODE, /@user/post/CODE, or /post/CODE) -> fetch /embed HTML
+            parsed_final = urlparse(final_u)
+            post_m = re.search(r'(/(?:@[\w.\-]+/post|post|t)/[A-Za-z0-9_\-]+)', parsed_final.path)
+            if post_m:
+                canonical_base = f"{parsed_final.scheme or 'https'}://{parsed_final.netloc or 'www.threads.com'}{post_m.group(1)}"
+                info['final_url'] = canonical_base
+                _match_ref_Library(canonical_base)
+                try:
+                    embed_resp = requests.get(canonical_base.rstrip('/') + '/embed', headers=headers, timeout=15)
+                    if embed_resp.ok and embed_resp.text:
+                        embed_html = embed_resp.text
+                        # 1. Extract post text from BodyTextContainer
+                        body_m = re.search(r'<span[^>]*class=["\'][^"\']*BodyTextContainer[^"\']*["\'][^>]*>([\s\S]*?)</span>', embed_html, re.I)
+                        if body_m:
+                            raw_txt = re.sub(r'<br\s*/?>', '\n', body_m.group(1), flags=re.I)
+                            raw_txt = re.sub(r'<[^>]+>', '', raw_txt)
+                            clean_txt = html_lib.unescape(raw_txt).strip()
+                            if clean_txt:
+                                info['text'] = clean_txt
+                        # 2. Extract video URLs inside <video> or <source> tags
+                        for vm in re.finditer(r'<(?:video|source)[^>]+src=["\']([^"\']+)["\']', embed_html, re.I):
+                            vu = html_lib.unescape(vm.group(1)).strip()
+                            if vu.startswith('http') and vu not in info['video_urls']:
+                                info['video_urls'].append(vu)
+                        # 3. Extract post image URLs inside media containers (excluding avatar in EmbedHeader)
+                        embed_body = re.sub(r'<div[^>]*class=["\'][^"\']*EmbedHeader[^"\']*["\'][\s\S]*?</div>\s*</div>', '', embed_html, flags=re.I)
+                        for media_block in re.finditer(r'<div[^>]*class=["\'][^"\']*(?:SingleMediaContainer|MediaScrollImageContainer|MediaContainer)[^"\']*["\'][^>]*>([\s\S]*?)</div>', embed_body, re.I):
+                            block_html = media_block.group(1)
+                            if '<video' in block_html.lower():
+                                continue
+                            for img_m in re.finditer(r'<img[^>]+src=["\']([^"\']+)["\']', block_html, re.I):
+                                iu = html_lib.unescape(img_m.group(1)).strip()
+                                if iu.startswith('http') and not re.search(r'threads-logo|static\.cdninstagram\.com/rsrc|s150x150|p150x150', iu, re.I) and iu not in info['image_urls']:
+                                    info['image_urls'].append(iu)
+                except Exception:
+                    pass
+
+            # Fallback: Extract og:description / twitter:description from main page
+            if not info['text']:
+                for prop in ('og:description', 'twitter:description', 'description'):
+                    m = re.search(rf'<meta[^>]+(?:property|name)=["\']{re.escape(prop)}["\'][^>]+content=["\']([^"\']+)["\']', page, re.I)
+                    if not m:
+                        m = re.search(rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']{re.escape(prop)}["\']', page, re.I)
+                    if m:
+                        cand = html_lib.unescape(m.group(1)).strip()
+                        cand = re.sub(r'^.*?on Threads:\s*["“]?', '', cand, flags=re.I)
+                        cand = re.sub(r'["”]\s*$', '', cand).strip()
+                        if cand and not re.search(r'Threads에서 더 많은 대화를|See more threads', cand, re.I):
+                            info['text'] = cand
+                            break
+            # Fallback: Extract og:video and og:image from main page if embed had no media
+            for vm in re.finditer(r'<meta[^>]+property=["\']og:video(?::secure_url|:url)?["\'][^>]+content=["\']([^"\']+)["\']', page, re.I):
+                vu = html_lib.unescape(vm.group(1)).strip()
+                if vu.startswith('http') and vu not in info['video_urls']:
+                    info['video_urls'].append(vu)
+            if not info['video_urls'] and not info['image_urls']:
+                for im in re.finditer(r'<meta[^>]+property=["\']og:image(?::secure_url|:url)?["\'][^>]+content=["\']([^"\']+)["\']', page, re.I):
+                    iu = html_lib.unescape(im.group(1)).strip()
+                    if iu.startswith('http') and not re.search(r'threads-logo|static\.cdninstagram\.com/rsrc|s150x150', iu, re.I) and iu not in info['image_urls']:
+                        info['image_urls'].append(iu)
+        except Exception:
+            pass
+        return info
+
+    def _enrich_repost_job(resp_tuple, repost_mode=False, source_text='', extra_media_urls=None, primary_used_url=None):
+        """Attach repost_mode, source_text, and any secondary media attachments to a newly acquired job."""
+        response, status_code = resp_tuple if isinstance(resp_tuple, tuple) else (resp_tuple, 200)
+        job_data = response.get_json()
+        if not isinstance(job_data, dict) or not job_data.get('id'):
+            return response, status_code
+        jid = job_data['id']
+        with lock(jid):
+            job = read(jid)
+            changed = False
+            if repost_mode and not job.get('repost_mode'):
+                job['repost_mode'] = True
+                changed = True
+            if source_text and not job.get('source_text'):
+                job['source_text'] = str(source_text).strip()[:3000]
+                changed = True
+            urls = [u for u in (extra_media_urls or []) if u and u != primary_used_url and u != job.get('media_url')]
+            if urls and not job.get('attachments'):
+                attachments = []
+                failed_attachments = []
+                job_dir = directory(jid)
+                target_urls = urls[:8]
+                for idx, u in enumerate(target_urls, start=1):
+                    try:
+                        check_safe_url(u)
+                        r_stream, f_url = safe_fetch_stream(u, timeout=20)
+                        ct = r_stream.headers.get('Content-Type', '').lower()
+                        f_path = urlparse(f_url).path.lower()
+                        is_vid = 'video/' in ct or any(f_path.endswith(ext) for ext in ('.mp4', '.mov', '.webm', '.m4v'))
+                        is_img = 'image/' in ct or any(f_path.endswith(ext) for ext in ('.jpg', '.jpeg', '.png', '.webp'))
+                        if not (is_vid or is_img):
+                            r_stream.close()
+                            failed_attachments.append(f'첨부 {idx}: 지원하지 않는 미디어 형식')
+                            continue
+                        ext = '.mp4' if is_vid else '.jpg'
+                        fname = f'attach-{idx}{ext}'
+                        dest = job_dir / fname
+                        total_bytes = 0
+                        max_b = (30 if is_vid else 10) * 1024 * 1024
+                        with dest.open('wb') as out_f:
+                            for chunk in r_stream.iter_content(chunk_size=65536):
+                                if not chunk:
+                                    continue
+                                total_bytes += len(chunk)
+                                if total_bytes > max_b:
+                                    break
+                                out_f.write(chunk)
+                        r_stream.close()
+                        if dest.is_file() and 0 < dest.stat().st_size <= max_b:
+                            attachments.append({
+                                'file': fname,
+                                'kind': 'video' if is_vid else 'image',
+                                'name': Path(urlparse(f_url).path).name or fname,
+                                'source_url': u[:1024],
+                            })
+                        else:
+                            if dest.is_file():
+                                dest.unlink(missing_ok=True)
+                            failed_attachments.append(f'첨부 {idx}: 파일 크기 제한 초과 또는 빈 파일')
+                    except Exception as exc:
+                        failed_attachments.append(f'첨부 {idx}: {str(exc)[:120]}')
+                if failed_attachments or len(attachments) != len(target_urls):
+                    raise StudioError(
+                        f'캐러셀/다중 미디어 중 일부 파일을 확보하지 못했습니다 ({len(attachments)}/{len(target_urls)} 성공: {", ".join(failed_attachments[:2])}).',
+                        422,
+                    )
+                if attachments:
+                    job['attachments'] = attachments
+                    changed = True
+            if changed:
+                save(job)
+            return jsonify(job), status_code
+
     @bp.route('/acquire', methods=['POST'])
     def acquire():
         data = request.get_json() or {}
         post_url = str(data.get('url', '')).strip()
         media_url = str(data.get('media_url', '')).strip() if data.get('media_url') else None
         target_kind = str(data.get('kind', 'auto')).strip()
+        source_text = str(data.get('source_text', '')).strip()
+        req_video_urls = [str(u).strip() for u in (data.get('video_urls') or []) if str(u).strip()]
+        req_image_urls = [str(u).strip() for u in (data.get('image_urls') or []) if str(u).strip()]
 
         if not post_url and not media_url:
             raise StudioError('게시물 또는 미디어 주소를 입력해 주세요.')
@@ -3657,6 +4142,35 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         if media_url and media_url != source_url:
             check_safe_url(media_url)
 
+        is_threads_source = bool(re.search(r'(?:threads\.com|threads\.net)/', source_url, re.I))
+        repost_mode = bool(data.get('repost_mode')) if 'repost_mode' in data else is_threads_source
+
+        if is_threads_source:
+            scraped = _scrape_threads_post_metadata(source_url)
+            if scraped.get('final_url') and scraped['final_url'] != source_url:
+                try:
+                    check_safe_url(scraped['final_url'])
+                    source_url = scraped['final_url']
+                except Exception:
+                    pass
+            if not source_text and scraped.get('text'):
+                source_text = scraped['text']
+            for vu in scraped.get('video_urls') or []:
+                if vu not in req_video_urls:
+                    req_video_urls.append(vu)
+            for iu in scraped.get('image_urls') or []:
+                if iu not in req_image_urls:
+                    req_image_urls.append(iu)
+            if not media_url:
+                if target_kind == 'image' and req_image_urls:
+                    media_url = req_image_urls[0]
+                elif req_video_urls:
+                    media_url = req_video_urls[0]
+                elif req_image_urls:
+                    media_url = req_image_urls[0]
+
+        extra_media_urls = req_video_urls + req_image_urls
+
         is_yt_source = bool(re.search(r'(?:youtube\.com|youtu\.be)/', source_url, re.I))
         if is_yt_source:
             target_kind = 'video'
@@ -3667,13 +4181,16 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             ):
                 media_url = None
         elif media_url and target_kind == 'video' and any(urlparse(media_url).path.lower().endswith(e) for e in ('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+            if not req_video_urls:
+                raise StudioError('영상 대신 이미지가 반환되었습니다. 원본 영상 주소를 다시 수집해 주세요.', 422)
             media_url = None
+
 
         acquire_key = 'acquire-' + hashlib.sha256(f"{source_url}:{media_url or ''}:{target_kind}".encode()).hexdigest()
         with lock(acquire_key):
             existing = find_existing_job(source_url=source_url, media_url=media_url, kind=target_kind)
             if existing:
-                return jsonify(existing), 200
+                return _enrich_repost_job((jsonify(existing), 200), repost_mode=repost_mode, source_text=source_text, extra_media_urls=extra_media_urls, primary_used_url=media_url)
 
             pin_match = re.match(r'^/pin/(?:[\w-]+--)?(\d+)(?:/|$)', urlparse(source_url).path)
             is_pinterest = bool(re.fullmatch(r'(?:[\w-]+\.)*pinterest\.(?:com|co\.kr)', urlparse(source_url).hostname or '') and pin_match)
@@ -3688,8 +4205,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 try:
                     resp, final_url = safe_fetch_stream(direct_candidate, timeout=35)
                     c_type = resp.headers.get('Content-Type', '').lower()
-                    is_img = any(t in c_type for t in ('image/jpeg', 'image/png', 'image/webp', 'image/gif')) or any(final_url.lower().endswith(e) for e in ('.jpg', '.jpeg', '.png', '.webp', '.gif'))
-                    is_vid = any(t in c_type for t in ('video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska')) or any(final_url.lower().endswith(e) for e in ('.mp4', '.webm', '.mov', '.mkv', '.m4v'))
+                    final_path = urlparse(final_url).path.lower()
+                    is_img = any(t in c_type for t in ('image/jpeg', 'image/png', 'image/webp', 'image/gif')) or any(final_path.endswith(e) for e in ('.jpg', '.jpeg', '.png', '.webp', '.gif'))
+                    is_vid = any(t in c_type for t in ('video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska')) or any(final_path.endswith(e) for e in ('.mp4', '.webm', '.mov', '.mkv', '.m4v'))
                     if target_kind == 'video' and is_img:
                         resp.close()
                         raise StudioError('영상 대신 이미지가 반환되었습니다. 원본 영상 주소를 다시 수집해 주세요.', 422)
@@ -3708,7 +4226,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             buf.write(chunk)
                         buf.seek(0)
                         fname = Path(urlparse(final_url).path).name or ('acquired.jpg' if is_img else 'acquired.mp4')
-                        return (upload_image if is_img else upload)(FileStorage(stream=buf, filename=fname), str(source_url)[:2048], media_url=media_url)
+                        res = (upload_image if is_img else upload)(FileStorage(stream=buf, filename=fname), str(source_url)[:2048], media_url=media_url)
+                        return _enrich_repost_job(res, repost_mode=repost_mode, source_text=source_text, extra_media_urls=extra_media_urls, primary_used_url=direct_candidate)
                 except StudioError:
                     if media_url and media_url != post_url:
                         raise
@@ -3733,7 +4252,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 }
                 try:
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        ydl.extract_info(source_url, download=True)
+                        info_dict = ydl.extract_info(source_url, download=True)
+                        if isinstance(info_dict, dict) and not source_text:
+                            source_text = str(info_dict.get('description') or info_dict.get('title') or '').strip()
                 except Exception as e:
                     err_msg = str(e)
                     if any(k in err_msg.lower() for k in ('private', 'login', 'sign in', 'account', 'auth')):
@@ -3757,19 +4278,439 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 if target_kind == 'image' and not is_image:
                     raise StudioError('이미지 대신 영상이 반환되었습니다.', 422)
                 with target.open('rb') as stream:
-                    return (upload_image if is_image else upload)(FileStorage(stream=stream, filename=target.name), str(source_url)[:2048], media_url=media_url)
+                    res = (upload_image if is_image else upload)(FileStorage(stream=stream, filename=target.name), str(source_url)[:2048], media_url=media_url)
+                    return _enrich_repost_job(res, repost_mode=repost_mode, source_text=source_text, extra_media_urls=extra_media_urls, primary_used_url=media_url)
 
 
     @bp.route('/jobs/<job_id>/media/<name>')
     def media_file(job_id, name):
-        if name not in ('video', 'original') and not re.fullmatch(r'frame-[0-5]\.jpg', name):
+        if name not in ('video', 'original') and not re.fullmatch(r'frame-[0-5]\.jpg', name) and not re.fullmatch(r'(?:attach|carousel)-\d+\.(?:jpg|mp4)', name):
             abort(404)
         job = read(job_id)
         if not (directory(job_id) / name).is_file():
             abort(404)
+        mime = 'video/mp4' if (name == 'video' or name.endswith('.mp4')) else 'image/jpeg' if (name.endswith('.jpg') or job.get('kind') == 'image') else 'application/octet-stream'
         return send_file(directory(job_id) / name, download_name=job['name'] if name in ('video', 'original') else name,
-                         mimetype='video/mp4' if name == 'video' else 'application/octet-stream' if name == 'original' else 'image/jpeg',
+                         mimetype=mime,
                          conditional=True)
+
+    @bp.route('/jobs/<job_id>/repost-meta', methods=['POST'])
+    def repost_meta(job_id):
+        with lock(job_id):
+            job = read(job_id)
+            data = request.get_json() or {}
+            if 'repost_mode' in data:
+                job['repost_mode'] = bool(data.get('repost_mode'))
+            if 'source_text' in data:
+                job['source_text'] = str(data.get('source_text') or '').strip()[:3000]
+            save(job)
+            return jsonify(job)
+
+    @bp.route('/jobs/<job_id>/media-text-ocr', methods=['POST'])
+    def media_text_ocr(job_id):
+        with track_activity('화면 글자 인식(OCR)', job_id):
+            with lock(job_id):
+                job = read(job_id)
+            is_image = job.get('kind') == 'image'
+            source = directory(job_id) / ('original' if is_image else 'video')
+            if not source.is_file():
+                raise StudioError('분석할 미디어 파일을 찾지 못했습니다.', 404)
+            from studio_text_clean import detect_media_text
+            try:
+                ocr_res = detect_media_text(source, is_image=is_image)
+            except Exception as err:
+                raise StudioError('화면 글자 인식 실패: ' + str(err)[:140], 422)
+            data = request.get_json() or {}
+            translated = ''
+            combined = str(ocr_res.get('combined_text') or '').strip()
+            tone = str(data.get('tone') or 'natural').strip()
+            if combined and data.get('translate', True):
+                try:
+                    tone_guide = {
+                        'natural': '한국인이 실제로 말하는 것처럼 어색한 번역투 없이 자연스럽고 매끄러운 구어체(1~2줄)로 번역하세요.',
+                        'hook': '릴스·쇼츠·쓰레드에서 시선을 확 끄는 임팩트 있는 후킹형 한국어 문구(1~2줄)로 의역·다듬으세요.',
+                        'summary': '핵심 의미만 직관적으로 들어오도록 가장 짧고 간결한 1줄 한국어 카피로 요약·번역하세요.',
+                    }.get(tone, '자연스럽고 간결한 한국어(1~2줄)로 번역·다듬으세요.')
+                    prompt = (
+                        '다음은 해외 영상 또는 이미지 화면 안에서 추출한 자막/텍스트입니다. '
+                        f'영상·이미지 위에 한글 자막으로 바로 덮어씌울 수 있도록 {tone_guide} JSON의 translated 문자열로 반환하세요.\n'
+                        + json.dumps({'detected_text': combined, 'source_post_text': job.get('source_text', '')}, ensure_ascii=False)
+                    )
+                    schema = {'type': 'OBJECT', 'required': ['translated'], 'properties': {'translated': {'type': 'STRING'}}}
+                    gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('ocr-trans-' + uuid.uuid4().hex + '.json'))
+                    translated = str(gen.get('translated') or '').strip()
+                except Exception:
+                    translated = combined
+            ocr_res['translated_text'] = translated or combined
+            with lock(job_id):
+                job = read(job_id)
+                job['media_ocr'] = ocr_res
+                save(job)
+            return jsonify(job)
+
+    @bp.route('/jobs/<job_id>/ocr-translate', methods=['POST'])
+    def media_ocr_translate(job_id):
+        with track_activity('인식된 자막 AI 자연 번역', job_id):
+            with lock(job_id):
+                job = read(job_id)
+            data = request.get_json() or {}
+            raw_text = str(data.get('text') or (job.get('media_ocr') or {}).get('combined_text') or '').strip()
+            if not raw_text:
+                raise StudioError('번역할 인식된 글자가 없습니다. 먼저 글자 인식을 실행하거나 원문을 입력하세요.', 422)
+            tone = str(data.get('tone') or 'natural').strip()
+            tone_guide = {
+                'natural': '번역기 말투를 완전히 빼고, 한국인이 일상에서 자연스럽게 말하거나 자막으로 쓰는 매끄러운 구어체(1~2줄)로 초월번역하세요.',
+                'hook': '릴스·쇼츠·쓰레드 피드에서 스크롤을 멈추게 하는 짧고 강렬한 후킹형 한국어 자막(1~2줄)으로 다듬으세요.',
+                'summary': '군더더기를 모두 빼고 핵심 포인트만 한눈에 들어오는 1줄 한국어 자막으로 요약·번역하세요.',
+            }.get(tone, '자연스럽고 매끄러운 한국어 자막(1~2줄)으로 번역하세요.')
+            prompt = (
+                '다음은 해외 영상/이미지에서 인식된 기존 자막 텍스트입니다.\n'
+                f'{tone_guide}\n'
+                '반드시 영상·이미지 화면 위에 덮어씌우기 좋은 간결한 한국어 문구만 JSON의 translated 필드로 반환하세요.\n'
+                + json.dumps({'original_subtitle': raw_text, 'post_context': job.get('source_text', '')}, ensure_ascii=False)
+            )
+            schema = {'type': 'OBJECT', 'required': ['translated'], 'properties': {'translated': {'type': 'STRING'}}}
+            try:
+                gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('ocr-retrans-' + uuid.uuid4().hex + '.json'))
+                translated = str(gen.get('translated') or '').strip()
+            except StudioError:
+                raise
+            except Exception as err:
+                raise StudioError('AI 자막 번역 실패: ' + str(err)[:140], 422)
+            if not translated:
+                translated = raw_text
+            with lock(job_id):
+                job = read(job_id)
+                media_ocr = dict(job.get('media_ocr') or {})
+                media_ocr['combined_text'] = raw_text
+                media_ocr['translated_text'] = translated
+                media_ocr['tone'] = tone
+                job['media_ocr'] = media_ocr
+                save(job)
+            return jsonify({'translated_text': translated, 'tone': tone, 'job': job})
+
+    @bp.route('/jobs/<job_id>/media-text-edit', methods=['POST'])
+    def media_text_edit(job_id):
+        with track_activity('자막·이미지 글자 편집', job_id):
+            with lock(job_id):
+                original = read(job_id)
+            data = request.get_json() or {}
+            erase_mode = str(data.get('erase_mode') or 'cover_box').strip()
+            if erase_mode not in ('keep', 'cover_box', 'auto_all', 'auto_subtitles', 'auto_text', 'local_fill'):
+                raise StudioError('지원하지 않는 글자 지우기 방식입니다.')
+            overlay_text = str(data.get('overlay_text') or '').strip()[:300]
+            overlay_position = str(data.get('overlay_position') or 'bottom').strip()
+            if overlay_position not in ('top', 'middle', 'bottom'):
+                overlay_position = 'bottom'
+            overlay_color = str(data.get('overlay_color') or 'white').strip()
+            overlay_bg = bool(data.get('overlay_bg', True))
+            try:
+                overlay_size = float(data.get('overlay_size', 4.5))
+                if not math.isfinite(overlay_size) or not 2.0 <= overlay_size <= 12.0:
+                    overlay_size = 4.5
+            except (TypeError, ValueError):
+                overlay_size = 4.5
+            rectangle = data.get('rectangle') if isinstance(data.get('rectangle'), dict) else None
+
+            binary = find_ffmpeg()
+            if not binary:
+                raise StudioError('FFmpeg가 필요합니다.', 503)
+
+            if original.get('kind') == 'image':
+                from studio_text_clean import clean_and_overlay_image
+                source = directory(job_id) / 'original'
+                # Keep a backup of the untouched original image so repeated edits don't compound
+                raw_backup = directory(job_id) / 'original-raw'
+                if not raw_backup.is_file() and source.is_file():
+                    shutil.copy2(source, raw_backup)
+                base_source = raw_backup if (raw_backup.is_file() and data.get('from_raw', True)) else source
+                with tempfile.TemporaryDirectory(prefix='img-edit-', dir=root) as temp:
+                    out_img = Path(temp) / 'edited.jpg'
+                    try:
+                        report = clean_and_overlay_image(
+                            base_source,
+                            out_img,
+                            erase_mode=erase_mode,
+                            rectangle=rectangle,
+                            overlay_text=overlay_text,
+                            overlay_position=overlay_position,
+                            overlay_size=overlay_size,
+                            overlay_color=overlay_color,
+                            overlay_bg=overlay_bg,
+                        )
+                    except Exception as err:
+                        raise StudioError('이미지 글자 편집 실패: ' + str(err)[:160], 422)
+                    shutil.copy2(out_img, source)
+                run_ffmpeg(binary, ['-y', '-protocol_whitelist', 'file,pipe', '-i', str(source),
+                    '-frames:v', '1', '-vf', 'scale=640:640:force_original_aspect_ratio=decrease', '-q:v', '3', str(directory(job_id) / 'frame-0.jpg')])
+                with source.open('rb') as handle:
+                    digest = hashlib.file_digest(handle, 'sha256').hexdigest()
+                with lock(job_id):
+                    job = read(job_id)
+                    job['sha256'] = digest
+                    job['text_edit'] = {
+                        **report,
+                        'overlay_text': overlay_text,
+                        'overlay_position': overlay_position,
+                        'overlay_size': overlay_size,
+                        'overlay_color': overlay_color,
+                        'updated_at': time.time(),
+                    }
+                    save(job)
+                return jsonify(job)
+
+            # Video subtitle / text erase + Korean overlay (keeps full video timeline intact!)
+            source = directory(job_id) / 'video'
+            raw_backup = directory(job_id) / 'video-raw'
+            if not raw_backup.is_file() and source.is_file():
+                shutil.copy2(source, raw_backup)
+            base_source = raw_backup if (raw_backup.is_file() and data.get('from_raw', True)) else source
+            width = original['media']['width'] // 2 * 2
+            height = original['media']['height'] // 2 * 2
+            mute = bool(data.get('mute_audio', False))
+            audio = original['media']['has_audio'] and not mute
+
+            with tempfile.TemporaryDirectory(prefix='vid-text-edit-', dir=root) as temp:
+                temp_dir = Path(temp)
+                cleaned = None
+                clean_report = None
+                v_filters = [f'scale={width}:{height},setsar=1']
+                cover_center_y_px = None
+                if erase_mode == 'cover_box':
+                    from studio_text_clean import detect_subtitle_cover_band
+                    band = rectangle if isinstance(rectangle, dict) else detect_subtitle_cover_band(base_source, is_image=False)
+                    bx = max(0, min(width - 4, int(round(width * float(band.get('x', 6.0)) / 100.0))))
+                    by = max(0, min(height - 4, int(round(height * float(band.get('y', 74.0)) / 100.0))))
+                    bw = max(8, min(width - bx, int(round(width * float(band.get('w', 88.0)) / 100.0))))
+                    bh = max(8, min(height - by, int(round(height * float(band.get('h', 15.0)) / 100.0))))
+                    cover_center_y_px = by + bh // 2
+                    box_color = 'white@0.95' if overlay_color == 'black' else '0x0E1016@0.94'
+                    v_filters.append(f'drawbox=x={bx}:y={by}:w={bw}:h={bh}:color={box_color}:t=fill')
+                elif erase_mode in ('auto_all', 'auto_subtitles', 'auto_text'):
+                    from studio_text_clean import clean_text_video
+                    progress_path = directory(job_id) / 'text-clean-progress.json'
+                    def progress(state):
+                        temporary = progress_path.with_suffix('.tmp')
+                        temporary.write_text(json.dumps(state), encoding='utf-8')
+                        temporary.replace(progress_path)
+                    progress(dict(stage='detecting', frame=0, total=0, repaired_frames=0))
+                    cleaned = temp_dir / 'cleaned.mp4'
+                    scope = 'subtitles' if erase_mode == 'auto_subtitles' else 'all_text'
+                    try:
+                        clean_report = clean_text_video(base_source, cleaned, scope, progress)
+                    except Exception as err:
+                        progress(dict(stage='failed'))
+                        raise StudioError('영상 자막 지우기 실패: ' + str(err)[:160], 422)
+                elif erase_mode == 'local_fill' and isinstance(rectangle, dict):
+                    try:
+                        rx, ry, rw, rh = [float(rectangle.get(k, 10)) for k in ('x', 'y', 'w', 'h')]
+                        px, py, pw, ph = [int(v * n / 100) for v, n in ((rx, width), (ry, height), (rw, width), (rh, height))]
+                        px = max(1, min(px, width - 4))
+                        py = max(1, min(py, height - 4))
+                        pw = max(2, min(pw, width - px - 1))
+                        ph = max(2, min(ph, height - py - 1))
+                        v_filters.insert(0, f'delogo=x={px}:y={py}:w={pw}:h={ph}')
+                    except Exception:
+                        pass
+
+                if overlay_text:
+                    font = Path('C:/Windows/Fonts/malgunbd.ttf')
+                    if not font.is_file():
+                        font = Path('C:/Windows/Fonts/malgun.ttf')
+                    if not font.is_file():
+                        raise StudioError('한글 자막용 글꼴(맑은 고딕)을 찾지 못했습니다.', 503)
+                    font_arg = str(font).replace('\\', '/').replace(':', r'\:')
+                    text_file = temp_dir / 'overlay.txt'
+                    text_file.write_text(overlay_text, encoding='utf-8')
+                    textfile_arg = str(text_file).replace('\\', '/').replace(':', r'\:')
+                    fsize = max(18, int(round(min(width, height) * (overlay_size / 100.0))))
+                    if cover_center_y_px is not None:
+                        y_expr = f'max(12,min(h-text_h-12,{cover_center_y_px}-text_h/2))'
+                    else:
+                        y_expr = 'h*0.08' if overlay_position == 'top' else '(h-text_h)/2' if overlay_position == 'middle' else 'h-text_h-h*0.10'
+                    fcolor = {'white': 'white', 'yellow': '0xFFE840', 'black': 'black', 'mint': '0x6EFFD8'}.get(overlay_color, 'white')
+                    if erase_mode == 'cover_box':
+                        bg_col = 'white@0.96' if overlay_color == 'black' else '0x0E1016@0.94'
+                        box_part = f':box=1:boxcolor={bg_col}:boxborderw=14'
+                    else:
+                        box_part = ':box=1:boxcolor=black@0.75:boxborderw=12' if overlay_bg else ':borderw=3:bordercolor=black'
+                    v_filters.append(
+                        f"drawtext=fontfile='{font_arg}':textfile='{textfile_arg}':fontsize={fsize}:fontcolor={fcolor}{box_part}:x=(w-text_w)/2:y={y_expr}"
+                    )
+
+                output = temp_dir / 'edited.mp4'
+                args = [binary, '-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-i', str(cleaned or base_source)]
+                if cleaned and audio:
+                    args += ['-protocol_whitelist', 'file,pipe', '-i', str(base_source)]
+                args += ['-vf', ','.join(v_filters), '-map', '0:v:0']
+                if audio:
+                    args += ['-map', ('1:a:0' if cleaned else '0:a:0'), '-c:a', 'aac']
+                else:
+                    args += ['-an']
+                args += ['-sn', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(output)]
+                res = subprocess.run(args, capture_output=True, timeout=180, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                if res.returncode or not output.is_file():
+                    raise StudioError('영상 자막 편집 인코딩에 실패했습니다.', 422)
+                shutil.copy2(output, source)
+
+            media = inspect_media(binary, source)
+            evidence = extract_evidence(binary, directory(job_id), media)
+            with source.open('rb') as handle:
+                digest = hashlib.file_digest(handle, 'sha256').hexdigest()
+            with lock(job_id):
+                job = read(job_id)
+                job.update(sha256=digest, media=media, evidence=evidence, text_edit={
+                    'erase_mode': erase_mode,
+                    'overlay_text': overlay_text,
+                    'overlay_position': overlay_position,
+                    'overlay_size': overlay_size,
+                    'overlay_color': overlay_color,
+                    'text_clean': clean_report,
+                    'updated_at': time.time(),
+                })
+                save(job)
+            if clean_report:
+                progress_path = directory(job_id) / 'text-clean-progress.json'
+                progress_path.write_text(json.dumps(dict(stage='completed', frame=clean_report['frames'], total=clean_report['frames'])), encoding='utf-8')
+            return jsonify(job)
+
+    @bp.route('/jobs/<job_id>/carousel-generate', methods=['POST'])
+    def carousel_generate(job_id):
+        with track_activity('캐러셀 카드 이미지 생성', job_id):
+            with lock(job_id):
+                original = read(job_id)
+            if original.get('kind') == 'image':
+                raise StudioError('이미 여러 장으로 변환할 영상 소재가 필요합니다.', 422)
+            source = directory(job_id) / 'video'
+            if not source.is_file():
+                raise StudioError('영상 파일을 찾지 못했습니다.', 404)
+            binary = find_ffmpeg()
+            if not binary:
+                raise StudioError('FFmpeg가 필요합니다.', 503)
+            data = request.get_json() or {}
+            try:
+                count = int(data.get('count', 5))
+                count = max(2, min(10, count))
+            except (TypeError, ValueError):
+                count = 5
+            aspect = str(data.get('aspect', '4:5')).strip()
+            if aspect not in ('4:5', '1:1', 'original'):
+                aspect = '4:5'
+            erase_mode = str(data.get('erase_mode') or 'cover_box').strip()
+            if erase_mode not in ('keep', 'cover_box', 'auto_all', 'auto_subtitles', 'auto_text'):
+                erase_mode = 'cover_box'
+            overlay_position = str(data.get('overlay_position') or 'bottom').strip()
+            if overlay_position not in ('top', 'middle', 'bottom'):
+                overlay_position = 'bottom'
+            overlay_color = str(data.get('overlay_color') or 'white').strip()
+            overlay_bg = bool(data.get('overlay_bg', True))
+            try:
+                overlay_size = float(data.get('overlay_size', 4.6))
+                if not math.isfinite(overlay_size) or not 2.0 <= overlay_size <= 12.0:
+                    overlay_size = 4.6
+            except (TypeError, ValueError):
+                overlay_size = 4.6
+
+            raw_texts = data.get('slide_texts')
+            slide_texts = []
+            if isinstance(raw_texts, list):
+                slide_texts = [str(t or '').strip()[:140] for t in raw_texts]
+            elif isinstance(raw_texts, str) and raw_texts.strip():
+                slide_texts = [line.strip()[:140] for line in raw_texts.strip().splitlines() if line.strip()]
+
+            # Optional AI auto-captioning per slide if requested and slide_texts is empty
+            if not slide_texts and bool(data.get('auto_caption', False)):
+                try:
+                    obs = ((original.get('analysis') or {}).get('observations') or [])
+                    body_text = ((original.get('draft') or {}).get('body') or original.get('source_text') or '')
+                    prompt = (
+                        f'다음 영상 정보와 본문을 바탕으로 인스타그램·쓰레드 캐러셀(카드뉴스) {count}장 각각의 이미지 위에 넣을 짧고 임팩트 있는 한글 문구(각 1~2줄, 28자 이내)를 JSON의 slides 배열(문자열 {count}개)로 작성하세요.\n'
+                        + json.dumps({'slide_count': count, 'body': body_text[:600], 'observations': obs[:8]}, ensure_ascii=False)
+                    )
+                    schema = {
+                        'type': 'OBJECT',
+                        'required': ['slides'],
+                        'properties': {'slides': {'type': 'ARRAY', 'items': {'type': 'STRING'}}},
+                    }
+                    gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('carousel-cap-' + uuid.uuid4().hex + '.json'))
+                    if isinstance(gen.get('slides'), list):
+                        slide_texts = [str(s or '').strip()[:140] for s in gen['slides']]
+                except Exception:
+                    slide_texts = []
+
+            duration = max(0.5, float((original.get('media') or {}).get('duration') or 5.0))
+            timestamps = [round(duration * (idx + 0.5) / count, 2) for idx in range(count)]
+
+            from studio_text_clean import clean_and_overlay_image
+            vf_crop = (
+                'scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350'
+                if aspect == '4:5'
+                else 'scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080'
+                if aspect == '1:1'
+                else 'scale=1080:1920:force_original_aspect_ratio=decrease'
+            )
+
+            slides_meta = []
+            with tempfile.TemporaryDirectory(prefix='carousel-', dir=root) as temp:
+                temp_dir = Path(temp)
+                for idx, ts in enumerate(timestamps, start=1):
+                    raw_frame = temp_dir / f'raw-{idx}.jpg'
+                    res = run_ffmpeg(binary, [
+                        '-y', '-protocol_whitelist', 'file,pipe',
+                        '-ss', str(min(max(0.0, ts), max(0.0, duration - 0.08))),
+                        '-i', str(source),
+                        '-frames:v', '1',
+                        '-vf', vf_crop,
+                        '-q:v', '2',
+                        str(raw_frame),
+                    ])
+                    if res.returncode or not raw_frame.is_file() or raw_frame.stat().st_size <= 0:
+                        raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 이미지를 추출하지 못했습니다.', 422)
+                    out_name = f'carousel-{idx}.jpg'
+                    out_path = directory(job_id) / out_name
+                    s_text = slide_texts[idx - 1] if idx - 1 < len(slide_texts) else ''
+                    if erase_mode != 'keep' or s_text:
+                        try:
+                            clean_and_overlay_image(
+                                raw_frame,
+                                out_path,
+                                erase_mode=erase_mode,
+                                overlay_text=s_text,
+                                overlay_position=overlay_position,
+                                overlay_size=overlay_size,
+                                overlay_color=overlay_color,
+                                overlay_bg=overlay_bg,
+                            )
+                        except Exception:
+                            shutil.copy2(raw_frame, out_path)
+                    else:
+                        shutil.copy2(raw_frame, out_path)
+                    if not out_path.is_file() or out_path.stat().st_size <= 0:
+                        raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 파일을 저장하지 못했습니다.', 422)
+                    slides_meta.append({
+                        'index': idx,
+                        'file': out_name,
+                        'timestamp': ts,
+                        'text': s_text,
+                    })
+
+            if len(slides_meta) != count:
+                raise StudioError(f'캐러셀 전체 슬라이드({count}장)를 확보하지 못했습니다 ({len(slides_meta)}/{count}).', 422)
+
+            with lock(job_id):
+                job = read(job_id)
+                job['carousel'] = {
+                    'count': len(slides_meta),
+                    'aspect': aspect,
+                    'erase_mode': erase_mode,
+                    'overlay_position': overlay_position,
+                    'overlay_color': overlay_color,
+                    'overlay_size': overlay_size,
+                    'slides': slides_meta,
+                    'updated_at': time.time(),
+                }
+                save(job)
+            return jsonify(job)
 
     @bp.route('/jobs/<job_id>/hook-frame')
     def hook_frame(job_id):
@@ -3994,47 +4935,6 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         try:return jsonify(json.loads(path.read_text(encoding='utf-8')))
         except (OSError,ValueError):return jsonify(stage='waiting')
 
-    @bp.route('/jobs/<job_id>/ocr-translate', methods=['POST'])
-    def media_ocr_translate(job_id):
-        with track_activity('인식된 자막 AI 자연 번역', job_id):
-            with lock(job_id):
-                job = read(job_id)
-            data = request.get_json() or {}
-            raw_text = str(data.get('text') or (job.get('media_ocr') or {}).get('combined_text') or '').strip()
-            if not raw_text:
-                raise StudioError('번역할 인식된 글자가 없습니다. 먼저 글자 인식을 실행하거나 원문을 입력하세요.', 422)
-            tone = str(data.get('tone') or 'natural').strip()
-            tone_guide = {
-                'natural': '번역기 말투를 완전히 빼고, 한국인이 일상에서 자연스럽게 말하거나 자막으로 쓰는 매끄러운 구어체(1~2줄)로 초월번역하세요.',
-                'hook': '릴스·쇼츠·쓰레드 피드에서 스크롤을 멈추게 하는 짧고 강렬한 후킹형 한국어 자막(1~2줄)으로 다듬으세요.',
-                'summary': '군더더기를 모두 빼고 핵심 포인트만 한눈에 들어오는 1줄 한국어 자막으로 요약·번역하세요.',
-            }.get(tone, '자연스럽고 매끄러운 한국어 자막(1~2줄)으로 번역하세요.')
-            prompt = (
-                '다음은 해외 영상/이미지에서 인식된 기존 자막 텍스트입니다.\n'
-                f'{tone_guide}\n'
-                '반드시 영상·이미지 화면 위에 덮어씌우기 좋은 간결한 한국어 문구만 JSON의 translated 필드로 반환하세요.\n'
-                + json.dumps({'original_subtitle': raw_text, 'post_context': job.get('source_text', '')}, ensure_ascii=False)
-            )
-            schema = {'type': 'OBJECT', 'required': ['translated'], 'properties': {'translated': {'type': 'STRING'}}}
-            try:
-                gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('ocr-retrans-' + uuid.uuid4().hex + '.json'))
-                translated = str(gen.get('translated') or '').strip()
-            except StudioError:
-                raise
-            except Exception as err:
-                raise StudioError('AI 자막 번역 실패: ' + str(err)[:140], 422)
-            if not translated:
-                translated = raw_text
-            with lock(job_id):
-                job = read(job_id)
-                media_ocr = dict(job.get('media_ocr') or {})
-                media_ocr['combined_text'] = raw_text
-                media_ocr['translated_text'] = translated
-                media_ocr['tone'] = tone
-                job['media_ocr'] = media_ocr
-                save(job)
-            return jsonify({'translated_text': translated, 'tone': tone, 'job': job})
-
     @bp.route('/jobs/<job_id>/analyze', methods=['POST'])
     def analyze(job_id):
         with track_activity('AI 분석', job_id):
@@ -4089,7 +4989,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 product.update({k: previous[k] for k in ('affiliate_method', 'attribution', 'account_fingerprint', 'issued_at')})
             if affiliation and product['attribution'] not in ('user_confirmed', 'api_issued'):
                 raise StudioError('본인 제휴 계정에서 발급한 링크인지 확인해 주세요.')
-            job.update(product=product, comment='', status='draft_ready' if job.get('draft') else ('product_ready' if job['analysis'] else 'media_ready'))
+            changed_product = bool(previous and previous.get('name') != product['name'])
+            next_draft = None if changed_product else job.get('draft')
+            job.update(product=product, draft=next_draft, comment='', status='draft_ready' if next_draft else ('product_ready' if job['analysis'] else 'media_ready'))
             save(job)
             return jsonify(job)
 
@@ -4099,23 +5001,49 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             with lock(job_id):
                 job = read(job_id)
                 mutable(job)
-                if not job['analysis']:
-                    raise StudioError('실제 영상 분석을 먼저 완료해 주세요.')
                 data = request.get_json() or {}
-                style = data.get('style', 'observation')
+                if 'source_text' in data:
+                    job['source_text'] = str(data.get('source_text') or '').strip()[:3000]
+                has_source_text = bool((job.get('source_text') or '').strip())
+                has_analysis = bool(job.get('analysis'))
+                has_product = bool((job.get('product') or {}).get('name') or (job.get('product') or {}).get('affiliate_url') or (job.get('product') or {}).get('url'))
+                include_ad_tag = bool(data['include_ad_tag']) if 'include_ad_tag' in data else bool(has_product and not job.get('repost_mode'))
+                use_repost_prompt = bool(has_source_text or job.get('repost_mode'))
+                if not has_analysis and not has_source_text:
+                    raise StudioError('실제 영상 분석을 먼저 완료해 주세요.', 400)
+
+                style = data.get('style', 'two_line')
                 try:
                     custom = next((x for x in custom_styles() if x['id']==style), None)
-                    prompt = draft_prompt(job['analysis']['result'], job['product'], style, custom['instructions'] if custom else None)
+                    if use_repost_prompt:
+                        media_texts = (job.get('media_ocr') or {}).get('texts') or []
+                        analysis_res = (job.get('analysis') or {}).get('result')
+                        prompt = repost_draft_prompt(
+                            source_text=job.get('source_text', ''),
+                            analysis=analysis_res,
+                            style=style,
+                            custom=custom['instructions'] if custom else None,
+                            media_texts=media_texts,
+                            product=job.get('product'),
+                            include_ad_tag=include_ad_tag,
+                        )
+                    else:
+                        prompt = draft_prompt(job['analysis']['result'], job['product'], style, custom['instructions'] if custom else None)
                 except ValueError as error:
                     raise StudioError(str(error))
                 model = data.get('model', 'gemini-2.5-flash')
-                result = generate_selected(data, [{'text': prompt}], DRAFT_SCHEMA,
+                parts = [{'text': prompt}]
+                if not has_analysis:
+                    frame0 = directory(job_id) / 'frame-0.jpg'
+                    if frame0.is_file():
+                        parts.append({'inlineData': {'mimeType': 'image/jpeg', 'data': base64.b64encode(frame0.read_bytes()).decode()}})
+                result = generate_selected(data, parts, DRAFT_SCHEMA,
                     directory(job_id) / ('draft-response-' + uuid.uuid4().hex + '.json'))
                 variants=result.get('variants')
                 if not isinstance(variants,list) or len(variants)!=3 or any(not isinstance(v,str) or not v.strip() for v in variants):raise StudioError('AI 소개 글 3안 형식이 올바르지 않습니다.',502)
-                variants=[format_post(v,advertising=True) for v in variants]
+                variants=[format_post(v,advertising=include_ad_tag,style=style) for v in variants]
                 if any(len(v)>500 for v in variants):raise StudioError('AI가 500자 제한을 지키지 않았습니다. 저장된 초안은 유지했습니다.',422)
-                job.update(draft={'script':variants[0],'body':variants[0],'variants':variants,'selected':0,'provider':data.get('provider','gemini_api'),'model':data.get('model',model),'style':style,'style_snapshot':custom,'quality_notes':audit_draft(variants[0],variants[0]),'generated_at':time.time()},comment='',status='draft_ready')
+                job.update(draft={'script':variants[0],'body':variants[0],'variants':variants,'selected':0,'provider':data.get('provider','gemini_api'),'model':data.get('model',model),'style':style,'style_snapshot':custom,'include_ad_tag':include_ad_tag,'quality_notes':audit_draft(variants[0],variants[0]),'generated_at':time.time()},status='draft_ready')
                 save(job)
                 return jsonify(job)
 
@@ -4125,23 +5053,40 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             with lock(job_id):
                 job = read(job_id)
             mutable(job)
-            if not job['draft'] or not job['product'] or not job['product']['affiliate_url']:
-                raise StudioError('분석·초안과 직접 발급한 제휴 링크를 준비해 주세요.')
             data = request.get_json() or {}
-            body, script = data.get('body'), data.get('script')
-            if not isinstance(body, str) or not body.strip() or len(body) > 500 or not body.lstrip().startswith('#광고'):
-                raise StudioError('Threads 본문은 #광고로 시작하는 500자 이하 글로 작성해 주세요.')
+            body = data.get('body')
+            script = data.get('script') if data.get('script') is not None else body
+            if not isinstance(body, str) or not body.strip() or len(body) > 500:
+                raise StudioError('게시 본문은 500자 이하로 입력해 주세요.')
             if not isinstance(script, str) or not script.strip() or len(script) > 500:
-                raise StudioError('영상 소개 글은 500자 이하로 입력해 주세요.')
+                script = body
+            if not job.get('draft'):
+                job['draft'] = {'script': script, 'body': body, 'variants': [body], 'selected': 0, 'generated_at': time.time()}
+            job['draft'].update(body=body, script=script, selected=data.get('selected', 0))
             disclosure = str(data.get('disclosure', '')).strip()
-            if not disclosure or len(disclosure) > 300:
-                raise StudioError('제휴사의 공식 경제적 이해관계 고지 문구를 입력해 주세요.')
-            job['draft'].update(body=body, script=script,selected=data.get('selected',0))
-            job['comment'] = '#광고\n' + disclosure + '\n\n상품 정보와 구매 옵션은 아래 링크에서 확인하세요.\n' + job['product']['affiliate_url']
-            if len(job['comment']) > 500:
-                raise StudioError('댓글이 500자를 넘습니다. 링크와 고지 문구를 확인해 주세요.')
+            custom_comment = str(data.get('comment', '')).strip() if 'comment' in data else ''
+            affiliate_url = (job.get('product') or {}).get('affiliate_url', '').strip()
+            if affiliate_url and not body.lstrip().startswith('#광고'):
+                raise StudioError('제휴 상품 게시물은 Threads 본문이 #광고로 시작해야 합니다.')
+            product_name = (job.get('product') or {}).get('name', '').strip()
+            if custom_comment:
+
+                final_comment = custom_comment
+            else:
+                parts = []
+                if disclosure:
+                    parts.append(disclosure)
+                if affiliate_url:
+                    parts.append(('상품 정보와 구매 옵션은 아래 링크에서 확인하세요.\n' if disclosure else '') + affiliate_url)
+                elif product_name and disclosure:
+                    parts.append('상품 정보: ' + product_name)
+                final_comment = '\n\n'.join(parts).strip()
+            if len(final_comment) > 500:
+                raise StudioError('첫 댓글이 500자를 넘습니다. 내용을 500자 이하로 줄여 주세요.')
+            job['comment'] = final_comment
             job.update(status='publish_ready', disclosure=disclosure)
             save(job)
             return jsonify(job)
 
     app.register_blueprint(bp)
+

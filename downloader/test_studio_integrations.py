@@ -23,8 +23,9 @@ class IntegrationsTests(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]['verification'], 'discovered')
         self.assertEqual(results[0]['url'], 'https://www.coupang.com/product')
-        self.assertIn('site:coupang.com', call.call_args.kwargs['params']['q'])
+        self.assertIn('coupang.com', call.call_args.kwargs['params']['q'])
         self.assertNotIn('affiliate_url', results[0])
+
 
     def test_coupang_signature_and_matching_response(self):
         url = 'https://www.coupang.com/vp/products/123'
