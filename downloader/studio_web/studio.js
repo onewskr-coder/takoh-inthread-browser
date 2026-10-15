@@ -103,6 +103,11 @@ async function refreshJobs(){
 }
 window.filterSavedJobs=()=>{const query=($('saved-job-search')?.value||'').toLocaleLowerCase(),group=$('saved-job-filter')?.value||'all';const rows=[...$('jobs').children];let shown=0;for(const row of rows){row.hidden=!row.dataset.search.includes(query)||(group!=='all'&&row.dataset.group!==group);if(!row.hidden)shown++;}if($('saved-job-count'))$('saved-job-count').textContent=shown+' / '+rows.length+'개 작업';};
 $('saved-job-search')?.addEventListener('input',window.filterSavedJobs);$('saved-job-filter')?.addEventListener('change',window.filterSavedJobs);
+async function exportPlatformPacket(id,data){
+ let policy;try{policy=await api('disclosure-policy');}catch{throw new Error('플랫폼별 광고 표시를 적용하려면 도우미 최신 코드로 재시작이 필요합니다. 게시 준비를 중단했습니다.');}
+ if(policy.version!=='platform-ad-v1')throw new Error('광고 표시 도우미 버전이 맞지 않아 게시 준비를 중단했습니다.');
+ return api(`jobs/${id}/extension-export`,data);
+}
 function buildDefaultComment(){
   const disc=$('disclosure')?.value?.trim()||'';
   const aff=$('affiliate-url')?.value?.trim()||job?.product?.affiliate_url||'';
@@ -1129,7 +1134,7 @@ $('extension-upload').onclick=()=>act('휴먼터치 직접 업로드 작업 저�
  const when=$('extension-when').value?new Date($('extension-when').value).getTime():Date.now();
  const platform=$('upload-platform')?$('upload-platform').value:'threads';
  const publish_format=$('upload-format')?$('upload-format').value:'auto';
- const packet=await api(`jobs/${job.id}/extension-export`,{when,automatic:$('extension-mode').value==='auto',platform,publish_format});
+ const packet=await exportPlatformPacket(job.id,{when,automatic:$('extension-mode').value==='auto',platform,publish_format});
  await uploadBridge('upload',packet);
  await refreshUploadQueue();
 },'휴먼터치 업로드 작업을 등록했습니다. 지금 바로 업로드하거나 예약 시각에 실행합니다.');
@@ -1143,7 +1148,7 @@ if($('extension-batch-upload'))$('extension-batch-upload').onclick=()=>act('선�
  for(let i=0;i<checked.length;i++){
    const platform=checked[i];
    const when=baseWhen+(i*4000);
-   const packet=await api(`jobs/${job.id}/extension-export`,{when,automatic,platform,publish_format});
+   const packet=await exportPlatformPacket(job.id,{when,automatic,platform,publish_format});
    await uploadBridge('upload',packet);
  }
  await refreshUploadQueue();
@@ -1534,7 +1539,7 @@ window.addEventListener('message',event=>{
   const instances=[];
   function previewPanel(context){
     const panel=document.createElement('aside');panel.className='content-live-preview';panel.setAttribute('aria-label','플랫폼별 콘텐츠 미리보기');
-    panel.innerHTML='<div class="preview-heading"><h2>실시간 미리보기</h2><span>모바일 게시 화면</span></div><div class="preview-platform-tabs" role="group" aria-label="미리보기 플랫폼"></div><p class="preview-note">게시될 화면을 확인하세요. 반응 수는 게시 전이므로 표시하지 않습니다.</p><article class="platform-preview"><div class="preview-view-top"></div><header><strong class="preview-service"></strong><span class="preview-account">내 계정</span><span class="preview-follow">팔로우</span><span class="preview-more" aria-hidden="true">•••</span></header><p class="preview-body"></p><div class="preview-media"></div><div class="preview-player"><button type="button" class="preview-play" aria-label="미리보기 영상 재생">▶</button><button type="button" class="preview-mute" aria-label="미리보기 음소거 해제">♪</button></div><div class="preview-dots" aria-label="미디어 페이지"></div><button type="button" class="preview-expand" hidden>더 보기</button><div class="preview-media-nav"><button type="button" class="secondary preview-prev" aria-label="이전 미디어">←</button><span class="preview-media-count"></span><button type="button" class="secondary preview-next" aria-label="다음 미디어">→</button></div><footer class="preview-engagement"></footer><div class="preview-audio"><span>♫</span><span class="preview-audio-label">원본 오디오</span><i></i></div><div class="preview-bottom-nav"></div><div class="preview-comment"><strong>첫 댓글</strong><p></p></div></article><p class="preview-source-note hint"></p>';
+    panel.innerHTML='<div class="preview-heading"><h2>실시간 미리보기</h2><span>모바일 게시 화면</span></div><div class="preview-platform-tabs" role="group" aria-label="미리보기 플랫폼"></div><p class="preview-note">게시될 화면을 확인하세요. 반응 수는 게시 전이므로 표시하지 않습니다.</p><article class="platform-preview"><div class="preview-view-top"></div><header><strong class="preview-service"></strong><span class="preview-account">내 계정</span><span class="preview-follow">팔로우</span><span class="preview-more" aria-hidden="true">•••</span></header><p class="preview-body"></p><div class="preview-media"></div><span class="preview-ad-label" hidden>[광고]</span><div class="preview-player"><button type="button" class="preview-play" aria-label="미리보기 영상 재생">▶</button><button type="button" class="preview-mute" aria-label="미리보기 음소거 해제">♪</button></div><div class="preview-dots" aria-label="미디어 페이지"></div><button type="button" class="preview-expand" hidden>더 보기</button><div class="preview-media-nav"><button type="button" class="secondary preview-prev" aria-label="이전 미디어">←</button><span class="preview-media-count"></span><button type="button" class="secondary preview-next" aria-label="다음 미디어">→</button></div><footer class="preview-engagement"></footer><div class="preview-audio"><span>♫</span><span class="preview-audio-label">원본 오디오</span><i></i></div><div class="preview-bottom-nav"></div><div class="preview-comment"><strong>첫 댓글</strong><p></p></div></article><p class="preview-source-note hint"></p>';
     panel.querySelector('.preview-play').onclick=async()=>{const v=panel.querySelector('video');if(!v)return;try{if(v.paused)await v.play();else v.pause();}catch{panel.querySelector('.preview-source-note').textContent='영상을 재생하지 못했습니다. 파일 상태를 확인하세요.';}};
     panel.querySelector('.preview-mute').onclick=()=>{const v=panel.querySelector('video');if(v){v.muted=!v.muted;panel.querySelector('.preview-mute').setAttribute('aria-label',v.muted?'미리보기 음소거 해제':'미리보기 음소거');panel.querySelector('.preview-mute').textContent=v.muted?'♪':'♫';}};
     panel.querySelector('.preview-expand').onclick=()=>{panel.classList.toggle('preview-expanded');panel.querySelector('.preview-expand').textContent=panel.classList.contains('preview-expanded')?'접기':'더 보기';};
@@ -1559,7 +1564,7 @@ window.addEventListener('message',event=>{
     return [first,...(state.platform==='threads'||state.platform==='instagram'?(job.attachments||[]).map(a=>({kind:a.kind,url:base+encodeURIComponent(a.file)})):[])];
   }
   function refreshPreview(state){
-    const p=state.panel;p.dataset.platform=state.platform;p.querySelector('.preview-service').textContent=platforms[state.platform];
+    const p=state.panel;p.dataset.platform=state.platform;p.dataset.adPosition=job?.edit?.ad_position==='right'?'right':'left';p.querySelector('.preview-service').textContent=platforms[state.platform];
     for(const b of p.querySelectorAll('[data-preview-platform]'))b.setAttribute('aria-pressed',String(b.dataset.previewPlatform===state.platform));
     const shortView=['tiktok','naver_clip'].includes(state.platform)||(state.platform==='instagram'&&get('upload-platform').value!=='instagram_carousel'&&get('upload-format').value!=='carousel');p.dataset.view=shortView?'short':'feed';
     p.querySelector('.preview-account').textContent=state.platform==='threads'?'내 계정　· 지금':'내 계정';
@@ -1578,7 +1583,8 @@ window.addEventListener('message',event=>{
     const navItems=state.platform==='threads'?[[home,'홈'],[searchIcon,'검색'],[plus,'만들기'],[heart,'활동'],[profile,'프로필']]:state.platform==='instagram'?[[home,'홈'],[reelIcon,'릴스'],[share,'메시지'],[searchIcon,'검색'],[profile,'프로필']]:[[home,'홈'],[profile,'친구'],[plus,'만들기'],[commentIcon,'받은 편지함'],[profile,'프로필']];
 
     const bottom=p.querySelector('.preview-bottom-nav');bottom.replaceChildren();bottom.hidden=state.platform==='naver_clip';for(const [svg,label]of navItems){const el=document.createElement('span');el.innerHTML=svg;el.setAttribute('aria-label',label);if(state.platform==='tiktok')el.append(text('small',label));bottom.append(el);}
-    p.querySelector('.preview-body').textContent=get('script').value||'본문을 작성하면 여기에 바로 표시됩니다.';
+    const previewBody=get('script').value.replace(/^\s*(?:(?:#광고|\[광고\])\s*)+/u,'').trim();
+    p.querySelector('.preview-body').textContent=previewBody?(state.platform==='threads'?'#광고 ':'[광고] ')+previewBody:'본문을 작성하면 여기에 바로 표시됩니다.';p.querySelector('.preview-ad-label').hidden=state.platform==='threads'||job?.kind==='image'||!job;
     p.querySelector('.preview-expand').hidden=get('script').value.length<90;
     const comment=get('comment').value||'';p.querySelector('.preview-comment p').textContent=comment||'첫 댓글 없음';
     p.querySelector('.preview-comment').hidden=state.platform!=='threads'&&state.platform!=='instagram';

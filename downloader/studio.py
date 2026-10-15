@@ -32,6 +32,8 @@ from studio_ai import QuotaError, generate_other, cli_status, launch_login, anti
 from studio_integrations import (IntegrationError, advance_publication, coupang_deeplink,
                                  recover_publication, search_products, search_visual, threads_account)
 
+from studio_ad_policy import disclosure_body, prepare_ad_video, VIDEO_AD_PLATFORMS, POLICY_VERSION
+
 FILTER_VERSION = 'v5_verified_published_date'
 
 
@@ -1966,6 +1968,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         app.logger.exception('Studio request failed')
         return jsonify(error='도우미 내부 오류입니다. 저장된 결과는 유지했습니다. 서버 로그를 확인하세요.'),500
 
+    @bp.route('/disclosure-policy')
+    def disclosure_policy():
+        return jsonify(version=POLICY_VERSION,threads_body='#광고',other_body='[광고]',video_platforms=sorted(VIDEO_AD_PLATFORMS))
+
     @bp.route('/jobs/<job_id>/extension-export',methods=['POST'])
     def extension_export(job_id):
         with lock(job_id):
@@ -2006,8 +2012,14 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 raise StudioError('업로드할 원본 미디어 파일을 찾지 못했습니다.')
             if source.stat().st_size>30*1024*1024:
                 raise StudioError('업로드 미디어는 30MB 이하로 준비하세요.')
+            body=disclosure_body(job['draft']['body'],platform)
+            if len(body)>500:raise StudioError('광고 표시를 포함해 게시 본문을 500자 이하로 줄여주세요.')
+            if platform in VIDEO_AD_PLATFORMS and not is_image_job and (job.get('edit') or {}).get('ad_position') not in ('left','right'):
+                try:source=prepare_ad_video(source,find_ffmpeg(),run_ffmpeg,inspect_media)
+                except ValueError as error:raise StudioError(str(error),422)
+            if source.stat().st_size>30*1024*1024:raise StudioError('광고 표시가 적용된 영상이 30MB를 초과합니다.')
             delivery_base=request.host_url.rstrip('/').replace('://localhost', '://127.0.0.1')
-            export_hash=hashlib.sha256(json.dumps([platform, publish_format, job['draft']['body'],job.get('comment',''),job.get('sha256',''),len(carousel_slides if use_carousel_files else (job.get('attachments') or [])),int(when//60000),data.get('automatic',False)],ensure_ascii=False).encode()).hexdigest()
+            export_hash=hashlib.sha256(json.dumps([POLICY_VERSION, platform, publish_format, body,job.get('comment',''),job.get('sha256',''),len(carousel_slides if use_carousel_files else (job.get('attachments') or [])),int(when//60000),data.get('automatic',False)],ensure_ascii=False).encode()).hexdigest()
             previous=(job.get('extension_deliveries') or {}).get(platform) or (job.get('extension_delivery') if platform == 'threads' else None) or {}
             if previous.get('hash')==export_hash and (root/'deliveries'/previous.get('id','')/'packet.json').is_file():
                 packet=json.loads((root/'deliveries'/previous['id']/'packet.json').read_text(encoding='utf-8'))
@@ -2046,13 +2058,17 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         raise StudioError(f'캐러셀·첨부 {idx + 1}번째 미디어 파일을 확보하지 못해 게시를 차단했습니다.')
                     if att_file.stat().st_size > 30 * 1024 * 1024:
                         raise StudioError(f'캐러셀·첨부 {idx + 1}번째 미디어가 30MB를 초과하여 게시를 차단했습니다.')
+                    if platform in VIDEO_AD_PLATFORMS and att.get('kind')=='video':
+                        try:att_file=prepare_ad_video(att_file,find_ffmpeg(),run_ffmpeg,inspect_media)
+                        except ValueError as error:raise StudioError(str(error),422)
+                        if att_file.stat().st_size>30*1024*1024:raise StudioError('광고 표시 첨부 영상이 30MB를 초과합니다.')
                     try:os.link(att_file, folder/f'file-{idx}')
                     except OSError:shutil.copy2(att_file, folder/f'file-{idx}')
                     att_kind = 'video' if att.get('kind') == 'video' else 'image'
                     att_mime = 'video/mp4' if att_kind == 'video' else 'image/jpeg'
                     att_name = str(att.get('name') or f'attachment-{idx}' + ('.mp4' if att_kind == 'video' else '.jpg'))
                     files_manifest.append(dict(part=f'file/{idx}', name=att_name, mime=att_mime, kind=att_kind))
-            packet=dict(id=delivery,job_id=job_id,platform=platform,publish_format=publish_format,body=job['draft']['body'],comment=job.get('comment',''),name=primary_name,mime=primary_mime,kind='image' if is_image_job else 'video',files=files_manifest,repost_mode=bool(job.get('repost_mode')),when=when,automatic=data.get('automatic',False),created=time.time(),state='saved')
+            packet=dict(id=delivery,job_id=job_id,platform=platform,publish_format=publish_format,disclosure_policy=POLICY_VERSION,video_ad_required=platform in VIDEO_AD_PLATFORMS,body=body,comment=job.get('comment',''),name=primary_name,mime=primary_mime,kind='image' if is_image_job else 'video',files=files_manifest,repost_mode=bool(job.get('repost_mode')),when=when,automatic=data.get('automatic',False),created=time.time(),state='saved')
             (folder/'packet.json').write_text(json.dumps(packet,ensure_ascii=False),encoding='utf-8')
             job['extension_delivery']=dict(id=delivery,hash=export_hash)
             deliveries = dict(job.get('extension_deliveries') or {})
@@ -5075,8 +5091,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             disclosure = str(data.get('disclosure', '')).strip()
             custom_comment = str(data.get('comment', '')).strip() if 'comment' in data else ''
             affiliate_url = (job.get('product') or {}).get('affiliate_url', '').strip()
-            if affiliate_url and not body.lstrip().startswith('#광고'):
-                raise StudioError('제휴 상품 게시물은 Threads 본문이 #광고로 시작해야 합니다.')
+            if affiliate_url and not body.lstrip().startswith(('#광고','[광고]')):
+                raise StudioError('제휴 상품 게시물 본문은 #광고 또는 [광고]로 시작해야 합니다. 플랫폼별 표시는 게시 준비 시 적용됩니다.')
             product_name = (job.get('product') or {}).get('name', '').strip()
             if custom_comment:
 
