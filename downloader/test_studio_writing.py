@@ -19,6 +19,18 @@ class WritingTests(unittest.TestCase):
         one_line_prompt = draft_prompt({'observations': [], 'audio_summary': '', 'uncertainties': []}, None, 'one_line')
         self.assertIn('한줄 모드', one_line_prompt)
         self.assertIn('딱 1줄', one_line_prompt)
+    def test_natural_copy_removes_canned_comment_ending(self):
+        from studio_writing import repost_draft_prompt
+        self.assertEqual(format_post('고리 없이 봉에 끼우는 샤워 커튼. 자세한 정보는 첫 댓글에 남겨둘게요.', True, 'one_line'), '#광고\n\n고리 없이 봉에 끼우는 샤워 커튼.')
+        self.assertEqual(format_post('제품 정보와 구매 링크는 첫 댓글에 남겨둘게요.', False), '')
+        analysis={'observations': [], 'audio_summary': '', 'uncertainties': []}
+        for mode in STYLES:
+            for prompt in [draft_prompt(analysis, {}, mode), repost_draft_prompt('원문', analysis, mode, include_ad_tag=True)]:
+                self.assertIn('상투적인 판매 마무리는 금지', prompt)
+                self.assertNotIn('첫 댓글 안내 1', prompt)
+                self.assertNotIn('처럼 짧게 안내하세요', prompt)
+                self.assertIn('담백', prompt)
+
     def test_json_fences_and_commentary_are_parsed_but_truncation_is_not(self):
         self.assertEqual(extract_json_safely('```json\n{"body":"한국어"}\n```'), {'body': '한국어'})
         self.assertEqual(extract_json_safely('결과: {"script":"장면"}'), {'script': '장면'})

@@ -32,22 +32,34 @@ STYLES = {
     'two_line': '2줄 모드 · 상황 공감 + 핵심 특징 2줄 구성',
     'hook': '후킹 모드 · 시선을 끄는 짧은 첫 줄 + 핵심 포인트',
     'story': '스토리 모드 · 독자가 겪을 법한 상황 → 제품을 활용하는 방식 → 달라질 수 있는 점. 가짜 실사용 후기 금지',
-    'observation': '사용 상황 공감형 · 생활 속 상황으로 시작 → 관찰한 특징과 쓰임 → 적합한 사람 → 구매 정보 안내',
-    'curiosity': '호기심 질문형 · 제품의 쓰임에 관한 질문 → 바로 답과 관찰 근거 → 구매 정보 안내',
+    'observation': '사용 상황 공감형 · 생활 속 상황으로 시작 → 관찰한 특징과 쓰임 → 적합한 사람 → 확인된 쓰임으로 마무리',
+    'curiosity': '호기심 질문형 · 제품의 쓰임에 관한 질문 → 바로 답과 관찰 근거 → 확인된 쓰임으로 마무리',
     'problem_solution': '불편 해결형(PAS) · 구체적인 불편 → 불편이 생기는 상황 → 관찰한 해결 방식. 공포나 불편을 과장하지 않음',
-    'how_to': '활용 팁형 · 독자에게 유용한 사용 팁 2개 → 제품이 쓰이는 맥락 → 구매 정보 안내. 영상 순서 중계 금지',
-    'checklist': '구매 체크형 · 구매 전에 볼 기준 2~3개 → 확인된 특징과 미확인 정보 구분 → 구매 정보 안내',
+    'how_to': '활용 팁형 · 독자에게 유용한 사용 팁 2개 → 제품이 쓰이는 맥락 → 확인된 쓰임으로 마무리. 영상 순서 중계 금지',
+    'checklist': '구매 체크형 · 구매 전에 볼 기준 2~3개 → 확인된 특징과 미확인 정보 구분 → 확인된 쓰임으로 마무리',
     'comparison': '선택 비교형 · 실제 관찰된 두 방식의 차이 → 어떤 상황에 적합한지 → 확인할 조건. 경쟁 제품 평가 창작 금지',
     'faq': '구매 질문 답변형 · 구매자가 궁금할 질문 하나 → 관찰 근거로 답 → 미확인 사항 안내',
-    'short_hook': '짧은 발견형 · 눈에 띄는 특징 한 문장 → 쓰임 한 문단 → 구매 정보 안내. 120~200자 목표',
+    'short_hook': '짧은 발견형 · 눈에 띄는 특징 한 문장 → 쓰임 한 문단 → 확인된 쓰임으로 마무리. 120~200자 목표',
     'calm': '담백한 정보형 · 적합한 사용자 → 확인된 기능과 사용 조건 → 구매 전 확인할 점',
-    'friendly': '친구 추천 대화형 · 자연스러운 존댓말로 공감 → 확인된 쓰임 → 부담 없는 구매 정보 안내. 직접 썼다는 주장 금지',
-    'expert': '관심에서 행동형(AIDA) · 구체적인 훅 → 특징에 대한 관심 → 근거 있는 쓰임과 이점 → 구매 정보 확인 안내',
+    'friendly': '친구 추천 대화형 · 자연스러운 존댓말로 공감 → 확인된 쓰임 → 담백한 핵심 특징. 직접 썼다는 주장 금지',
+    'expert': '관심에서 행동형(AIDA) · 구체적인 훅 → 특징에 대한 관심 → 근거 있는 쓰임과 이점 → 구체적인 쓰임으로 마무리',
 }
+
+
+NATURAL_WRITING_RULE = (
+    '본문에서 첫 댓글·프로필·링크로 이동을 유도하지 마세요. "자세한 정보는 첫 댓글에 남겨둘게요" 같은 상투적인 판매 마무리는 금지합니다. '
+    '한 가지 확인된 특징이나 쓰임으로 담백하게 끝내세요. 후킹은 구체적인 불편이나 눈에 띄는 기능을 첫 문장에 놓고 바로 근거를 전달하세요. '
+    '근거 없는 반전·충격·180도 변화·실사용 경험을 만들거나 일부러 답을 숨기지 마세요. 제휴 링크와 별도 고지는 첫 댓글 설정에서 관리합니다. '
+)
+
+
+def remove_canned_comment_cta(value):
+    return re.sub(r'(?:자세한\s*)?(?:제품\s*)?(?:정보(?:와\s*구매\s*링크)?|구매\s*링크|링크)(?:는|은|를|을)?\s*첫\s*댓글에\s*(?:남겨\s*둘게요|남겼어요|남겨놓을게요)[.!。]*', '', value).strip()
 
 
 def format_post(value, advertising=False, style=None):
     """Preserve authored paragraphs; format according to writing mode when specified."""
+    value = remove_canned_comment_cta(value)
     value = value.replace('\r\n', '\n').replace('\r', '\n').strip()
     value = re.sub(r'^#광고\s*', '', value).strip()
 
@@ -82,20 +94,20 @@ def _style_length_guide(style):
     if style == 'one_line':
         return (
             '각각 공백·줄바꿈·#광고를 포함해 반드시 500자 이하, 45~90자를 목표로 아주 짧게 작성하세요. '
-            '세 글 모두 첫 줄은 #광고, 그 다음 빈 줄 후 본문은 줄바꿈 없이 딱 1줄(1문장)로 핵심 특징과 첫 댓글 안내를 압축하세요. '
+            '세 글 모두 첫 줄은 #광고, 그 다음 빈 줄 후 본문은 줄바꿈 없이 딱 1줄(1문장)로 관찰된 핵심 특징 한 가지를 전달하세요. '
             'JSON 문자열에는 #광고와 본문 사이를 "\\n\\n"으로 인코딩하세요. '
         )
     if style == 'two_line':
         return (
             '각각 공백·줄바꿈·#광고를 포함해 반드시 500자 이하, 70~130자를 목표로 짧고 간결하게 작성하세요. '
-            '세 글 모두 첫 줄은 #광고, 그 다음 빈 줄 후 본문은 딱 2줄(첫째 줄은 공감 상황이나 핵심 포인트 1문장, 둘째 줄은 활용성과 첫 댓글 안내 1문장)로 구성하세요. '
+            '세 글 모두 첫 줄은 #광고, 그 다음 빈 줄 후 본문은 딱 2줄(첫째 줄은 공감 상황이나 핵심 포인트 1문장, 둘째 줄은 확인된 쓰임이나 적합한 상황 1문장)로 구성하세요. '
             '본문 두 줄 사이는 "\\n"으로 인코딩하세요. '
         )
     if style == 'hook':
         return (
             '각각 공백·줄바꿈·#광고를 포함해 반드시 500자 이하, 80~150자를 목표로 임팩트 있게 작성하세요. '
             '세 글 모두 첫 줄은 #광고, 그 다음 빈 줄 후 첫 문단은 시선을 사로잡는 짧은 후킹 1문장, '
-            '둘째 문단은 관찰된 핵심 특징과 첫 댓글 안내 1~2문장으로 나누세요. 문단 사이는 "\\n\\n"으로 인코딩하세요. '
+            '둘째 문단은 관찰된 핵심 특징과 쓰임 1~2문장으로 나누세요. 문단 사이는 "\\n\\n"으로 인코딩하세요. '
         )
     return (
         '각각 공백·줄바꿈·#광고를 포함해 반드시 500자 이하, 110~200자를 목표로 간결하게 작성하세요(절대 230자를 넘기지 마세요). '
@@ -137,21 +149,14 @@ def repost_draft_prompt(source_text='', analysis=None, style='two_line', custom=
         context['linked_product'] = product
     length_guide = _style_length_guide(style) if include_ad_tag else _repost_style_length_guide(style)
     style_desc = custom or STYLES.get(style, '')
-    has_product = bool(product and (product.get('name') or product.get('affiliate_url') or product.get('url')))
-    if include_ad_tag or has_product:
-        ad_rule = (
-            '연결된 상품이나 첫 댓글 안내가 자연스럽게 이어지도록 마지막 줄이나 문장 끝에 "자세한 정보는 첫 댓글에 남겨둘게요."처럼 짧게 안내하세요. '
-            + ('첫 줄은 #광고 로 시작하세요. ' if include_ad_tag else '"#광고" 표기는 넣지 마세요. ')
-        )
-    else:
-        ad_rule = '"#광고" 표기는 넣지 마세요. 첫 댓글에 추가 정보나 링크를 남길 수 있는 자연스러운 여운 또는 핵심 멘트로 깔끔하게 마무리하세요. '
+    ad_rule = ('첫 줄은 #광고로 시작하세요. ' if include_ad_tag else '"#광고" 표기는 넣지 마세요. ') + NATURAL_WRITING_RULE
     return (
         '원본 게시물(원본 글 + 첨부 영상/이미지 관찰 정보)을 바탕으로, 내 한국어 계정에 바로 올릴 수 있도록 '
         '한국 쓰레드 유저들이 좋아하는 자연스럽고 센스 있는 한국어 본문 3안을 JSON의 variants 배열(문자열 3개)로 작성하세요. '
         '단순 번역기 투(직역체)를 절대 쓰지 말고, 원본의 핵심 의미·유머·정보·감성을 살리면서 한국인 네이티브가 직접 쓴 것처럼 매끄럽게 재작성하세요. '
         + length_guide + ad_rule +
         '제목, 번호 매기기, 마크다운 코드블록, 설명 라벨 없이 바로 게시할 본문 텍스트만 variants 배열에 담으세요. '
-        '세 안은 말투나 포인트(예: 담백한 공감 톤 / 재치 있는 한마디 톤 / 호기심 유발 톤)를 조금씩 다르게 작성하세요. '
+        '1안은 담백한 기능 소개, 2안은 구체적인 상황 공감, 3안은 확인된 특징을 첫 문장에 배치한 후킹으로 구분하세요. '
         '원본 글이 비어 있더라도 첨부된 이미지·영상 관찰 정보나 화면 속 텍스트를 바탕으로 어울리는 한국어 본문을 작성하세요. '
         '스타일 가이드: ' + style_desc + '\n'
         + json.dumps(context, ensure_ascii=False)
@@ -163,13 +168,10 @@ def draft_prompt(analysis, product, style='two_line', custom=None):
         raise ValueError('지원하지 않는 대본 스타일입니다.')
     evidence = {'observations': analysis['observations'], 'audio_summary': analysis['audio_summary'],
                 'uncertainties': analysis['uncertainties'], 'selected_product_candidate': product}
-    has_affiliate_link = bool((product or {}).get('affiliate_url'))
-    cta_guide = ('마지막은 "제품 정보와 구매 링크는 첫 댓글에 남겨둘게요."처럼 짧게 안내하세요. '
-                 if has_affiliate_link else
-                 '마지막은 "제품 정보는 첫 댓글에 남겨둘게요."처럼 짧게 안내하세요. ')
+    cta_guide = NATURAL_WRITING_RULE
     length_guide = _style_length_guide(style)
     return ('한국어로 상품 판매를 위한 Threads 영상 소개 글 3안을 JSON의 variants 배열(문자열 3개)로 작성하세요. '
-            '세 안은 도입과 관점을 다르게 쓰되 같은 관찰 근거를 사용합니다. 자막이나 내레이션이 아닙니다. '
+            '세 안은 같은 관찰 근거를 쓰되 1안은 담백한 기능 소개, 2안은 구체적인 불편에 공감하는 글, 3안은 눈에 띄는 특징을 첫 문장에 배치한 후킹으로 구분하세요. 자막이나 내레이션이 아닙니다. '
             + length_guide +
             '결과를 붙여 넣으면 실제 문단이나 줄바꿈이 보여야 합니다. '
             '제목, 시간코드, 장면 번호, 자막 표시, 괄호 속 연출 지시, 훅/문제/해결/CTA 같은 구조 라벨, 마크다운 코드블록은 쓰지 마세요. '
