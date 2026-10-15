@@ -253,6 +253,7 @@ ipcMain.handle('native-media',async(event,message)=>{
   }catch(error){return {success:false,error:error.message};}
 });
 async function attemptGracefulQuit() {
+  await researchManager?.prepareStop();
   if (uploadManager?.isBusy()) {
     const warning = 'Threads 휴먼터치 업로드가 진행 중입니다.';
     restartNotice = warning;
