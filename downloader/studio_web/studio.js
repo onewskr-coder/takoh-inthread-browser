@@ -6,6 +6,12 @@ let job = null, busy = false, productDirty = false, account = null;
 const names = {media_ready:'영상 준비', analysis_ready:'분석 완료', product_ready:'상품 준비', draft_ready:'초안 준비', publish_ready:'게시 준비',published:'본문·댓글 게시 완료'};
 function message(text, error=false) { $('message').textContent=text; $('message').className=error?'error':''; }
 async function api(path, data) {
+  if(data?.provider==='kie_api'&&(path==='kie/translate'||/^jobs\/[^/]+\//.test(path))){
+    const segments=path.split('/');
+    const plan=await api('kie/plan',{job_id:path==='kie/translate'?null:segments[1],model:data.model,action:path==='kie/translate'?'translate':segments.slice(2).join('/')});
+    if(!confirm(`KIE 유료 요청 확인\n모델: ${plan.model}\n프레임 최대 ${plan.frame_limit}장 + 텍스트 전송 · 음성 전송 없음\n${plan.api_usage_estimate}\n요금표: ${plan.pricing}\n자동 재시도·공급자 전환 없음. 실행할까요?`))throw new Error('KIE 요청을 취소했습니다. 과금 요청은 보내지 않았습니다.');
+    data={...data,kie_approved:true,kie_frame_limit:plan.frame_limit};
+  }
   const options = data ? {method:'POST', headers:{'X-Studio-Token':token}, body:data instanceof FormData ? data : JSON.stringify(data)} : {};
   if (data && !(data instanceof FormData)) options.headers['Content-Type']='application/json';
   let response;try{response=await fetch('/studio/'+path, options);}catch{throw new Error('도우미 서버 연결이 끊겼습니다. 서버 실행 상태를 확인하고 다시 시도하세요. AI 요청은 자동으로 재전송하지 않았습니다.');}
@@ -662,24 +668,27 @@ async function loadModels(){
 function chooseProvider(){
   const provider=$('ai-provider').value,cli=provider.endsWith('_cli');
   $('api-key-label').hidden=cli;$('cli-check').hidden=!cli;$('cli-login').hidden=!cli;$('cli-login-help').hidden=!cli;$('cli-status').textContent='';
+  if(provider==='kie_api'){$('api-key-label').hidden=true;$('fallback-model').value='';$('fallback-model').disabled=true;}else $('fallback-model').disabled=false;
   const providerModels=allModels.filter(m=>m.provider===provider);
   $('model-choice').replaceChildren();
   for(const m of providerModels){
     const opt=text('option',`${m.name} [${m.has_audio?'음성+프레임':'프레임만'}]${m.verified?'':' ⚠️'}`);
     opt.value=m.model_id;opt.dataset.modelEntryId=m.id;$('model-choice').append(opt);
   }
-  const custom=text('option','모델 이름 직접 입력');custom.value='custom';$('model-choice').append(custom);
+  const custom=text('option','모델 이름 직접 입력');custom.value='custom';if(provider==='kie_api')custom.disabled=true;$('model-choice').append(custom);
   const savedModel=localStorage.getItem('takoh-ai-model-'+provider);
   const matching=providerModels.find(m=>m.model_id===savedModel);
   if(matching){$('model-choice').value=matching.model_id;$('model').value=matching.model_id;}
   else if(savedModel&&savedModel!=='custom'){$('model-choice').value='custom';$('model').value=savedModel;}
   else if(providerModels.length){$('model-choice').value=providerModels[0].model_id;$('model').value=providerModels[0].model_id;}
   $('cli-login-help').textContent=provider==='codex_cli'?'최초 로그인: 터미널에서 codex login 실행 후 ChatGPT 계정으로 로그인하세요. 인증은 공식 CLI가 보관합니다.':'최초 로그인: 터미널에서 agy 실행 → Google 계정 로그인 → 구독 계정으로 로그인하세요. 인증은 공식 CLI가 보관합니다.';
+  if(provider==='kie_api'&&!providerModels.length){$('model').value='';$('model').hidden=true;}
   try{localStorage.setItem('takoh-ai-provider',provider);}catch{}
 }
 
-$('ai-provider').onchange=()=>{$('key').value='';chooseProvider();};
+$('ai-provider').onchange=()=>{$('key').value='';chooseProvider();refreshKieStatus().catch(()=>{});};
 $('model-choice').onchange=()=>{
+  if($('ai-provider').value==='kie_api')$('kie-model-status').textContent='모델이 바뀌었습니다. 스키마·요금 확인 버튼을 눌러주세요.';
   if($('model-choice').value!=='custom')$('model').value=$('model-choice').value;
   else $('model').focus();
   try{localStorage.setItem('takoh-ai-model-'+$('ai-provider').value,$('model').value);}catch{}
@@ -707,7 +716,7 @@ if($('btn-delete-custom-model'))$('btn-delete-custom-model').onclick=()=>act('�
   await loadModels();chooseProvider();
 },'사용자 모델을 삭제했습니다.');
 
-try{const prev=localStorage.getItem('takoh-ai-provider')==='gemini_cli'?'antigravity_cli':localStorage.getItem('takoh-ai-provider');if(prev&&['gemini_api','antigravity_cli','openai_api','codex_cli'].includes(prev))$('ai-provider').value=prev;}catch{}
+try{const prev=localStorage.getItem('takoh-ai-provider')==='gemini_cli'?'antigravity_cli':localStorage.getItem('takoh-ai-provider');if(prev&&['gemini_api','antigravity_cli','openai_api','codex_cli','kie_api'].includes(prev))$('ai-provider').value=prev;}catch{}
 loadModels().then(chooseProvider).catch(chooseProvider);
 
 let writingStyles=[];
@@ -744,3 +753,21 @@ window.refreshCommerceSettings=refreshCommerceSettings;window.refreshReferences=
 $('ai-provider').addEventListener('change',()=>{$('fallback-model').value=localStorage.getItem('studio-fallback-'+$('ai-provider').value)||'';});
 $('fallback-model').value=localStorage.getItem('studio-fallback-'+$('ai-provider').value)||'';
 $('fallback-model').addEventListener('change',()=>localStorage.setItem('studio-fallback-'+$('ai-provider').value,$('fallback-model').value.trim()));
+
+async function refreshKieStatus(){
+  const data=await api('kie/settings');
+  if(data.translation)$('kie-translation-result').textContent=data.translation.text;
+  $('kie-status').textContent=!data.configured?'KIE 키 미등록':`키 등록됨 · ${data.auth_verified?'모델 목록 조회로 인증 확인':'인증 미확인'} · ${data.generation_verified?'생성 응답 확인':'실제 생성 미검증'}`;
+  if($('ai-provider').value==='kie_api')$('key').placeholder=data.configured?'•••••••• (등록됨 · 변경 시 입력)':'KIE API 키 입력';
+  const model=$('ai-provider').value==='kie_api'?$('model').value:'';
+  const detail=data.details?.[model];
+  $('kie-model-status').textContent=detail?`모델: ${model} · ${detail.has_vision?'이미지 입력 스키마 확인':'텍스트만 · 이미지 미확인'} · 요금표: ${detail.pricing} · 확인 ${new Date(detail.checked_at*1000).toLocaleString()}`:'선택 모델 스키마·요금 미확인';
+  return data;
+}
+$('kie-save-key').onclick=()=>act('KIE 키 암호화 저장 중…',async()=>{const key=$('kie-key').value.trim();if(!key)throw Error('KIE API 키를 입력하세요.');await api('kie/settings',{key});$('kie-key').value='';allModels=allModels.filter(m=>m.provider!=='kie_api');if($('ai-provider').value==='kie_api')chooseProvider();await refreshKieStatus();},'KIE 키를 암호화 저장했습니다. 인증·생성은 아직 확인되지 않았습니다.');
+$('kie-translate').onclick=()=>act('KIE 한국어 번역 중…',async()=>{if($('ai-provider').value!=='kie_api')throw Error('아래 연결 방식을 KIE로 선택하세요.');const result=await api('kie/translate',{...credentials(),text:$('kie-translate-input').value});$('kie-translation-result').textContent=result.text;},'한국어 번역을 저장했습니다.');
+$('kie-refresh-status').onclick=()=>act('KIE 등록 정보 확인 중…',refreshKieStatus,'KIE 로컬 등록 상태를 확인했습니다.');
+$('kie-credit').onclick=()=>act('KIE 잔여 크레딧 조회 중…',async()=>{const data=await api('kie/credit',{});$('kie-credit-status').textContent=`잔여 ${data.credits} 크레딧 · ${new Date(data.checked_at*1000).toLocaleString()} 기준`;},'크레딧 조회 완료 · 자동 반복 조회하지 않습니다.');
+$('kie-inspect-model').onclick=()=>act('KIE 모델 스키마·요금 조회 중…',async()=>{if($('ai-provider').value!=='kie_api'||!$('model').value)throw Error('KIE 모델 목록을 갱신하고 모델을 선택하세요.');await api('kie/model/inspect',credentials());await refreshKieStatus();},'선택 모델의 스키마·요금을 확인했습니다. 실제 생성은 별도 확인 후 실행합니다.');
+$('kie-clear-key').onclick=()=>{if(!confirm('저장된 KIE 키를 삭제할까요? 다른 공급자의 키는 유지됩니다.'))return;act('KIE 키 삭제 중…',async()=>{await api('kie/settings',{clear:true});allModels=allModels.filter(m=>m.provider!=='kie_api');chooseProvider();await refreshKieStatus();},'저장된 KIE 키를 삭제했습니다. 환경변수가 있으면 별도로 유지됩니다.');};
+refreshKieStatus().catch(error=>{$('kie-status').textContent=error.message;});
