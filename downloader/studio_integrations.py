@@ -20,7 +20,16 @@ def request_json(method, url, **kwargs):
     except requests.RequestException:
         raise IntegrationError('외부 서비스 연결 실패. 발행 중이었다면 결과를 확인해야 합니다.', uncertain=method == 'POST')
     if not 200 <= response.status_code < 300:
-        raise IntegrationError(f'외부 서비스 요청 실패 (HTTP {response.status_code}). 권한·한도를 확인해 주세요.',
+        detail = ''
+        try:
+            err_body = response.json()
+            if isinstance(err_body, dict):
+                msg = str(err_body.get('message') or err_body.get('error') or '')
+                if 'revoked' in msg.lower():
+                    detail = ' (등록된 API 키가 폐기(revoked)되었거나 만료되었습니다. 새 키를 발급받아 등록해 주세요.)'
+        except Exception:
+            pass
+        raise IntegrationError(f'외부 서비스 요청 실패 (HTTP {response.status_code}). 권한·한도를 확인해 주세요.{detail}',
                                status=429 if response.status_code == 429 else 502,
                                uncertain=method == 'POST' and response.status_code >= 500)
     try:
@@ -54,12 +63,23 @@ def public_video_url(value):
     return value
 
 
+def _matches_platform_domain(url, platform):
+    host = (urlparse(url).hostname or '').lower()
+    if platform == 'coupang':
+        return host == 'coupang.com' or host.endswith('.coupang.com') or host == 'coupa.ng'
+    if platform == 'amazon':
+        return host == 'amazon.com' or host.endswith('.amazon.com') or host == 'amzn.to'
+    if platform == 'naver':
+        return host == 'naver.com' or host.endswith('.naver.com') or host == 'naver.me'
+    return True
+
+
 def search_products(query, platform, key):
     if not key:
         raise IntegrationError('SerpAPI 키를 입력해 주세요.', 400)
     if not isinstance(query, str) or not 1 <= len(query.strip()) <= 200:
         raise IntegrationError('200자 이하 상품 검색어를 입력해 주세요.', 400)
-    sites = {'coupang': 'site:coupang.com', 'amazon': 'site:amazon.com',
+    sites = {'coupang': 'site:www.coupang.com/vp/products', 'amazon': 'site:amazon.com',
              'naver': '(site:shopping.naver.com OR site:smartstore.naver.com)', 'toss': '토스쇼핑'}
     if platform not in sites:
         raise IntegrationError('검색할 서비스를 선택해 주세요.', 400)
@@ -68,14 +88,25 @@ def search_products(query, platform, key):
         'engine': 'google', 'q': f'{sites[platform]} {query.strip()}', 'hl': 'ko', 'gl': 'kr', 'api_key': key})
     if data.get('error'):
         raise IntegrationError('상품 검색에 실패했습니다. 검색 API 키와 한도를 확인해 주세요.')
+    items = list(data.get('organic_results', []))
+    if platform == 'coupang' and not any(_matches_platform_domain(str(x.get('link', '')), 'coupang') for x in items):
+        fallback_data = request_json('GET', 'https://serpapi.com/search.json', params={
+            'engine': 'google', 'q': f'site:coupang.com {query.strip()}', 'hl': 'ko', 'gl': 'kr', 'api_key': key})
+        items.extend(fallback_data.get('organic_results', []))
     results = []
-    for item in data.get('organic_results', [])[:10]:
+    seen = set()
+    for item in items:
         try:
             url = https_url(item.get('link'))
         except IntegrationError:
             continue
+        if url in seen or not _matches_platform_domain(url, platform):
+            continue
+        seen.add(url)
         results.append(dict(name=str(item.get('title', ''))[:200], url=url, platform=platform,
                             snippet=str(item.get('snippet', ''))[:500], verification='discovered'))
+        if len(results) >= 10:
+            break
     return results
 
 

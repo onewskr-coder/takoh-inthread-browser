@@ -27,8 +27,24 @@ stored.studioUploadQueue.push({id:'c'.repeat(48),url,when:Date.now()+60000,state
 assert.equal((await send({action:'studioCancelUpload',packet:{id:'c'.repeat(48)}})).success,true);
 assert.equal(stored.studioUploadQueue[2].state,'cancelled');
 const status=await send({action:'studioUploadStatus'});assert.equal(status.data.length,3);assert.equal(status.data[0].url,undefined);
+const partialId='d'.repeat(48),partialUrl='http://127.0.0.1:5005/studio/delivery/'+partialId;
+const partialContext={chrome,URL,Date,Number,Uint8Array,String,Promise,setTimeout,btoa:s=>Buffer.from(s,'binary').toString('base64'),fetch:async address=>{
+ if(address===partialUrl)return {ok:true,json:async()=>({id:partialId,when:Date.now()-500,name:'slide1.jpg',body:'#광고\n캐러셀',comment:'',automatic:true,files:[{part:'file/0',name:'slide1.jpg',mime:'image/jpeg',kind:'image'},{part:'file/1',name:'slide2.jpg',mime:'image/jpeg',kind:'image'}]})};
+ if(address===partialUrl+'/file/0')return {ok:true,arrayBuffer:async()=>new Uint8Array([9,8,7]).buffer};
+ return {ok:false,status:404};
+}};
+let partialAlarm;const partialChrome={...chrome,alarms:{...chrome.alarms,onAlarm:{addListener:f=>partialAlarm=f}}};
+vm.runInNewContext(fs.readFileSync('studio-upload.js','utf8'),{...partialContext,chrome:partialChrome});
+stored.studioUploadQueue.push({id:partialId,url:partialUrl,when:Date.now()-500,state:'queued'});
+const execBefore=executions.length;
+partialAlarm({name:'takoh-upload-'+partialId});
+for(let i=0;i<30&&stored.studioUploadQueue[3].state==='queued';i++)await new Promise(r=>setTimeout(r,10));
+for(let i=0;i<30&&stored.studioUploadQueue[3].state==='running';i++)await new Promise(r=>setTimeout(r,10));
+assert.equal(stored.studioUploadQueue[3].state,'uncertain');
+assert.match(stored.studioUploadQueue[3].error||'',/2\/2.*다운로드 실패/);
+assert.equal(executions.length,execBefore);
 let missingListener;const missingChrome={...chrome,alarms:undefined,runtime:{...chrome.runtime,onMessage:{addListener:f=>missingListener=f}}};
 vm.runInNewContext(fs.readFileSync('studio-upload.js','utf8'),{...context,chrome:missingChrome});
 const missingReply=await new Promise(resolve=>missingListener({action:'studioQueueUpload',packet:{id,url,when}},sender,resolve));assert.equal(missingReply.success,false);assert.match(missingReply.error,/권한/);
-console.log('Extension queue: saved payload, alarm execution, duplicate guard, missed schedule, cancel and sender validation passed.');
+console.log('Extension queue: saved payload, alarm execution, duplicate guard, missed schedule, cancel, partial carousel block and sender validation passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -4,7 +4,7 @@
   function initModule() {
     if (!window.TAKCore || window.__takohThreadsToolbarReady) return;
     window.__takohThreadsToolbarReady=true;
-    document.querySelectorAll('[data-takoh-threads-controls],.takoh-collect-reference').forEach(node=>node.remove());
+    document.querySelectorAll('[data-takoh-threads-controls],.takoh-collect-reference,.takoh-threads-toolbar,.takoh-threads-toolbar-floating').forEach(node=>node.remove());
     document.querySelectorAll('[data-threads-processed]').forEach(node=>node.removeAttribute('data-threads-processed'));
   if (!window.TAKCore) return;
     const { config, showToast, triggerDownload, createDownloadButton, getOrCreateButtonContainer, findMediaContainer } = window.TAKCore;
@@ -42,17 +42,35 @@
   const threadControls = new Map();
   let modalControls = null;
 
+  function findMediaTileHost(media) {
+    if (!media) return null;
+    let host = media.parentElement;
+    // Picture tag or zero-size inline wrapper fallback
+    if (host && host.tagName === 'PICTURE' && host.parentElement) {
+      host = host.parentElement;
+    }
+    return host;
+  }
+
   function getThreadButtons(media) {
     let controls=threadControls.get(media);
-    if(controls?.isConnected)return controls;
+    const host=findMediaTileHost(media);
+    if(!host)return null;
+    const hostStyle=window.getComputedStyle ? window.getComputedStyle(host) : host.style;
+    if(hostStyle && hostStyle.position === 'static') {
+      host.style.position = 'relative';
+    }
+    if(controls?.isConnected) {
+      if(controls.parentElement !== host) host.appendChild(controls);
+      return controls;
+    }
     controls=document.createElement('div');
     controls.className='threads-download-btn-container takoh-threads-media-controls';
     controls.setAttribute('data-takoh-threads-controls','true');
     controls.__takohCandidates=[media];
     controls.__takohMedia=media;
-    document.body.appendChild(controls);
+    host.appendChild(controls);
     threadControls.set(media,controls);
-    window.TAKCore.anchorMediaControls(controls,media,true);
     return controls;
   }
   function videoForImage(img){
@@ -271,19 +289,38 @@
       }
       for(const button of controls.querySelectorAll('.threads-download-btn')){const label=button.querySelector('span');if(label&&button.dataset.mediaType!=='batch')label.textContent='저장';}
     }
-    window.TAKCore?.updateMediaControlPositions?.();
   }
-  window.addEventListener('scroll',updateThreadButtons,true);
   window.addEventListener('resize',updateThreadButtons);
 
   function findThreadPostBoundary(element) {
+    if (!element) return null;
+    let fallbackNode = null;
     for (let node = element; node && node !== document.body; node = node.parentElement) {
+      if (node.dataset?.takohPostBoundary === 'true') return node;
       const links = Array.from(node.querySelectorAll('a[href*="/post/"]'));
       const ids = new Set(links.map(link => link.getAttribute('href').match(/\/post\/([\w-]+)/)?.[1]).filter(Boolean));
-      if (ids.size === 1) return node;
-      if (ids.size > 1) return null;
+      if (ids.size > 1) return fallbackNode;
+
+      const likeOrReplyIcons = node.querySelectorAll('svg[aria-label*="좋아요" i], svg[aria-label*="Like" i], svg[aria-label*="답글" i], svg[aria-label*="댓글" i], svg[aria-label*="Reply" i]');
+      const shareIcons = node.querySelectorAll('svg[aria-label*="공유" i], svg[aria-label*="Share" i], svg[aria-label*="보내기" i], svg[aria-label*="Send" i]');
+
+      // 단일 post ID를 찾았더라도, 아직 하단 액션바(좋아요/답글/공유)까지 포함하지 못한 내부 미디어 링크 래퍼라면 액션바를 포함할 때까지 한두 단계 더 올라감
+      if (ids.size === 1) {
+        if (likeOrReplyIcons.length >= 1 && shareIcons.length >= 1) {
+          return node;
+        }
+        fallbackNode = node;
+        continue;
+      }
+
+      // /post/ 링크가 없는 게시물(이미지만 있는 광고·리포스트 등)도 하단 액션바(좋아요/답글 + 공유하기 1세트) 기준으로 정확히 경계 탐색
+      if (shareIcons.length === 1 && likeOrReplyIcons.length >= 1 && (node.getAttribute('data-pressable-container') === 'true' || node.tagName === 'ARTICLE' || node.getAttribute('role') === 'article' || node.querySelector('video, img, a[href^="/@"]'))) {
+        fallbackNode = node;
+      } else if (shareIcons.length > 1 && fallbackNode) {
+        return fallbackNode;
+      }
     }
-    return null;
+    return fallbackNode;
   }
 
   // ========== Post Metadata Extraction ==========
@@ -579,6 +616,7 @@
 
 
       const btnContainer = getThreadButtons(videoEl);
+      if (!btnContainer) return;
 
       if (btnContainer.querySelector('.threads-download-btn[data-media-type="video"]')) {
         return;
@@ -636,6 +674,8 @@
         }
       });
 
+      const label = btn.querySelector('span');
+      if (label) label.textContent = '저장';
       btnContainer.appendChild(btn);
     });
   }
@@ -769,6 +809,7 @@
 
         img.setAttribute('data-threads-processed', 'true');
         const btnContainer = getThreadButtons(img);
+        if (!btnContainer) return;
 
         if (btnContainer.querySelector(`.threads-download-btn[data-media-type="${labelType}"]`)) return;
 
@@ -784,9 +825,14 @@
           }
         });
 
+        const label = btn.querySelector('span');
+        if (label) label.textContent = '저장';
         btnContainer.appendChild(btn);
 
-
+        const post = findThreadPostBoundary(img);
+        if (post && window.TAKStudio?.attachPostToolbar) {
+          window.TAKStudio.attachPostToolbar(post);
+        }
       };
 
       if (img.complete) {
@@ -800,7 +846,24 @@
     });
   }
 
+  function processPostToolbars() {
+    if (!window.TAKStudio?.attachPostToolbar) return;
+    const processedPosts = new Set();
+    const candidates = document.querySelectorAll('a[href*="/post/"], svg[aria-label*="공유" i], svg[aria-label*="Share" i], svg[aria-label*="보내기" i], svg[aria-label*="Send" i], svg[aria-label*="좋아요" i], svg[aria-label*="Like" i], svg[aria-label*="답글" i], svg[aria-label*="댓글" i], svg[aria-label*="Reply" i], video, img[data-threads-processed="true"]');
+    candidates.forEach(node => {
+      if (node.closest('div[role="dialog"], div[aria-modal="true"]')) return;
+      if (window.TAKCore.isComposerMedia?.(node)) return;
+      const post = findThreadPostBoundary(node) || window.TAKStudio?.findPostBoundary?.(node);
+      if (!post || processedPosts.has(post)) return;
+      processedPosts.add(post);
+      window.TAKStudio.attachPostToolbar(post);
+    });
+  }
+
   function processPageMedia() {
+    try {
+      processPostToolbars();
+    } catch (e) {}
     try {
       processVideoPlayers();
     } catch (e) {}

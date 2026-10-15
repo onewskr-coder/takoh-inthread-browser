@@ -11,6 +11,8 @@ function platform(value){
   if(/(^|\.)instagram\.com$/.test(host))return 'instagram';
   if(/(^|\.)(threads\.com|threads\.net)$/.test(host))return 'threads';
   if(/(^|\.)pinterest\.com$/.test(host))return 'pinterest';
+  if(/(^|\.)tiktok\.com$/.test(host))return 'tiktok';
+  if(/(^|\.)naver\.com$/.test(host))return 'naver_clip';
   return null;
 }
 module.exports={address,platform};

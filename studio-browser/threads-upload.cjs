@@ -12,7 +12,7 @@ function packetUrl(value){
 
 function uploadSource(){
   const raw=fs.readFileSync(path.join(__dirname,'..','downloader','studio-upload.js'),'utf8');
-  return raw.split('\n(() => {')[0];
+  return raw.split(/\r?\n\(\(\) => \{/)[0];
 }
 
 function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch}){
@@ -99,17 +99,45 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
       const response=await fetchImpl(item.url);
       if(!response.ok)throw new Error('도우미 업로드 작업을 읽지 못했습니다.');
       const payload=await response.json();
-      const video=await fetchImpl(item.url+'/video');
-      if(!video.ok)throw new Error('저장된 영상을 읽지 못했습니다.');
-      const bytes=new Uint8Array(await video.arrayBuffer());
-      if(bytes.length>30*1024*1024)throw new Error('영상이 30MB를 넘습니다.');
-      payload.video=Buffer.from(bytes).toString('base64');
+      if(Array.isArray(payload.files)&&payload.files.length>0){
+        if(payload.files.length>10)throw new Error('캐러셀 미디어가 10개를 초과하여 게시를 차단했습니다.');
+        const loadedFiles=[];
+        for(let idx=0;idx<payload.files.length;idx++){
+          const f=payload.files[idx];
+          const partPath=String(f?.part||'').trim();
+          if(!partPath)throw new Error(`캐러셀 ${idx+1}번째 파일 경로가 누락되어 게시를 차단했습니다.`);
+          const fRes=await fetchImpl(item.url+'/'+partPath);
+          if(!fRes||!fRes.ok)throw new Error(`캐러셀 ${idx+1}/${payload.files.length}번째 파일 다운로드 실패로 게시를 차단했습니다.`);
+          const fBytes=new Uint8Array(await fRes.arrayBuffer());
+          if(fBytes.length===0)throw new Error(`캐러셀 ${idx+1}/${payload.files.length}번째 파일이 비어 있어 게시를 차단했습니다.`);
+          if(fBytes.length>30*1024*1024)throw new Error(`캐러셀 ${idx+1}/${payload.files.length}번째 파일이 30MB를 넘어 게시를 차단했습니다.`);
+          loadedFiles.push({
+            name:f.name||`media-${idx+1}.jpg`,
+            mime:f.mime||'image/jpeg',
+            kind:f.kind||'image',
+            base64:Buffer.from(fBytes).toString('base64')
+          });
+        }
+        if(loadedFiles.length!==payload.files.length){
+          throw new Error('캐러셀 전체 파일을 확보하지 못해 게시를 차단했습니다.');
+        }
+        payload.loadedFiles=loadedFiles;
+        payload.video=loadedFiles[0].base64;
+      }else{
+        const video=await fetchImpl(item.url+'/video');
+        if(!video.ok)throw new Error('저장된 미디어를 읽지 못했습니다.');
+        const bytes=new Uint8Array(await video.arrayBuffer());
+        if(bytes.length===0)throw new Error('미디어 파일이 비어 있어 게시를 차단했습니다.');
+        if(bytes.length>30*1024*1024)throw new Error('미디어가 30MB를 넘습니다.');
+        payload.video=Buffer.from(bytes).toString('base64');
+      }
 
-      const view=await ensureThreadsView();
+      const targetPlatform=payload.platform||item.platform||'threads';
+      const view=await ensureThreadsView(targetPlatform);
       const fnSource=uploadSource();
       const script=`(${fnSource})(${JSON.stringify(payload)})`;
       const result=await view.webContents.executeJavaScript(script,true);
-      await setState(id,result||{state:'uncertain',error:'화면 실행 결과가 없습니다. Threads에서 직접 확인하세요.'});
+      await setState(id,result||{state:'uncertain',error:'화면 실행 결과가 없습니다. 플랫폼에서 직접 확인하세요.'});
       if(result?.state==='queued')schedule(id,Date.now()+1500);
     }catch(error){
       await setState(id,{state:'uncertain',error:error.message});
@@ -123,7 +151,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
       for(const item of queue){
         if(item.state==='running'){
           item.state='uncertain';
-          item.error='브라우저가 작업 중 종료되었습니다. Threads에서 게시 여부를 확인하세요.';
+          item.error='브라우저가 작업 중 종료되었습니다. 플랫폼에서 게시 여부를 확인하세요.';
         }else if(item.state==='queued'){
           schedule(item.id,Math.max(Date.now()+1000,item.when));
         }
@@ -152,7 +180,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
     }
     const added=await updateQueue(queue=>{
       if(queue.some(x=>x.id===packet.id))return false;
-      queue.push({...packet,url,state:'queued',name:payload.name});
+      queue.push({...packet,url,state:'queued',name:payload.name,platform:payload.platform||packet.platform||'threads',publish_format:payload.publish_format||packet.publish_format||'video'});
       return true;
     });
     if(added){
@@ -163,7 +191,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
 
   async function status(){
     const queue=readQueue();
-    return queue.map(({id,name,when,state,error,permalink})=>({id,name,when,state,error,permalink}));
+    return queue.map(({id,name,when,state,error,permalink,platform,publish_format})=>({id,name,when,state,error,permalink,platform:platform||'threads',publish_format:publish_format||'video'}));
   }
 
   async function cancel(packet){

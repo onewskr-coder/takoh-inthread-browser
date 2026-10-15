@@ -150,8 +150,63 @@ async function main() {
     assert.ok(interrupted);
     assert.strictEqual(interrupted.state, 'uncertain');
 
+    // 4. Test partial carousel failure blocks publishing
+    const token3 = 'c'.repeat(48);
+    const urlPartialCarousel = `http://127.0.0.1:5006/studio/delivery/${token3}`;
+    const managerPartial = createThreadsUploadManager({
+      dataDir: tmpDir,
+      ensureThreadsView: mockEnsureThreadsView,
+      fetchImpl: async (url) => {
+        const u = String(url);
+        if (u === urlPartialCarousel) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: 'upload-partial-carousel',
+              when: immediateWhen,
+              name: 'Partial Carousel Upload',
+              text: '#광고\nCarousel post with 2 slides',
+              reply: '',
+              filename: 'slide1.jpg',
+              mime: 'image/jpeg',
+              files: [
+                { part: 'file/0', name: 'slide1.jpg', mime: 'image/jpeg', kind: 'image' },
+                { part: 'file/1', name: 'slide2.jpg', mime: 'image/jpeg', kind: 'image' },
+              ],
+            }),
+          };
+        }
+        if (u === urlPartialCarousel + '/file/0') {
+          const buf = Buffer.from('jpg-slide-1');
+          return {
+            ok: true,
+            status: 200,
+            arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+          };
+        }
+        // file/1 fails with 404
+        return { ok: false, status: 404 };
+      },
+    });
+    await managerPartial.init();
+    const scriptsBeforePartial = executedScripts.length;
+    await managerPartial.queueUpload({
+      id: 'upload-partial-carousel',
+      url: urlPartialCarousel,
+      when: immediateWhen,
+    });
+    await managerPartial.run('upload-partial-carousel');
+    const partialList = await managerPartial.status();
+    const partialItem = partialList.find((x) => x.id === 'upload-partial-carousel');
+    assert.ok(partialItem);
+    assert.strictEqual(partialItem.state, 'uncertain');
+    assert.match(partialItem.error || '', /2\/2.*다운로드 실패/);
+    assert.strictEqual(executedScripts.length, scriptsBeforePartial, 'Should block publishing before calling executeJavaScript');
+
     manager.dispose();
     recoveredManager.dispose();
+    managerPartial.dispose();
     console.log('PASS: studio-browser/test_threads_upload.cjs');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -39,7 +39,7 @@
   let discoveryArchiveMode=true;
   const nativeBrowser=Boolean(window.takohNative);
   const connectionName=nativeBrowser?'전용 앱':'확장';
-  const stages=['reference','analysis','writing','product','publish'],stageNames=['수집한 레퍼런스','원본 분석','대본·게시문','상품·제휴 링크','Threads 게시'];
+  const stages=['reference','analysis','writing','product','publish'],stageNames=['수집한 레퍼런스','원본 분석','대본·게시문','상품·제휴 링크','멀티채널 게시'];
   let stage='analysis';
   function selectStage(name){
     if(!stages.includes(name))return;
@@ -79,7 +79,7 @@
     try{localStorage.setItem('takoh-workspace',name);}catch{}
     if(download)refreshDownloads();
     if(name==='discovery')refreshDiscovery();
-    if(name==='settings'){refreshUsage();refreshCommerceSettings().catch(error=>{$('commerce-status').textContent=error.message;});refreshYoutubeSettings();}
+    if(name==='settings'){refreshUsage();refreshCommerceSettings().catch(error=>{$('commerce-status').textContent=error.message;});refreshYoutubeSettings();if(window.refreshConnectionsStatus)window.refreshConnectionsStatus();if(window.populateSearchAndFallbackModels)window.populateSearchAndFallbackModels();}
   }
   let discoveryLoading=false;
   let currentDiscoveryPage=1;
@@ -731,17 +731,26 @@
     await api('youtube-settings',{youtube_api_key:key});
     $('youtube-api-key').value='';
     await refreshYoutubeSettings();
+    if(window.refreshConnectionsStatus)await window.refreshConnectionsStatus();
   },'YouTube API 키를 암호화하여 저장했습니다.');
 
   if($('refresh-youtube-stats'))$('refresh-youtube-stats').onclick=refreshYoutubeSettings;
   async function refreshGeminiSearchSettings(){
     const data=await api('discovery/gemini-settings');
-    $('gemini-search-model').value=data.model;
-    $('antigravity-search-model').value=data.cli_model;
-    $('gemini-search-settings-status').textContent=`API 키 ${data.api_configured?'저장됨':'미등록'} · Antigravity CLI ${data.cli_installed?'설치 확인 (로그인·검색 미검증)':'미설치'}`;
+    if(window.populateSearchAndFallbackModels)window.populateSearchAndFallbackModels();
+    const ensureOpt=(sel,val)=>{
+      if(!sel||!val)return;
+      if(sel.tagName==='SELECT'&&!Array.from(sel.options).some(o=>o.value===val)){
+        const opt=text('option',val);opt.value=val;sel.append(opt);
+      }
+      sel.value=val;
+    };
+    ensureOpt($('gemini-search-model'),data.model);
+    ensureOpt($('antigravity-search-model'),data.cli_model);
+    $('gemini-search-settings-status').textContent=`API 키 ${data.api_configured?'•••••••• (암호화 저장됨)':'미등록'} · Antigravity CLI ${data.cli_installed?'설치 확인됨':'미설치'}`;
   }
   if($('save-gemini-search-settings'))$('save-gemini-search-settings').onclick=async()=>{
-    try{await api('discovery/gemini-settings',{key:$('gemini-search-key').value,model:$('gemini-search-model').value,cli_model:$('antigravity-search-model').value});$('gemini-search-key').value='';await refreshGeminiSearchSettings();}
+    try{await api('discovery/gemini-settings',{key:$('gemini-search-key').value,model:$('gemini-search-model').value,cli_model:$('antigravity-search-model').value});$('gemini-search-key').value='';await refreshGeminiSearchSettings();if(window.refreshConnectionsStatus)await window.refreshConnectionsStatus();}
     catch(error){$('gemini-search-settings-status').textContent=error.message;}
   };
   refreshGeminiSearchSettings().catch(()=>{});

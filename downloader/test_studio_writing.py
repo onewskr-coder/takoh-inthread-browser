@@ -6,12 +6,19 @@ class WritingTests(unittest.TestCase):
     def test_post_formatting_preserves_paragraphs_and_separates_single_line(self):
         self.assertEqual(format_post('#광고\n첫 문장. 두 번째. 세 번째.', True), '#광고\n\n첫 문장. 두 번째.\n\n세 번째.')
         self.assertEqual(format_post('첫 문단\n\n두 번째 문단', True), '#광고\n\n첫 문단\n\n두 번째 문단')
+        self.assertEqual(format_post('#광고\n\n첫 줄입니다.\n둘째 줄입니다.', True, style='one_line'), '#광고\n\n첫 줄입니다. 둘째 줄입니다.')
+        self.assertEqual(format_post('#광고\n\n첫 줄입니다.\n\n둘째 줄입니다.\n셋째 줄입니다.', True, style='two_line'), '#광고\n\n첫 줄입니다.\n둘째 줄입니다. 셋째 줄입니다.')
         self.assertEqual(len(format_post('가' * 495, True)), 500)
-        self.assertEqual(len(STYLES), 12)
+        self.assertEqual(len(STYLES), 15)
+        for mode in ('one_line', 'two_line', 'hook', 'story'):
+            self.assertIn(mode, STYLES)
         prompt = draft_prompt({'observations': [], 'audio_summary': '', 'uncertainties': []}, None, 'expert')
         self.assertIn('AIDA', prompt)
         self.assertIn('500자 이하', prompt)
         self.assertIn('자막이나 내레이션이 아닙니다', prompt)
+        one_line_prompt = draft_prompt({'observations': [], 'audio_summary': '', 'uncertainties': []}, None, 'one_line')
+        self.assertIn('한줄 모드', one_line_prompt)
+        self.assertIn('딱 1줄', one_line_prompt)
     def test_json_fences_and_commentary_are_parsed_but_truncation_is_not(self):
         self.assertEqual(extract_json_safely('```json\n{"body":"한국어"}\n```'), {'body': '한국어'})
         self.assertEqual(extract_json_safely('결과: {"script":"장면"}'), {'script': '장면'})
