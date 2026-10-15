@@ -571,3 +571,12 @@ body.quick-sidebar-mode label{margin:8px 0!important;font-size:12px!important}
 @media(max-width:640px){.research-inputs{grid-template-columns:minmax(0,1fr)}.threads-research{padding:16px}.research-actions button{width:100%}}
 
 .research-continuous{padding:20px;margin:20px 0;border:1px solid #bfd5c4;background:#f5faf6;border-radius:12px}.research-manual{margin:16px 0;padding:12px 0;border-bottom:1px solid #dce5de}.research-manual summary{cursor:pointer;font-weight:600}.research-continuous [role=status]{overflow-wrap:anywhere;line-height:1.7}
+
+/* Standalone research workspace must not inherit main's 240px sidebar column. */
+#research-workspace{display:block;width:100%;max-width:none;min-width:0;margin:20px 0 32px;padding:0 24px}
+#research-workspace>.threads-research{width:100%;max-width:none;min-width:0;margin:0;padding:24px}
+#research-workspace .research-continuous{min-width:0}
+#research-workspace .research-inputs>*{min-width:0}
+#research-workspace .research-actions>button{white-space:normal}
+#research-workspace #research-crawl-status{overflow-wrap:anywhere;line-height:1.7}
+@media(max-width:640px){#research-workspace{margin-top:16px;padding:0 12px}#research-workspace>.threads-research{padding:16px}.research-results{grid-template-columns:minmax(0,1fr)}}
