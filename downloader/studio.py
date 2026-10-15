@@ -1945,7 +1945,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             response.headers.pop('Access-Control-Allow-Origin', None)
             response.headers['Cache-Control'] = 'no-store'
             response.headers['X-Content-Type-Options'] = 'nosniff'
-            response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https:; media-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+            response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; media-src 'self'; connect-src 'self'; frame-ancestors 'none'"
         return response
 
     @bp.errorhandler(StudioError)

@@ -582,3 +582,5 @@ body.quick-sidebar-mode label{margin:8px 0!important;font-size:12px!important}
 @media(max-width:640px){#research-workspace{margin-top:16px;padding:0 12px}#research-workspace>.threads-research{padding:16px}.research-results{grid-template-columns:minmax(0,1fr)}}
 
 .research-thumbnail{display:block;width:100%;height:220px;object-fit:contain;background:#eef2ee;border-radius:9px;margin-bottom:14px}
+
+.research-library{padding:18px 0}.research-library h3{margin:0 0 8px}.research-library .research-inputs{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin:12px 0}.research-library label{margin:0}.research-discovery-settings{border-top:1px solid #dce5de;padding:16px 0;margin:12px 0}.research-discovery-settings>summary{cursor:pointer;font-weight:650}.research-duplicates{background:#f4f7f3;padding:12px!important;border-radius:8px}.research-duplicates>div{border-top:1px solid #dce5de;padding:8px 0}.research-duplicates button{font-size:12px}.research-pending{background:#f8faf7}.research-results{align-items:start}
