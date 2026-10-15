@@ -495,7 +495,7 @@ async function takohThreadsUpload(payload) {
       const video=await fetch(item.url+'/video');if(!video.ok)throw new Error('저장된 영상을 읽지 못했습니다.');const bytes=new Uint8Array(await video.arrayBuffer());if(bytes.length===0)throw new Error('미디어 파일이 비어 있어 게시를 차단했습니다.');if(bytes.length>30*1024*1024)throw new Error('영상이 30MB를 넘습니다.');let encoded='';for(let i=0;i<bytes.length;i+=32768)encoded+=String.fromCharCode(...bytes.subarray(i,i+32768));payload.video=btoa(encoded);
     }
     const plat=payload.platform||item.platform||'threads';
-    const targetUrl=plat==='instagram_reels'||plat==='instagram_carousel'?'https://www.instagram.com/':plat==='naver_clip'?'https://m.blog.naver.com/clip/editor':plat==='tiktok'?'https://www.tiktok.com/tiktokstudio/upload':'https://www.threads.com/';
+    const targetUrl=plat==='instagram_reels'||plat==='instagram_carousel'?'https://www.instagram.com/':plat==='naver_clip'?'https://clipcreators.naver.com/web':plat==='tiktok'?'https://www.tiktok.com/tiktokstudio/upload':'https://www.threads.com/';
     const tab=await chrome.tabs.create({url:targetUrl,active:true});const end=Date.now()+60000;while((await chrome.tabs.get(tab.id)).status!=='complete'){if(Date.now()>end)throw new Error('페이지 로딩 시간 초과');await new Promise(r=>setTimeout(r,500));}
     const [result]=await chrome.scripting.executeScript({target:{tabId:tab.id},func:takohThreadsUpload,args:[payload]});await state(id,result.result||{state:'uncertain',error:'화면 실행 결과가 없습니다. 플랫폼에서 직접 확인하세요.'});
   }catch(error){await state(id,{state:'uncertain',error:error.message});}finally{running=false;}}

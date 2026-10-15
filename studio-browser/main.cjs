@@ -26,7 +26,7 @@ const {lockProfile}=require('./profile-lock.cjs');
 const profileGuard=ownsApp?lockProfile(profilePath):{acquired:false,release(){}};
 app.on('will-quit',()=>profileGuard.release());
 if(!ownsApp||!profileGuard.acquired){console.error('QUIT REASON:',{ownsApp,acquired:profileGuard.acquired});app.quit();}else{app.on('second-instance',()=>{if(win){win.show();win.focus();}});}
-const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://m.blog.naver.com/clip/editor',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
+const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://clipcreators.naver.com/web',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
 let win,toolbar,active,currentWork='';const views=new Map();const recentDownloads=new Map();
 function trackSiteDownloads(contents){
   if(contents.session.__takohDownloadsTracked)return;
@@ -155,7 +155,7 @@ async function ensureThreadsView(platform='threads'){
   if(!view||view.webContents.isDestroyed())throw new Error('업로드할 플랫폼 화면을 열지 못했습니다.');
   const currentUrl=view.webContents.getURL();
   const validPattern = siteKey==='instagram' ? /^https:\/\/(?:www\.)?instagram\.com\//i
-    : siteKey==='naver_clip' ? /^https:\/\/[^/]*naver\.com\//i
+    : siteKey==='naver_clip' ? /^https:\/\/clipcreators\.naver\.com\/web(?:[/?#]|$)/i
     : siteKey==='tiktok' ? /^https:\/\/(?:www\.)?tiktok\.com\/(?:tiktokstudio\/upload|upload|creator)/i
     : /^https:\/\/(?:www\.)?threads\.(?:com|net)\//i;
   if(view.loadFailed||!validPattern.test(currentUrl)){
