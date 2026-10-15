@@ -1,6 +1,17 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {extractThreadsResearch}=require('./threads-research-extract.js');
 function postUrl(value){const u=new URL(String(value||''));const m=u.pathname.match(/^\/@([\w.]+)\/post\/([\w-]+)\/?$/);if(u.protocol!=='https:'||!['threads.com','www.threads.com','threads.net','www.threads.net'].includes(u.hostname)||!m||u.username||u.password)throw Error('Threads 게시물 주소를 입력하세요.');return 'https://www.threads.com/@'+m[1]+'/post/'+m[2];}
+function researchInput(value){
+  let raw=String(value||'').trim().replace(/[\u200B-\u200D\uFEFF]/g,'');
+  if(/^(?:www\.)?threads\.(?:com|net)\//i.test(raw))raw='https://'+raw;
+  let u;try{u=new URL(raw);}catch{throw Error('복사한 Threads 게시물 또는 공유 링크를 붙여넣으세요.');}
+  if(u.protocol!=='https:'||!['threads.com','www.threads.com','threads.net','www.threads.net'].includes(u.hostname)||u.port||u.username||u.password)throw Error('threads.com 또는 threads.net의 HTTPS 게시물·공유 링크가 필요합니다.');
+  if(/^\/share\/[\w-]+\/?$/.test(u.pathname))return {url:u.origin+u.pathname,shared:true};
+  try{return {url:postUrl(u.href),shared:false};}catch{throw Error('계정 주소 대신 게시물 고유 주소 또는 /share/ 공유 링크를 입력하세요.');}
+}
+async function loadResearchPage(window,url,timeout=25000){
+  let timer;try{await Promise.race([window.loadURL(url),new Promise((_,reject)=>{timer=setTimeout(()=>{window.webContents.stop?.();reject(Error('Threads 페이지 열기 시간이 초과됐습니다. 기존 결과는 유지됩니다.'));},timeout);})]);}finally{clearTimeout(timer);}
+}
 function classify(item){
   const text=String(item.text||'');const patterns={advertising:/#\s*광고|\[광고\]|(?:^|\n)\s*광고\s*(?=\n|$)|유료\s*광고|\badvertisement\b|#ad\b/gi,sponsorship:/협찬|제품\s*제공|무상\s*제공|\bsponsored\b|\bgifted\b/gi,economic:/수수료|커미션|경제적\s*이해|제휴\s*활동|파트너스\s*활동|\baffiliate\b|\bcommission\b/gi};
   const evidence=[];for(const [kind,pattern]of Object.entries(patterns))for(const match of text.matchAll(pattern)){evidence.push({kind,match:match[0],excerpt:text.slice(Math.max(0,match.index-35),match.index+match[0].length+65)});if(evidence.filter(e=>e.kind===kind).length>=5)break;}
@@ -29,7 +40,7 @@ class ResearchStore{
 }
 function createThreadsResearch({dataDir,BrowserWindow,helper}){
   let store,storeError;try{store=new ResearchStore(dataDir);}catch(error){storeError=error;}let guest=null,review=null,reviewId='',source='',product='',pending=false;const partition='threads-research-'+crypto.randomUUID();
-  const allowed=value=>{try{const u=new URL(value);return u.protocol==='https:'&&['threads.com','www.threads.com','threads.net','www.threads.net'].includes(u.hostname);}catch{return false;}};
+  const allowed=value=>{try{const u=new URL(value);return u.protocol==='https:'&&['threads.com','www.threads.com','threads.net','www.threads.net'].includes(u.hostname)&&!u.port&&!u.username&&!u.password;}catch{return false;}};
   return {async request(action,packet={}){
     if(!store)throw Error('관련 콘텐츠 저장 자료를 읽지 못했습니다. 기존 파일은 보존됩니다.');
     if(action==='list')return store.list();
@@ -44,9 +55,10 @@ function createThreadsResearch({dataDir,BrowserWindow,helper}){
       if(!review||review.isDestroyed()||!reviewId)throw Error('후보의 원문 검사 창을 먼저 여세요.');const p=store.data.posts[reviewId];if(postUrl(review.webContents.getURL())!==p.permalink)throw Error('처음 연 후보의 원문으로 돌아가세요.');const r=await review.webContents.executeJavaScript('('+extractThreadsResearch.toString()+')(true)');if(r.status==='login_required')return {status:r.status,...store.list()};return store.enrich(reviewId,r);
     }
     if(action==='open'){
-      if(pending)throw Error('관련 화면을 여는 중입니다.');const url=postUrl(packet.url);pending=true;try{source=url;product=String(packet.product||'').slice(0,120);
+      if(pending)throw Error('관련 화면을 여는 중입니다.');const input=researchInput(packet.url);pending=true;try{source='';product=String(packet.product||'').slice(0,120);
         if(!guest||guest.isDestroyed()){guest=new BrowserWindow({width:1000,height:820,title:'Threads 관련 콘텐츠 · 비로그인 탐색',webPreferences:{partition,nodeIntegration:false,contextIsolation:true,sandbox:true}});guest.webContents.setWindowOpenHandler(()=>({action:'deny'}));guest.webContents.on('will-navigate',(e,url)=>{if(!allowed(url))e.preventDefault();});guest.webContents.on('will-redirect',(e,url)=>{if(!allowed(url))e.preventDefault();});guest.webContents.session.setPermissionRequestHandler((_wc,_p,cb)=>cb(false));}
-        guest.show();await guest.loadURL(url);return {opened:true,message:'관련 스레드 영역을 화면에 표시한 뒤 앱에서 현재 목록 수집을 누르세요. 로그인 요구가 나오면 중단합니다.'};
+        guest.show();await loadResearchPage(guest,input.url);try{source=postUrl(guest.webContents.getURL());}catch{throw Error(input.shared?'공유 링크가 아직 게시물 주소로 연결되지 않았습니다. 로그인 안내나 페이지 오류를 확인한 뒤 주소창의 게시물 고유 주소를 사용하세요.':'게시물 페이지를 확인하지 못했습니다. 로그인 안내나 페이지 오류를 확인하세요.');}
+        return {opened:true,canonical_url:source,message:(input.shared?'공유 링크를 게시물 주소로 연결했습니다. ':'')+'관련 스레드 영역을 화면에 표시한 뒤 앱에서 현재 목록 수집을 누르세요. 로그인 요구가 나오면 중단합니다.'};
       }finally{pending=false;}
     }
     if(action==='capture'){
@@ -60,4 +72,4 @@ function createThreadsResearch({dataDir,BrowserWindow,helper}){
     throw Error('지원하지 않는 관련 콘텐츠 동작입니다.');
   },dispose(){for(const w of [guest,review])if(w&&!w.isDestroyed())w.destroy();}};
 }
-module.exports={postUrl,classify,ResearchStore,createThreadsResearch};
+module.exports={postUrl,researchInput,loadResearchPage,classify,ResearchStore,createThreadsResearch};
