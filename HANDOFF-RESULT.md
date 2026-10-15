@@ -244,3 +244,7 @@ RELEASE-READINESS-PLAN.md에 A~L 12단계, 퇴행 방지·증거 구분·복구�
     - Python 단위 테스트 (`python -m unittest discover -s downloader -p "test_*.py"`): **139개 전체 통과 (`Ran 139 tests in 85.190s, OK`)**
     - Node.js 단위·DOM 회귀 테스트: **5개 스위트 전체 통과 (`PASS`)**
 
+
+## 2026-10-15 Threads 상품 관련 탐색
+THREADS-RESEARCH.md 참조. 비로그인 관련 수집·계정 누적·상업성 단서·공개 반응·기존 로그인 원문/작성자 댓글 검사·제품 확인·레퍼런스 전송 구현. 격리 테스트 통과. 실사이트 예시는 로그인 요구로0건 중단 확인; 전체 실수집 미검증. 앱 시작 코드 적용은 정상 재실행 필요. 기존 앱/도우미·사용자 자료 유지.
+

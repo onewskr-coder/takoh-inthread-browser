@@ -1,4 +1,4 @@
-const {app,BaseWindow,WebContentsView,ipcMain,shell,dialog,session}=require('electron');
+const {app,BaseWindow,BrowserWindow,WebContentsView,ipcMain,shell,dialog,session}=require('electron');
 const path=require('node:path');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 app.commandLine.appendSwitch('disable-http-cache');
@@ -19,7 +19,8 @@ const native=require('./native-media.cjs');
 const navigation=require('./navigation.cjs');
 const {HelperManager}=require('./helper-manager.cjs');
 const {createThreadsUploadManager}=require('./threads-upload.cjs');
-let helperManager,helperReady,uploadManager;
+const {createThreadsResearch}=require('./threads-research.cjs');
+let helperManager,helperReady,uploadManager,researchManager;
 const ownsApp=app.requestSingleInstanceLock();
 const {lockProfile}=require('./profile-lock.cjs');
 const profileGuard=ownsApp?lockProfile(profilePath):{acquired:false,release(){}};
@@ -180,6 +181,7 @@ ipcMain.handle('native-media',async(event,message)=>{
   try{
     await helperReady;
     if(studioSender){
+      if(message?.action==='studioThreadsResearch'&&researchManager){if(JSON.stringify(message).length>10000)throw Error('요청 크기 초과');return {success:true,data:await researchManager.request(message.packet?.action,message.packet)};}
       if(message?.action==='studioListReferences')return {success:true,data:await native.helper('references')};
       if(message?.action==='studioListDownloads')return {success:true,data:[...recentDownloads.values()].filter(x=>x.completed&&x.path&&fs.existsSync(x.path)).sort((a,b)=>b.modified-a.modified)};
       if(message?.action==='studioGetDownload'){
@@ -293,9 +295,9 @@ async function attemptGracefulQuit() {
   return true;
 }
 
-app.whenReady().then(async()=>{if(!ownsApp||!profileGuard.acquired)return;persistence=manageSessions(session);helperManager=new HelperManager({dataDir:app.getPath('userData'),sourceDir:path.join(__dirname,'..','downloader')});helperReady=helperManager.start();helperReady.catch(error=>console.error(error.message));uploadManager=createThreadsUploadManager({dataDir:app.getPath('userData'),ensureThreadsView});uploadManager.init().catch(error=>console.error(error.message));win=new BaseWindow({width:1380,height:920,title:'인스레드 치트키 · 타코 브라우저',show:true,skipTaskbar:false});win.setSkipTaskbar(false);win.show();win.moveTop();win.focus();toolbar=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});win.contentView.addChildView(toolbar);toolbar.webContents.loadFile(path.join(__dirname,'toolbar.html'));ipcMain.on('site-select',(event,key)=>{if(event.sender===toolbar.webContents)select(key);});ipcMain.on('site-action',(event,action)=>{if(event.sender!==toolbar.webContents||!active)return;if(action==='reload')active.webContents.reload();if(action==='back'&&active.webContents.navigationHistory.canGoBack())active.webContents.navigationHistory.goBack();if(action==='external')shell.openExternal(active.webContents.getURL());});
+app.whenReady().then(async()=>{if(!ownsApp||!profileGuard.acquired)return;persistence=manageSessions(session);researchManager=createThreadsResearch({dataDir:app.getPath('userData'),BrowserWindow,helper:native.helper});helperManager=new HelperManager({dataDir:app.getPath('userData'),sourceDir:path.join(__dirname,'..','downloader')});helperReady=helperManager.start();helperReady.catch(error=>console.error(error.message));uploadManager=createThreadsUploadManager({dataDir:app.getPath('userData'),ensureThreadsView});uploadManager.init().catch(error=>console.error(error.message));win=new BaseWindow({width:1380,height:920,title:'인스레드 치트키 · 타코 브라우저',show:true,skipTaskbar:false});win.setSkipTaskbar(false);win.show();win.moveTop();win.focus();toolbar=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});win.contentView.addChildView(toolbar);toolbar.webContents.loadFile(path.join(__dirname,'toolbar.html'));ipcMain.on('site-select',(event,key)=>{if(event.sender===toolbar.webContents)select(key);});ipcMain.on('site-action',(event,action)=>{if(event.sender!==toolbar.webContents||!active)return;if(action==='reload')active.webContents.reload();if(action==='back'&&active.webContents.navigationHistory.canGoBack())active.webContents.navigationHistory.goBack();if(action==='external')shell.openExternal(active.webContents.getURL());});
 win.on('resize',resize);
-require('./shutdown.cjs').installShutdown({app,win,prepare:attemptGracefulQuit,flush:()=>persistence.flush(),dispose:()=>{uploadManager?.dispose();devWatcher?.dispose();persistence?.dispose();},report:message=>{restartNotice=message;dialog.showMessageBoxSync(win,{type:'warning',message,buttons:['확인']});}});
+require('./shutdown.cjs').installShutdown({app,win,prepare:attemptGracefulQuit,flush:()=>persistence.flush(),dispose:()=>{researchManager?.dispose();uploadManager?.dispose();devWatcher?.dispose();persistence?.dispose();},report:message=>{restartNotice=message;dialog.showMessageBoxSync(win,{type:'warning',message,buttons:['확인']});}});
 win.on('closed',()=>{for(const view of views.values())view.webContents.close();toolbar.webContents.close();views.clear();win=null;});
 select('threads');
 if(!app.isPackaged){
