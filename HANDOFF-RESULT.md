@@ -312,3 +312,7 @@ UI: 새로운 콘텐츠, 반응 좋은 콘텐츠(조회수 순), 중복·유사 
 Threads 다크 본문/첨부/반응/댓글, Instagram 피드 및 릴스, TikTok 추천/세로영상/오른쪽 반응/하단 본문, 네이버 클립 세로뷰를 각각 구성했다. SVG 반응 아이콘과 플랫폼별 상·하단 탐색 배치를 추가했으며 실제 플랫폼 렌더링 완전 일치나 실제 계정명/반응 수를 주장하지 않는다. 기존 입력·미디어·캐러셀/예약 연결은 유지한다.
 네이버 공식 도움말 https://help.naver.com/service/30048/contents/24422?osType=COMMONOS 는 PC 웹 업로드 경로를 안내한다. 기존 m.blog.naver.com/clip/editor는 실제 전용 앱에서 MobileErrorView/notfound로 연결됨을 재현했다. https://clipcreators.naver.com/web 접속은 실제 NAVER 로그인 화면(복귀 대상 clipcreators.naver.com/web)으로 연결됨을 확인했다. 앱 기본 탭/업로드 이동/게시 화면 링크를 교체하고 오류 블로그 페이지를 정상 클립 웹으로 허용하던 URL 판단을 좁혔다. 네이버 로그인·파일 업로드·최종 발행은 미검증이다.
 플랫폼별 DOM/캐러셀/최종확인/달력 회귀 테스트 통과. 실행 앱 새로고침 후 Threads/TikTok 미리보기 구성을 확인했다. main.cjs 기본 주소는 앱 정상 재실행 시 적용되며 현재 네이버 탭은 직접 새 주소로 이동했다. 유료 호출·실제 게시·자료 초기화는 없다.
+
+## 2026-10-15 네이버 로그인 finalize 복귀·미리보기 디테일
+사용자가 제시한 finalize URL의 복귀 대상은 http://clipcreators.naver.com/web이며 기존 앱 외부 HTTP 차단과 충돌 가능성이 있었다. 실제 앱에서 로그인 후 세션을 유지한 채 https://clipcreators.naver.com/web로 이동하자 /web/dashboard의 로그인 계정·대시보드·업로드 버튼이 정상 표시됨을 확인했다. 로그인 완료 자체와 복귀 이동 장애를 구분한다. naver-navigation.cjs는 정확히 clipcreators.naver.com의 HTTP 복귀만 HTTPS로 승격하며 다른 HTTP/악성 유사 호스트·인증정보·비표준 포트는 허용하지 않는다. 메인 및 로그인 팝업의 navigation/redirect에 연결했다. test_naver_navigation.cjs 통과. 변경된 자동 복귀 훅은 정상 앱 재실행 후 적용되며 실제 재로그인 경로는 추가 검증 필요.
+미리보기에는 SVG 하단 탐색, 프로필/더보기 영역, 원본 오디오/음성 없음 표시, 세로 본문·프로필·반응 버튼 간격과 TikTok 만들기 버튼 색상을 추가했다. 플랫폼 실제 계정 정보나 반응 숫자를 만들어 표시하지 않는다. test_preview_calendar.js 및 AI 배정 DOM 테스트 통과. 실제 게시·유료 호출·쿠키 초기화는 없음.

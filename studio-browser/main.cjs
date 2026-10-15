@@ -93,6 +93,7 @@ async function recoverStudioPage() {
   }
 }
 function configurePopups(contents,key){
+  if(key==='naver_clip')require('./naver-navigation.cjs').installNaverNavigation(contents);
   const blockedGoogle=url=>{try{return new URL(url).hostname==='accounts.google.com';}catch{return false;}};
   const explainGoogle=()=>{dialog.showMessageBox({type:'info',title:'Google 로그인 안내',message:'Google 로그인은 내장 브라우저에서 제한될 수 있습니다.',detail:'외부 브라우저에서 Pinterest 로그인을 진행할 수 있습니다. 외부 로그인은 이 앱으로 자동 전달되지 않습니다. 앱에서는 Pinterest 이메일 로그인을 사용하세요.',buttons:['닫기','외부 Pinterest 열기'],defaultId:0,cancelId:0}).then(({response})=>{if(response===1)shell.openExternal('https://www.pinterest.com/login/');});};
   contents.setWindowOpenHandler(({url})=>{

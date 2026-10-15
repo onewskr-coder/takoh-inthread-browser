@@ -1,0 +1,5 @@
+const assert=require('node:assert/strict'),{EventEmitter}=require('node:events');
+const {secureNaverTarget,installNaverNavigation}=require('./naver-navigation.cjs');
+assert.equal(secureNaverTarget('http://clipcreators.naver.com/web?a=1'),'https://clipcreators.naver.com/web?a=1');
+for(const value of ['https://clipcreators.naver.com/web','http://clipcreators.naver.com.evil.test/web','http://nid.naver.com/','http://clipcreators.naver.com:81/web','http://user:pw@clipcreators.naver.com/web','javascript:alert(1)'])assert.equal(secureNaverTarget(value),null);
+(async()=>{const contents=new EventEmitter(),loads=[];contents.isDestroyed=()=>false;contents.loadURL=async url=>loads.push(url);installNaverNavigation(contents);let prevented=0;contents.emit('will-redirect',{preventDefault(){prevented++;}},'http://clipcreators.naver.com/web');await new Promise(setImmediate);assert.equal(prevented,1);assert.deepEqual(loads,['https://clipcreators.naver.com/web']);console.log('PASS: exact Naver creator HTTP return upgraded to HTTPS; unrelated URLs untouched');})().catch(e=>{console.error(e);process.exitCode=1;});
