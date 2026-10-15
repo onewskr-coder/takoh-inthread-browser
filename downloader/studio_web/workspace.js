@@ -70,8 +70,9 @@
     if(event.data.success)waiter.resolve(event.data.data);else waiter.reject(new Error(event.data.error||'파일 연결 실패'));
   });
   function selectWorkspace(name){
-    if(!['download','discovery','research','create','publish','scheduler','settings'].includes(name))name='download';
+    if(!['download','discovery','research','jobs','create','publish','scheduler','settings'].includes(name))name='download';
     const download=name==='download';
+    if($('jobs-workspace'))$('jobs-workspace').hidden=name!=='jobs';
     $('download-workspace').hidden=!download;
     if($('discovery-workspace'))$('discovery-workspace').hidden=name!=='discovery';
     if($('research-workspace'))$('research-workspace').hidden=name!=='research';

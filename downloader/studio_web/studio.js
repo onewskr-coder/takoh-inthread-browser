@@ -83,7 +83,7 @@ async function refreshJobs(){
   const items=await api('jobs');$('jobs').replaceChildren();
   for(const item of items){
     const row=document.createElement('div');row.className='saved-job';
-    row.classList.toggle('active',item.id===job?.id);
+    row.classList.toggle('active',item.id===job?.id);row.dataset.search=(item.name||'').toLocaleLowerCase();row.dataset.group=['published','posted'].includes(item.status)?'published':item.analyzed||['analyzed','draft_ready','publish_ready','edited'].includes(item.status)?'analyzed':'ready';
     const button=document.createElement('button');button.type='button';button.className='saved-job-open';button.title=item.name;
     const thumbnail=document.createElement('img');thumbnail.src=`/studio/jobs/${item.id}/media/frame-0.jpg`;thumbnail.alt='';thumbnail.loading='lazy';thumbnail.onerror=()=>{thumbnail.hidden=true;};
     const details=document.createElement('span');details.className='saved-job-details';
@@ -99,7 +99,10 @@ async function refreshJobs(){
     };row.append(remove);
     $('jobs').append(row);
   }
+  window.filterSavedJobs?.();
 }
+window.filterSavedJobs=()=>{const query=($('saved-job-search')?.value||'').toLocaleLowerCase(),group=$('saved-job-filter')?.value||'all';const rows=[...$('jobs').children];let shown=0;for(const row of rows){row.hidden=!row.dataset.search.includes(query)||(group!=='all'&&row.dataset.group!==group);if(!row.hidden)shown++;}if($('saved-job-count'))$('saved-job-count').textContent=shown+' / '+rows.length+'개 작업';};
+$('saved-job-search')?.addEventListener('input',window.filterSavedJobs);$('saved-job-filter')?.addEventListener('change',window.filterSavedJobs);
 function buildDefaultComment(){
   const disc=$('disclosure')?.value?.trim()||'';
   const aff=$('affiliate-url')?.value?.trim()||job?.product?.affiliate_url||'';
@@ -1580,9 +1583,9 @@ window.addEventListener('message',event=>{
     const comment=get('comment').value||'';p.querySelector('.preview-comment p').textContent=comment||'첫 댓글 없음';
     p.querySelector('.preview-comment').hidden=state.platform!=='threads'&&state.platform!=='instagram';
     const items=mediaItems(state);state.index=Math.max(0,Math.min(state.index,items.length-1));const item=items[state.index];
-    const key=JSON.stringify([job?.id,job?.edit,job?.carousel?.updated_at,item]);
-    if(key!==state.mediaKey){state.mediaKey=key;const box=p.querySelector('.preview-media');for(const v of box.querySelectorAll('video'))v.pause();box.replaceChildren();if(item){const el=document.createElement(item.kind==='video'?'video':'img');el.src=item.url;if(item.kind==='video'){el.controls=false;el.muted=true;el.preload='metadata';el.playsInline=true;el.onplay=()=>{p.querySelector('.preview-play').textContent='Ⅱ';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 일시 정지');};el.onpause=el.onended=()=>{p.querySelector('.preview-play').textContent='▶';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 재생');};if(item.poster)el.poster=item.poster;}else el.alt='게시 미디어 '+(state.index+1);el.onerror=()=>{p.querySelector('.preview-source-note').textContent='미디어를 표시하지 못했습니다. 원본 준비와 파일 상태를 확인하세요.';};box.append(el);}else box.append(text('p',job?'선택한 미디어 구성에 준비된 파일이 없습니다.':'레퍼런스를 선택하거나 원본을 불러오세요.'));}
-    const currentVideo=p.querySelector('video');p.querySelector('.preview-play').textContent=currentVideo&&!currentVideo.paused?'Ⅱ':'▶';p.querySelector('.preview-player').hidden=item?.kind!=='video';p.querySelector('.preview-media-nav').hidden=items.length<2;const dots=p.querySelector('.preview-dots');dots.replaceChildren();dots.hidden=items.length<2;for(let i=0;i<items.length;i++){const dot=document.createElement('button');dot.type='button';dot.setAttribute('aria-label',(i+1)+'번째 미디어');dot.setAttribute('aria-pressed',String(i===state.index));dot.onclick=()=>{state.index=i;refreshPreview(state);};dots.append(dot);}
+    const key=JSON.stringify([state.platform,job?.id,job?.edit,job?.carousel?.updated_at,state.platform==='threads'?items:item]);p.dataset.mediaCount=items.length;p.querySelector('.preview-media').classList.toggle('preview-thread-gallery',state.platform==='threads'&&items.length>1);
+    if(key!==state.mediaKey){state.mediaKey=key;const box=p.querySelector('.preview-media');for(const v of box.querySelectorAll('video'))v.pause();box.replaceChildren();if(item){for(const shown of (state.platform==='threads'?items:[item])){const item=shown;const el=document.createElement(item.kind==='video'?'video':'img');el.src=item.url;if(item.kind==='video'){el.controls=false;el.muted=true;el.preload='metadata';el.playsInline=true;el.onplay=()=>{p.querySelector('.preview-play').textContent='Ⅱ';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 일시 정지');};el.onpause=el.onended=()=>{p.querySelector('.preview-play').textContent='▶';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 재생');};if(item.poster)el.poster=item.poster;}else el.alt='게시 미디어 '+(state.index+1);el.onerror=()=>{p.querySelector('.preview-source-note').textContent='미디어를 표시하지 못했습니다. 원본 준비와 파일 상태를 확인하세요.';};el.onclick=()=>{if(el.tagName==='VIDEO'){if(el.paused)el.play().catch(()=>{});else el.pause();}};box.append(el);}}else box.append(text('p',job?'선택한 미디어 구성에 준비된 파일이 없습니다.':'레퍼런스를 선택하거나 원본을 불러오세요.'));}
+    const currentVideo=p.querySelector('video');p.querySelector('.preview-play').textContent=currentVideo&&!currentVideo.paused?'Ⅱ':'▶';p.querySelector('.preview-player').hidden=item?.kind!=='video';p.querySelector('.preview-media-nav').hidden=items.length<2||state.platform==='threads';const dots=p.querySelector('.preview-dots');dots.replaceChildren();dots.hidden=items.length<2||state.platform==='threads';for(let i=0;i<items.length;i++){const dot=document.createElement('button');dot.type='button';dot.setAttribute('aria-label',(i+1)+'번째 미디어');dot.setAttribute('aria-pressed',String(i===state.index));dot.onclick=()=>{state.index=i;refreshPreview(state);};dots.append(dot);}
     p.querySelector('.preview-media-count').textContent=items.length?(state.index+1)+' / '+items.length:'미디어 없음';p.querySelector('.preview-prev').disabled=state.index<=0;p.querySelector('.preview-next').disabled=state.index>=items.length-1;
     p.querySelector('.preview-source-note').textContent=job?(job.name||'선택한 작업')+(get('upload-format').value==='carousel'?' · 캐러셀 슬라이드 미리보기':' · 현재 준비된 미디어')+(['tiktok','naver_clip'].includes(state.platform)&&job.kind==='image'?' · 이 대상은 게시용 영상이 필요합니다.':''):'아직 선택한 작업이 없습니다.';
   }
