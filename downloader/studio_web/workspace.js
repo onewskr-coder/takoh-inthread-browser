@@ -70,13 +70,14 @@
     if(event.data.success)waiter.resolve(event.data.data);else waiter.reject(new Error(event.data.error||'파일 연결 실패'));
   });
   function selectWorkspace(name){
-    if(!['download','discovery','research','create','publish','settings'].includes(name))name='download';
+    if(!['download','discovery','research','create','publish','scheduler','settings'].includes(name))name='download';
     const download=name==='download';
     $('download-workspace').hidden=!download;
     if($('discovery-workspace'))$('discovery-workspace').hidden=name!=='discovery';
     if($('research-workspace'))$('research-workspace').hidden=name!=='research';
     $('create-workspace').hidden=name!=='create';if($('publish-workspace'))$('publish-workspace').hidden=name!=='publish';
-    $('settings-workspace').hidden=name!=='settings';
+    $('settings-workspace').hidden=name!=='settings';if($('scheduler-workspace'))$('scheduler-workspace').hidden=name!=='scheduler';
+    if(name==='scheduler'&&window.refreshStudioCalendar)window.refreshStudioCalendar();
     document.querySelectorAll('[data-workspace]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.workspace===name)));
     try{localStorage.setItem('takoh-workspace',name);}catch{}
     if(download)refreshDownloads();
