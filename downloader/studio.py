@@ -4976,7 +4976,16 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if not isinstance(data.get('name'), str) or not data['name'].strip():
                 raise StudioError('상품 이름을 입력해 주세요.')
             affiliation = data.get('affiliate_url', '').strip()
-            product = dict(platform=platform, name=data['name'].strip()[:200], url=valid_url(data.get('url')),
+            link_mode = data.get('link_entry_mode')
+            if link_mode not in (None, 'manual', 'api'):
+                raise StudioError('제휴 링크 연결 방식을 확인해 주세요.')
+            if link_mode == 'api' and platform != 'coupang':
+                raise StudioError('API 발급은 쿠팡파트너스에서만 지원합니다. 직접 발급한 링크를 입력하세요.')
+            source_url = str(data.get('url') or '').strip() if link_mode != 'manual' else ''
+            if not source_url and (link_mode == 'api' or not affiliation):
+                raise StudioError('API 발급에는 원본 상품 URL이 필요합니다. 직접 입력은 발급된 제휴 링크를 넣으세요.')
+            product = dict(platform=platform, name=data['name'].strip()[:200], url=valid_url(source_url) if source_url else '',
+                           link_entry_mode=link_mode or ('manual' if affiliation else 'api'),
                            affiliate_url=valid_url(affiliation) if affiliation else '',
                            affiliate_method='manually_issued' if affiliation else 'none',
                            attribution='user_confirmed' if affiliation and data.get('confirmed') is True else 'unverified')

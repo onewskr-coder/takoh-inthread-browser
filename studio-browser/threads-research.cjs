@@ -43,6 +43,7 @@ class ResearchStore{
     p.detail_metrics={...root.metrics,observed_at:new Date().toISOString()};p.thumbnail_url=safeThumbnail(root.thumbnail_url)||p.thumbnail_url||null;if(root.media_checked){p.media_checked=true;p.media_assets=root.media_assets||[];if(p.media_preview&&p.media_preview.asset_key!==assetKey(root.thumbnail_url))p.media_preview=null;}this.save();return {status:'detail_checked',...this.list()};
   }
 }
+function stopResearchWindow(window){if(window&&!window.isDestroyed()){const contents=window.webContents;if(contents&&!contents.isDestroyed())contents.stop();}}
 function createThreadsResearch({dataDir,BrowserWindow,helper,mediaCache}){
   let store,storeError;try{store=new ResearchStore(dataDir);}catch(error){storeError=error;}let guest=null,review=null,reviewId='',source='',product='',pending=false;const partition='threads-research-'+crypto.randomUUID();
   const allowed=value=>{try{const u=new URL(value);return u.protocol==='https:'&&['threads.com','www.threads.com','threads.net','www.threads.net'].includes(u.hostname)&&!u.port&&!u.username&&!u.password;}catch{return false;}};
@@ -115,6 +116,6 @@ function createThreadsResearch({dataDir,BrowserWindow,helper,mediaCache}){
       await helper('references/import',{reference:{id:'threads-'+p.id,username:p.username,text:p.text,permalink:p.permalink,mediaKind:p.media_assets.some(a=>a.kind==='video')?'video':'image',imageUrls:p.media_assets.filter(a=>a.kind==='image').map(a=>safeThumbnail(a.source_url)).filter(Boolean),videoUrls:p.media_assets.filter(a=>a.kind==='video').map(a=>safeThumbnail(a.source_url)).filter(Boolean),thumbnailUrl:p.thumbnail_url,discovery:{source:'threads_related',seed_posts:p.sources,product_match:p.product_match,evidence:p.checks.evidence,detail_evidence:p.detail_evidence||[],observed_metrics:p.metrics,observed_at:p.observed_at,comments_checked:p.comments_checked}}});store.data.posts[p.id].saved_reference=true;store.save();return {saved:true};
     }
     throw Error('지원하지 않는 관련 콘텐츠 동작입니다.');
-  },async prepareStop(){runner?.pause();guest?.webContents.stop?.();await runner?.settled();},dispose(){runner?.dispose();for(const w of [guest,review])if(w&&!w.isDestroyed())w.destroy();}};
+  },async prepareStop(){runner?.pause();stopResearchWindow(guest);await runner?.settled();},dispose(){runner?.dispose();for(const w of [guest,review])if(w&&!w.isDestroyed())w.destroy();}};
 }
-module.exports={postUrl,researchInput,loadResearchPage,classify,ResearchStore,createThreadsResearch};
+module.exports={stopResearchWindow,postUrl,researchInput,loadResearchPage,classify,ResearchStore,createThreadsResearch};

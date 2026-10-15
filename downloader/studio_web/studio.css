@@ -586,3 +586,31 @@ body.quick-sidebar-mode label{margin:8px 0!important;font-size:12px!important}
 .research-library{padding:18px 0}.research-library h3{margin:0 0 8px}.research-library .research-inputs{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin:12px 0}.research-library label{margin:0}.research-discovery-settings{border-top:1px solid #dce5de;padding:16px 0;margin:12px 0}.research-discovery-settings>summary{cursor:pointer;font-weight:650}.research-duplicates{background:#f4f7f3;padding:12px!important;border-radius:8px}.research-duplicates>div{border-top:1px solid #dce5de;padding:8px 0}.research-duplicates button{font-size:12px}.research-pending{background:#f8faf7}.research-results{align-items:start}
 
 .research-entry{padding:18px;background:#f2f7f2;border:1px solid #d8e4da;border-radius:12px;margin:16px 0}.research-entry h3{margin:0 0 8px}.research-entry p{font-size:13px;line-height:1.6}.research-entry>button{margin:4px 8px 4px 0;min-height:42px}.research-guide{font-size:13px;color:#65756b;margin:12px 0}.research-guide>summary,.research-library details>summary{cursor:pointer}.research-card-detail{border-top:1px solid #e2e8e1}.research-card-detail>summary{font-weight:650;padding:4px 0}.research-card-detail p{font-size:13px}.research-card>.research-card-detail+button{width:100%;margin-top:12px}.research-card .research-thumbnail{margin-bottom:12px}@media(max-width:640px){.research-entry>button{width:100%;margin:5px 0}}
+
+/* Production and publishing share the selected job, not a cramped sidebar grid. */
+#create-workspace,#publish-workspace{display:block;width:100%;max-width:none;min-width:0;margin:24px 0 40px;padding:0 28px}
+#create-workspace>article,#publish-workspace>section{width:100%;min-width:0;max-width:none}
+#create-workspace .intro{padding:0 0 16px}#create-workspace .intro h1,#publish-workspace h1{font-size:30px;letter-spacing:-.8px;margin:6px 0 10px}
+#create-workspace .intro p,#publish-workspace .workspace-heading p{max-width:900px;color:#62736a;font-size:14px;line-height:1.7;margin:0}
+.production-jobs{position:static;width:100%;padding:14px 18px;border:1px solid #dce5df;background:#fff;border-radius:12px;margin-bottom:16px}
+.production-jobs summary{font-weight:650;cursor:pointer}.production-jobs h2{margin-top:20px}.production-jobs #jobs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;max-height:300px;overflow:auto;margin-top:12px}.production-jobs #jobs button{margin:0;min-width:0;width:100%}
+.production-context{padding:12px 16px;border-radius:9px;background:#eaf1eb;color:#355641;margin:0 0 14px;font-size:13px;overflow-wrap:anywhere}
+#create-workspace .production-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 22px;position:sticky;top:8px;z-index:4;padding:10px;background:#f4f6f2eF;border:1px solid #dee7df;border-radius:14px;backdrop-filter:blur(8px)}
+#create-workspace .production-steps button{min-height:52px;padding:12px;text-align:left;border-radius:9px;font-size:14px}
+#create-workspace section,#publish-workspace section{padding:26px;border-radius:16px;box-shadow:0 2px 8px #193d2610}
+#create-workspace :is(input,select,textarea),#publish-workspace :is(input,select,textarea){min-height:44px;font-size:14px;line-height:1.55}
+#create-workspace textarea,#publish-workspace textarea{padding:14px}#create-workspace :is(button,.button),#publish-workspace :is(button,.button){min-height:42px}
+#create-workspace .stage-section-header,#publish-workspace .stage-section-header{margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e1e8e1}
+#create-workspace .analysis-workspace-grid{grid-template-columns:minmax(300px,.9fr) minmax(0,1.3fr);gap:28px}
+#create-workspace .analysis-player-column{min-width:0;position:sticky;top:100px}#create-workspace .analysis-player-frame :is(video,img){max-height:440px;object-fit:contain}
+#create-workspace .edit-tool-tabs{gap:8px}#create-workspace .studio-tool-panel{padding:20px}#create-workspace #references{grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:18px}
+#create-workspace .product-workspace-grid{grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:24px}
+#create-workspace .product-confirm-col{grid-column:1;grid-row:1;border:0;padding:0}#create-workspace .product-discovery-col{grid-column:2;grid-row:1;background:#f7faf6;border:1px solid #e0e7dd;border-radius:12px;padding:20px}
+.product-search-drawer>summary{font-size:15px;font-weight:650;cursor:pointer;margin-bottom:18px}.affiliate-mode-field{margin:0 0 20px;padding:16px;border:1px solid #cbdccf;border-radius:12px;background:#f1f7f1}.affiliate-mode-field legend{padding:0 8px;font-size:14px;font-weight:700}.affiliate-mode-field label{margin:0}
+#publish-workspace .publish-workspace-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}#publish-workspace .publish-automation-col{padding-left:28px}
+#publish-workspace [data-production-section=publish][data-stage-hidden=true]{display:block}
+#message:not(:empty){margin:16px 28px;top:6px;z-index:8}
+:is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #3f8865;outline-offset:3px}
+body.busy .workspace-tabs button,body.busy .production-steps button{pointer-events:auto;opacity:1}
+@media(max-width:1100px){#create-workspace .analysis-workspace-grid{grid-template-columns:minmax(0,1fr)}#create-workspace .analysis-player-column{position:static}#create-workspace .product-workspace-grid{grid-template-columns:minmax(0,1fr)}#create-workspace .product-discovery-col{grid-column:1;grid-row:2}#publish-workspace .publish-workspace-grid{grid-template-columns:minmax(0,1fr)}#publish-workspace .publish-automation-col{padding:22px 0 0;border-left:0;border-top:1px solid #dee7df}}
+@media(max-width:640px){#create-workspace,#publish-workspace{padding:0 12px;margin-top:16px}#create-workspace .production-steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;position:static}#create-workspace section,#publish-workspace section{padding:16px}.production-jobs{padding:14px}.stage-action-bar{align-items:stretch;gap:12px}#create-workspace .columns,#publish-workspace .columns{grid-template-columns:minmax(0,1fr)}#message:not(:empty){margin:12px}}

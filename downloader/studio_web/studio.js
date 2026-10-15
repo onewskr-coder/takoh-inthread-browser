@@ -130,7 +130,7 @@ function renderCarouselPreview(){
   const slides=job?.carousel?.slides||[];
   if(!job||!slides.length){wrap.hidden=true;return;}
   wrap.hidden=false;
-  if(label)label.textContent=`생성된 캐러셀 슬라이드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} 비율) — [4 멀티채널 게시]에서 인스타 캐러셀/쓰레드로 바로 업로드 가능`;
+  if(label)label.textContent=`생성된 캐러셀 슬라이드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} 비율) — [게시·예약]에서 인스타 캐러셀/쓰레드로 바로 업로드 가능`;
   const base=`/studio/jobs/${job.id}/media/`;
   const tsCache=Math.floor((job.carousel.updated_at||Date.now())*1000);
   for(const s of slides){
@@ -185,7 +185,7 @@ document.querySelectorAll('[data-edit-tab]').forEach(btn=>{
 });
 document.querySelectorAll('[data-goto-stage]').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    const stage=btn.dataset.gotoStage;
+    const stage=btn.dataset.gotoStage;if(stage==='publish'){document.querySelector('[data-workspace=publish]')?.click();return;}
     const stageBtn=document.querySelector(`[data-production-stage="${stage}"]`);
     if(stageBtn&&!document.body.classList.contains('quick-sidebar-mode')){
       stageBtn.click();
@@ -197,6 +197,8 @@ document.querySelectorAll('[data-goto-stage]').forEach(btn=>{
 });
 
 function render(){
+  if($('publish-job-summary'))$('publish-job-summary').textContent=job?'현재 작업: '+(job.name||job.id)+' · '+(names[job.status]||job.status):'콘텐츠 제작에서 작업을 선택해 주세요. 작업 없이도 게시 화면을 살펴볼 수 있습니다.';
+  if($('production-job-summary'))$('production-job-summary').textContent=job?'현재 작업 · '+(job.name||job.id)+' · '+(names[job.status]||job.status):'먼저 레퍼런스를 고르거나 원본 파일을 불러오세요.';
   productDirty=false;
   renderEditor();
   updateProductionStepBadges();
@@ -261,7 +263,7 @@ function render(){
         if(btn){btn.textContent=i===index?'✓ 현재 선택된 초안':'이 초안으로 편집하기';btn.className=i===index?'secondary btn-variant-selected':'secondary';}
       });
       writingCounts();$('extension-upload').disabled=true;if($('extension-batch-upload'))$('extension-batch-upload').disabled=true;
-      message(`${index+1}안을 편집창에 불러왔습니다. 내용을 다듬은 뒤 [4 멀티채널 게시]에서 확정하세요.`);
+      message(`${index+1}안을 편집창에 불러왔습니다. 내용을 다듬은 뒤 [게시·예약]에서 확정하세요.`);
     };
     card.append(head,bodyP,select);
     $('draft-variants').append(card);
@@ -270,7 +272,7 @@ function render(){
   const product=job?.product;
   $('platform').value=product?.platform||'coupang';$('product-name').value=product?.name||'';
   $('product-url').value=product?.url||'';$('affiliate-url').value=product?.affiliate_url||'';
-  $('confirmed').checked=['user_confirmed','api_issued'].includes(product?.attribution);
+  $('confirmed').checked=['user_confirmed','api_issued'].includes(product?.attribution);if($('affiliate-entry-mode'))$('affiliate-entry-mode').value=product?.link_entry_mode||(product?.affiliate_method==='coupang_api'||product?.url&&!product?.affiliate_url?'api':'manual');
   $('disclosure').value=job?.disclosure||(product?.affiliate_url?(disclosureDefaults[product?.platform]||''):'');
   $('comment').value=job?.comment||buildDefaultComment();
   writingCounts();
@@ -487,7 +489,7 @@ if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('영상
   if($('upload-format'))$('upload-format').value='carousel';
 },'캐러셀 이미지 세트를 생성했습니다! 아래 슬라이드 미리보기를 확인하고 인스타 캐러셀·쓰레드로 바로 업로드하세요.');
 $('analyze').onclick=()=>act('선택한 영상 데이터를 분석하는 중…',()=>update('analyze',credentials()));
-$('product-form').onsubmit=event=>{event.preventDefault();act('상품 저장 중…',()=>update('product',{platform:$('platform').value,name:$('product-name').value,url:$('product-url').value,affiliate_url:$('affiliate-url').value,confirmed:$('confirmed').checked}),'상품과 제휴 링크를 저장했습니다.');};
+$('product-form').onsubmit=event=>{event.preventDefault();const mode=$('affiliate-entry-mode')?.value||'manual';act('상품 저장 중…',()=>{if(mode==='manual'&&!$('affiliate-url').value.trim())throw Error('직접 발급한 제휴 링크를 입력하세요.');return update('product',{platform:$('platform').value,name:$('product-name').value,url:mode==='api'?$('product-url').value:'',link_entry_mode:mode,affiliate_url:$('affiliate-url').value,confirmed:$('confirmed').checked});},'상품과 제휴 링크를 저장했습니다.');};
 $('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials(),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:$('source-post-text')?.value||job?.source_text||''});});
 $('prepare').onclick=()=>act('본문과 첫 댓글 확정 저장 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('prepare',{body:$('script').value,script:$('script').value,disclosure:$('disclosure').value,comment:$('comment').value,selected:job?.draft?.selected||0});},'본문과 첫 댓글을 확정 저장했습니다. 이제 원하는 플랫폼(쓰레드·인스타·네이버 클립·틱톡)으로 바로 업로드할 수 있습니다.');
 for(const target of ['body','comment']) $('copy-'+target).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(target).value);}, '복사했습니다. 원하는 채널에 붙여 넣어 주세요.');
@@ -524,7 +526,7 @@ function renderIntegrations(){
  const p=job?.publication,locked=!!p?.account_id;
  $('recovery').hidden=p?.status!=='publish_uncertain';
  $('search-products').disabled=!job||locked;
- $('issue-affiliate').disabled=job?.product?.platform!=='coupang'||locked;
+ $('issue-affiliate').disabled=!job||job?.product?.platform!=='coupang'||locked;
  $('publish-api').disabled=job?.status!=='publish_ready'||!account||p?.status==='publish_uncertain';
  for(const id of ['script','body','disclosure','platform','product-name','product-url','affiliate-url','confirmed']) $(id).disabled=locked;
  if(locked)for(const id of ['analyze','save-product','draft','prepare'])$(id).disabled=true;
@@ -534,7 +536,7 @@ function renderIntegrations(){
  $('publish-api').textContent=locked?'게시 진행 / 실패한 단계 이어가기':'영상과 광고 댓글 자동 게시';
  $('published-link').hidden=true;
  if(p?.permalink){try{const link=new URL(p.permalink);if(link.protocol==='https:'&&['www.threads.com','www.threads.net','threads.com','threads.net'].includes(link.hostname)){$('published-link').href=link.href;$('published-link').hidden=false;}}catch{}}
- $('public-video').value=p?.video_url||'';
+ $('public-video').value=p?.video_url||'';syncAffiliateEntry();
  const terms=job?.analysis?.result?.search_terms||[];
  if($('product-keyword-bar')&&$('product-keyword-chips')){
   $('product-keyword-chips').replaceChildren();
@@ -560,6 +562,8 @@ function renderIntegrations(){
  }
 }
 $('search-products').onclick=()=>act('상품 후보 검색 중…',()=>update('search',{query:$('search-query').value,platform:$('platform').value,key:$('serp-key').value.trim()}));
+function syncAffiliateEntry(){const mode=$('affiliate-entry-mode');if(!mode)return;const isCoupang=$('platform').value==='coupang';mode.querySelector('[value=api]').disabled=!isCoupang;if(!isCoupang&&mode.value==='api')mode.value='manual';const manual=mode.value!=='api',locked=!!job?.publication?.account_id;$('affiliate-origin-field').hidden=manual;$('product-url').required=!manual;$('product-url').disabled=manual||locked;$('affiliate-api-actions').hidden=manual;$('affiliate-url').required=manual;$('confirmed').required=manual;$('save-product').textContent=manual?'제휴 링크 저장':'API 발급용 상품 정보 저장';$('affiliate-mode-help').textContent=manual?'API가 없어도 됩니다. 제휴 서비스에서 직접 발급한 링크를 붙여 넣으세요. 원본 상품 URL은 필요하지 않습니다.':'쿠팡파트너스 API 키가 등록된 경우에만 사용하세요. 원본 상품 URL을 저장한 뒤 발급 버튼을 눌러 주세요.';$('issue-affiliate').disabled=manual||!job||locked||!job.product?.url||productDirty;mode.disabled=locked;}
+$('affiliate-entry-mode')?.addEventListener('change',()=>{productDirty=true;syncAffiliateEntry();$('copy-comment').disabled=true;$('publish-api').disabled=true;$('extension-upload').disabled=true;if($('extension-batch-upload'))$('extension-batch-upload').disabled=true;});$('platform').addEventListener('change',syncAffiliateEntry);syncAffiliateEntry();
 $('issue-affiliate').onclick=()=>act('쿠팡 제휴 링크 발급 중…',()=>{if(productDirty)throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('affiliate',{access_key:$('coupang-access').value.trim(),secret_key:$('coupang-secret').value.trim()});});
 $('connect-threads').onclick=()=>act('Threads 게시 계정 확인 중…',async()=>{account=await api('threads/connect',{token:$('threads-token').value.trim()});$('threads-account').textContent=`게시 계정: @${account.username} (${account.id})`;$('publish-api').disabled=job?.status!=='publish_ready'||productDirty||$('copy-body').disabled||job?.publication?.status==='publish_uncertain';},'계정을 확인했습니다.');
 $('threads-token').addEventListener('input',()=>{account=null;$('publish-api').disabled=true;$('threads-account').textContent='토큰을 변경했습니다. 게시 계정을 다시 확인해 주세요.';});
@@ -581,7 +585,7 @@ function renderVisual(){
   const card=document.createElement('div');card.className='visual-card';card.append(text('h3',candidate.name),text('p',candidate.source+' · 검색 후보 / 동일성 미검증'));
   if(candidate.image){const img=document.createElement('img');img.src=candidate.image;img.alt='비교할 검색 후보 이미지';img.referrerPolicy='no-referrer';card.append(img);}
   const link=text('a','후보 원문 보기 ↗');link.href=candidate.url;link.target='_blank';link.rel='noopener noreferrer';card.append(link);
-  if(candidate.kind==='product'||/(^|\.)coupang\.com$/.test(new URL(candidate.url).hostname)){const choose=text('button','상품 입력으로 선택');choose.disabled=!!job.publication?.account_id;choose.onclick=()=>act('상품 저장·제휴 링크 확인 중…',async()=>{const coupang=/(^|\.)coupang\.com$/.test(new URL(candidate.url).hostname);$('platform').value=coupang?'coupang':$('platform').value;$('product-name').value=candidate.name;$('product-url').value=candidate.url;await update('product',{platform:$('platform').value,name:candidate.name,url:candidate.url,affiliate_url:'',confirmed:false});if(coupang&&job)await update('affiliate-auto',{});},'상품 후보를 저장했습니다. 영상 속 제품과 같은지 확인하고 필요하면 제휴 링크를 직접 입력하세요.');card.append(choose);}
+  if(candidate.kind==='product'||/(^|\.)coupang\.com$/.test(new URL(candidate.url).hostname)){const choose=text('button','상품 입력으로 선택');choose.disabled=!!job.publication?.account_id;choose.onclick=()=>{const coupang=/(^|\.)coupang\.com$/.test(new URL(candidate.url).hostname);$('platform').value=coupang?'coupang':$('platform').value;$('product-name').value=candidate.name;$('product-url').value=candidate.url;productDirty=true;syncAffiliateEntry();message('상품 후보를 입력했습니다. 직접 발급한 제휴 링크를 넣거나 API 발급 방식을 선택하세요. 자동 발급은 실행하지 않았습니다.');};card.append(choose);}
   $('visual-results').append(card);
  }
  if(job?.visual_search&&!job.visual_search.candidates.length)$('visual-results').append(text('p','이 이미지의 검색 후보가 없습니다. 다른 프레임으로 검색해 보세요.'));
@@ -1265,7 +1269,7 @@ function setQuickSidebarMode(enabled){
       product:false,
       publish:true
     };
-    document.querySelectorAll('[data-production-section]').forEach(sec=>{
+    document.querySelectorAll('#create-workspace [data-production-section]').forEach(sec=>{
       const key=sec.getAttribute('data-production-section');
       const show=Boolean(sections[key]);
       sec.hidden=!show;
@@ -1273,7 +1277,7 @@ function setQuickSidebarMode(enabled){
     });
   }else{
     const activeStage=document.querySelector('[data-production-stage][aria-pressed="true"]')?.getAttribute('data-production-stage')||'analysis';
-    document.querySelectorAll('[data-production-section]').forEach(sec=>{
+    document.querySelectorAll('#create-workspace [data-production-section]').forEach(sec=>{
       const show=(sec.getAttribute('data-production-section')===activeStage);
       sec.hidden=!show;
       sec.dataset.stageHidden=String(!show);

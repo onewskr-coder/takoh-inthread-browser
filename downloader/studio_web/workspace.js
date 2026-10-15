@@ -39,19 +39,19 @@
   let discoveryArchiveMode=true;
   const nativeBrowser=Boolean(window.takohNative);
   const connectionName=nativeBrowser?'전용 앱':'확장';
-  const stages=['reference','analysis','writing','product','publish'],stageNames=['수집한 레퍼런스','원본 분석','대본·게시문','상품·제휴 링크','멀티채널 게시'];
+  const stages=['reference','analysis','writing','product'],stageNames=['수집한 레퍼런스','원본 분석','대본·게시문','상품·제휴 링크'];
   let stage='analysis';
   function selectStage(name){
-    if(!stages.includes(name))return;
+    if(name==='publish'){selectWorkspace('publish');return;}if(!stages.includes(name))return;
     stage=name;
-    document.querySelectorAll('[data-production-section]').forEach(section=>section.dataset.stageHidden=String(section.dataset.productionSection!==name));
+    document.querySelectorAll('[data-production-section]').forEach(section=>{const hide=section.dataset.productionSection!=='publish'&&section.dataset.productionSection!==name;section.dataset.stageHidden=String(hide);if(section.dataset.productionSection!=='publish')section.hidden=hide;});
     document.querySelectorAll('[data-production-stage]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.productionStage===name)));
-    const next=stages.indexOf(name)+1;$('production-next').hidden=next===stages.length;
-    $('production-next').textContent='다음: '+stageNames[next]+' →';
+    const next=stages.indexOf(name)+1;$('production-next').hidden=false;
+    $('production-next').textContent=next===stages.length?'게시·예약으로 이동 →':'다음: '+stageNames[next]+' →';
   }
   document.querySelectorAll('[data-production-stage]').forEach(button=>button.onclick=()=>selectStage(button.dataset.productionStage));
-  $('new-job').addEventListener('click',()=>{selectStage('analysis');($('fetch-url')||$('video-file'))?.focus();});
-  $('production-next').onclick=()=>selectStage(stages[stages.indexOf(stage)+1]);
+  $('new-job').addEventListener('click',()=>{selectWorkspace('create');selectStage('analysis');($('fetch-url')||$('video-file'))?.focus();});
+  $('production-next').onclick=()=>stages.indexOf(stage)===stages.length-1?selectWorkspace('publish'):selectStage(stages[stages.indexOf(stage)+1]);
   function bridge(kind,downloadId){return new Promise((resolve,reject)=>{
     const requestId=crypto.randomUUID(),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('타코 확장을 새로고침한 뒤 다시 연결하세요. 다른 위치의 파일은 제작 화면에서 직접 선택할 수 있습니다.'));},5000);
     pending.set(requestId,{resolve,reject,timer,kind,downloadId});window.postMessage({source:'takoh-studio-ui',kind,downloadId,requestId},location.origin);
@@ -70,12 +70,12 @@
     if(event.data.success)waiter.resolve(event.data.data);else waiter.reject(new Error(event.data.error||'파일 연결 실패'));
   });
   function selectWorkspace(name){
-    if(!['download','discovery','research','create','settings'].includes(name))name='download';
+    if(!['download','discovery','research','create','publish','settings'].includes(name))name='download';
     const download=name==='download';
     $('download-workspace').hidden=!download;
     if($('discovery-workspace'))$('discovery-workspace').hidden=name!=='discovery';
     if($('research-workspace'))$('research-workspace').hidden=name!=='research';
-    $('create-workspace').hidden=name!=='create';
+    $('create-workspace').hidden=name!=='create';if($('publish-workspace'))$('publish-workspace').hidden=name!=='publish';
     $('settings-workspace').hidden=name!=='settings';
     document.querySelectorAll('[data-workspace]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.workspace===name)));
     try{localStorage.setItem('takoh-workspace',name);}catch{}
@@ -1226,7 +1226,7 @@
 
   async function refreshUsage(){try{const result=await api('usage');$('usage-note').textContent=result.scope+' · '+result.note;$('ai-usage').replaceChildren();if(!result.groups?.length){$('ai-usage').append(text('p','아직 기록된 AI 요청이 없습니다.'));return;}const table=document.createElement('table');table.className='usage-table';const header=document.createElement('tr');for(const label of ['연결 / 모델','시도 / 반환 / 오류','입력 토큰','출력 토큰','전체 토큰','토큰 기록'])header.append(text('th',label));table.append(header);for(const group of result.groups){const row=document.createElement('tr');const known=group.reported_calls>0;for(const value of [group.provider+' / '+group.model,`${group.calls} / ${group.successful} / ${group.failed}`,group.token_available?.input_tokens?group.input_tokens.toLocaleString():'미제공',group.token_available?.output_tokens?group.output_tokens.toLocaleString():'미제공',group.token_available?.total_tokens?group.total_tokens.toLocaleString():'미제공',`${group.reported_calls}/${group.calls}회`])row.append(text('td',String(value)));table.append(row);}$('ai-usage').append(table);}catch(error){$('usage-note').textContent=error.message;}}
   $('reload-usage').onclick=refreshUsage;
-  document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>selectWorkspace(button.dataset.workspace));
+  document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>selectWorkspace(button.dataset.workspace));document.querySelector('.workspace-tabs')?.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=[...document.querySelectorAll('.workspace-tabs [role=tab]')];const i=tabs.indexOf(document.activeElement);if(i<0)return;event.preventDefault();const n=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[n].focus();tabs[n].click();});
   async function importFile(downloadId, local){
     await act('다운로드한 실제 파일을 불러오는 중…',async()=>{
       const file=local||await bridge('download-file',downloadId);
@@ -1319,7 +1319,7 @@
   const transfer=location.hash.startsWith('#reference=');
   let saved='download';try{saved=localStorage.getItem('takoh-workspace')||'download';}catch{}
   const requested=location.hash.startsWith('#workspace=')?location.hash.slice(11):null;
-  selectWorkspace(transfer||$('incoming-reference').hidden===false?'create':requested==='create'?'create':requested==='research'?'research':requested==='discovery'?'discovery':requested==='download'?'download':saved);
+  selectWorkspace(transfer||$('incoming-reference').hidden===false?'create':requested==='publish'?'publish':requested==='create'?'create':requested==='research'?'research':requested==='discovery'?'discovery':requested==='download'?'download':saved);
   selectStage('reference');
   syncCollections();
 })();
