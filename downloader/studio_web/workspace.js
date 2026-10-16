@@ -68,9 +68,15 @@
     if(isMediaStage){
       document.querySelectorAll('[data-stage-view]').forEach(el=>{
         const view=el.dataset.stageView;
-        el.hidden=Boolean(!document.body.classList.contains('quick-sidebar-mode')&&view!==name);
+        if(el.id==='analysis-source-bar'){
+          el.hidden=(name!=='analysis');
+        }else{
+          el.hidden=Boolean(!document.body.classList.contains('quick-sidebar-mode')&&view!==name);
+        }
       });
     }
+    const sourceBar=document.getElementById('analysis-source-bar');
+    if(sourceBar)sourceBar.hidden=(name!=='analysis');
     const snapToolbar=document.querySelector('.player-canvas-toolbar-right');
     if(snapToolbar)snapToolbar.hidden=(name==='carousel');
     const carScrubBtn=document.getElementById('btn-capture-scrubber-carousel');

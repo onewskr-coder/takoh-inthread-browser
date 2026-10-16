@@ -421,6 +421,10 @@ function splitSlideThreeTierText(slideObj){
   const bodyText=(slideObj.body_text!==undefined&&String(slideObj.body_text).trim())?String(slideObj.body_text).trim():(lines.length>2?lines.slice(2).join('\n'):'');
   return {title,subtitle,bodyText};
 }
+let activeCarouselInspectorTab='text'; // 'text' | 'photo' | 'style'
+let carouselRealtimeTimer=null;
+let carouselSilentInflight=false;
+
 function renderCarouselPreview(){
   renderCarouselIntelBar();
   const wrap=$('carousel-slides-wrap'),grid=$('carousel-slides-preview'),label=$('carousel-slides-label'),workbench=$('carousel-active-workbench');
@@ -428,21 +432,23 @@ function renderCarouselPreview(){
   grid.replaceChildren();
   if(workbench)workbench.replaceChildren();
   const slides=job?.carousel?.slides||[];
-  const setupDrawer=$('carousel-batch-setup-drawer');
+  const globalDrawer=$('carousel-global-plan-drawer');
+  const storyboardDock=$('carousel-storyboard-dock');
   if(!job){wrap.hidden=true;return;}
   wrap.hidden=false;
   if(!slides.length){
-    if(setupDrawer)setupDrawer.open=true;
-    if(label)label.textContent='슬라이드 워크벤치 (아직 생성된 슬라이드가 없습니다)';
+    if(globalDrawer)globalDrawer.open=true;
+    if(storyboardDock)storyboardDock.hidden=true;
+    if(label)label.textContent='슬라이드 스토리보드 (아직 생성된 슬라이드가 없습니다)';
     if(workbench){
       const emptyBox=document.createElement('div');
       emptyBox.className='carousel-empty-workbench';
       emptyBox.append(
         text('strong','아직 생성된 캐러셀 슬라이드가 없습니다'),
-        text('p','위에서 첫 장(표지) 90% 후킹 공식(질문형·숫자형·반전형)과 8종 테마를 고른 뒤 [캐러셀 세트 생성]을 누르면 표지·본문·마지막장 슬라이드가 생성되며, 하단에서 사진 수정(이미지 추가·Ctrl+V 붙여넣기)·제목·부제목·본문 텍스트 추가를 바로 편집할 수 있습니다.')
+        text('p','상단 [캐러셀 세트 생성]을 누르면 좌측 원본 영상 참고 · 중앙 대형 미리보기 및 하단 스토리보드 · 우측 탭별 실시간 편집 워크벤치가 바로 열립니다.')
       );
       const actRow=document.createElement('div');
-      actRow.style.cssText='display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap;';
+      actRow.style.cssText='display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;';
       const bAuto=text('button','1. 분석·본문 자료로 대본 자동 채우기');
       bAuto.type='button';bAuto.className='secondary';
       bAuto.onclick=()=>$('btn-autofill-carousel-texts')?.click();
@@ -458,23 +464,25 @@ function renderCarouselPreview(){
     }
     return;
   }
-  if(setupDrawer&&slides.length>0)setupDrawer.open=false;
+  if(globalDrawer&&slides.length>0)globalDrawer.open=false;
+  if(storyboardDock)storyboardDock.hidden=false;
   if(!slides.some(s=>Number(s.index)===activeCarouselSlideIndex)){
     activeCarouselSlideIndex=Number(slides[0]?.index||1);
   }
   const activeSlide=slides.find(s=>Number(s.index)===activeCarouselSlideIndex)||slides[0];
   const tplLabel=carouselTemplateNames[job.carousel.template||'editorial_dark']||'시네마 리뷰 다크';
-  if(label)label.textContent=`슬라이드 스토리보드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`;
+  if(label)label.textContent=`하단 슬라이드 스토리보드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`;
   const base=`/studio/jobs/${job.id}/media/`;
   const tsCache=Math.floor((job.carousel.updated_at||Date.now())*1000);
   const maxDur=Math.max(0.5,Number(job.media?.duration||5));
 
-  // 1. Render Compact Horizontal Storyboard Filmstrip Deck ([1] [2] [3] [4] [+ 슬라이드 추가])
+  // 1. Render Bottom Horizontal Storyboard Filmstrip Deck ([1] [2] [3] [4] [+ 슬라이드 추가])
   for(const s of slides){
     const sRole=s.role||(s.index===1?'cover':(s.index===slides.length&&slides.length>=3?'cta':'body'));
     const isSelected=(Number(s.index)===Number(activeSlide?.index));
     const fig=document.createElement('figure');
     fig.className='carousel-storyboard-card'+(sRole==='cover'?' is-cover-slide':'')+(sRole==='cta'?' is-cta-slide':'')+(isSelected?' is-selected-slide':'');
+    fig.dataset.slideIndex=String(s.index);
     fig.onclick=()=>{
       activeCarouselSlideIndex=s.index;
       renderCarouselPreview();
@@ -493,6 +501,7 @@ function renderCarouselPreview(){
     const thumbWrap=document.createElement('div');
     thumbWrap.className='storyboard-thumb-wrap';
     const img=document.createElement('img');
+    img.className='storyboard-thumb-img';
     img.src=`${base}${s.file}?t=${tsCache}_${s.sha256||''}`;
     img.alt=`슬라이드 ${s.index}`;
     thumbWrap.append(img);
@@ -522,43 +531,56 @@ function renderCarouselPreview(){
     grid.append(addCard);
   }
 
-  // 2. Render Active Slide Live Workbench (Left: Live Preview, Right/Bottom: 1.사진수정 · 첫장후킹 · 2.제목 · 3.부제목 · 4.본문텍스트추가)
+  // 2. Render Center Large Live Preview + Right Tabbed Inspector
   if(workbench&&activeSlide){
     const activeRole=activeSlide.role||(activeSlide.index===1?'cover':(activeSlide.index===slides.length&&slides.length>=3?'cta':'body'));
     const activeTpl=activeSlide.template||job.carousel.template||'editorial_dark';
     const {title:initHead,subtitle:initSubtitle,bodyText:initBodyText}=splitSlideThreeTierText(activeSlide);
 
     const wbGrid=document.createElement('div');
-    wbGrid.className='carousel-wb-grid';
+    wbGrid.className='carousel-wb-grid carousel-3zone-grid';
 
-    // Left Column: Large Live Card Canvas Preview + Slide Navigation Strip
+    // === CENTER COLUMN: LARGE LIVE CARD PREVIEW + SLIDE NAVIGATION ===
     const wbPreviewCol=document.createElement('div');
     wbPreviewCol.className='carousel-wb-preview-col';
     const wbPreviewHeader=document.createElement('div');
     wbPreviewHeader.className='carousel-wb-preview-head';
     const rolePill=text('span',activeRole==='cover'?'01 첫장 표지 (90% 후킹)':(activeRole==='cta'?`0${activeSlide.index} 마지막장 요약·CTA`:`0${activeSlide.index} 본문 슬라이드`));
     rolePill.className=`wb-role-pill role-${activeRole}`;
+
+    const liveSyncBadge=text('span','실시간 자동 반영');
+    liveSyncBadge.id='wb-live-sync-badge';
+    liveSyncBadge.className='wb-live-sync-badge';
+
     const slideNavWrap=document.createElement('div');
     slideNavWrap.className='wb-slide-nav-btns';
     const btnPrevSlide=text('button','◀ 이전');btnPrevSlide.type='button';btnPrevSlide.className='secondary btn-xs';
     btnPrevSlide.disabled=activeSlide.index<=1;
     btnPrevSlide.onclick=()=>{activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);renderCarouselPreview();};
     const slideIdxLabel=text('strong',`0${activeSlide.index} / 0${slides.length}`);
-    slideIdxLabel.style.cssText='font-size:11.5px;white-space:nowrap;';
+    slideIdxLabel.style.cssText='font-size:12px;white-space:nowrap;';
     const btnNextSlide=text('button','다음 ▶');btnNextSlide.type='button';btnNextSlide.className='secondary btn-xs';
     btnNextSlide.disabled=activeSlide.index>=slides.length;
     btnNextSlide.onclick=()=>{activeCarouselSlideIndex=Math.min(slides.length,activeSlide.index+1);renderCarouselPreview();};
-    slideNavWrap.append(btnPrevSlide,slideIdxLabel,btnNextSlide);
+    slideNavWrap.append(liveSyncBadge,btnPrevSlide,slideIdxLabel,btnNextSlide);
     wbPreviewHeader.append(rolePill,slideNavWrap);
 
     const wbStage=document.createElement('div');
-    wbStage.className='carousel-wb-stage wb-canvas-frame';
+    wbStage.className='carousel-wb-stage wb-canvas-frame wb-large-center-frame';
     wbStage.title='이미지를 이곳에 드래그 앤 드롭하거나 Ctrl+V를 누르면 이 슬라이드 사진이 바로 교체됩니다';
     const bigImg=document.createElement('img');
+    bigImg.id='wb-active-slide-big-img';
     bigImg.src=`${base}${activeSlide.file}?t=${tsCache}_${activeSlide.sha256||''}`;
     bigImg.alt=`선택된 슬라이드 #${activeSlide.index} 미리보기`;
     bigImg.onclick=()=>{if($('preview')&&job.kind!=='image'){$('preview').currentTime=Number(activeSlide.timestamp||0);}};
-    wbStage.append(bigImg);
+
+    // Instant Live Text Overlay Layer (shows while user is typing before Pillow background render finishes)
+    const liveOverlay=document.createElement('div');
+    liveOverlay.id='wb-live-typing-overlay';
+    liveOverlay.className='wb-live-typing-overlay';
+    liveOverlay.hidden=true;
+
+    wbStage.append(bigImg,liveOverlay);
 
     // Support Drag-and-Drop image onto the preview stage
     wbStage.addEventListener('dragover',e=>{e.preventDefault();wbStage.classList.add('drag-over');});
@@ -576,24 +598,91 @@ function renderCarouselPreview(){
       }
     });
 
-    const wbHint=text('p',`이 화면에서 바로 Ctrl+V(이미지 붙여넣기) 또는 이미지를 드래그해 놓으면 #${activeSlide.index}번 슬라이드 사진이 교체됩니다.`);
+    // Slide Order & Quick Action Bar right below the Large Preview
+    const wbPreviewFooter=document.createElement('div');
+    wbPreviewFooter.className='wb-preview-quick-footer';
+    const orderGroup=document.createElement('div');
+    orderGroup.style.cssText='display:flex;gap:5px;flex-wrap:wrap;align-items:center;';
+    if(activeSlide.index>1){
+      const bLeft=text('button','◀ 앞으로 이동');bLeft.type='button';bLeft.className='secondary btn-xs';
+      bLeft.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
+        const nextIdx=activeSlide.index-1;
+        await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:-1});
+        activeCarouselSlideIndex=nextIdx;
+        renderCarouselPreview();
+      });
+      orderGroup.append(bLeft);
+    }
+    if(activeSlide.index<slides.length){
+      const bRight=text('button','뒤로 이동 ▶');bRight.type='button';bRight.className='secondary btn-xs';
+      bRight.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
+        const nextIdx=activeSlide.index+1;
+        await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:1});
+        activeCarouselSlideIndex=nextIdx;
+        renderCarouselPreview();
+      });
+      orderGroup.append(bRight);
+    }
+    if(slides.length>2){
+      const bDel=text('button','슬라이드 삭제');bDel.type='button';bDel.className='secondary btn-xs btn-subtle-danger';
+      bDel.onclick=()=>act(`슬라이드 #${activeSlide.index} 삭제 중…`,async()=>{
+        await update('carousel-slide-action',{action:'delete',index:activeSlide.index});
+        activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);
+        renderCarouselPreview();
+      });
+      orderGroup.append(bDel);
+    }
+    const wbHint=text('span','팁: 카드 위에서 바로 Ctrl+V 또는 이미지 드래그 시 사진 즉시 교체');
     wbHint.className='hint';
-    wbHint.style.margin='6px 0 0';
-    wbPreviewCol.append(wbPreviewHeader,wbStage,wbHint);
+    wbHint.style.margin='0';
+    wbPreviewFooter.append(orderGroup,wbHint);
+    wbPreviewCol.append(wbPreviewHeader,wbStage,wbPreviewFooter);
 
-    // Right Column: Structured Slide Workbench (사진 수정 -> 첫장 후킹 공식 -> 제목 -> 부제목 -> 본문 텍스트 추가 -> 스타일/테마)
+    // === RIGHT COLUMN: TABBED INSPECTOR (① 문구·후킹 | ② 사진·배경 | ③ 테마·글꼴·획) ===
     const wbInspectorCol=document.createElement('div');
-    wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector';
+    wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector carousel-tabbed-inspector';
 
     const inspHead=document.createElement('div');
     inspHead.className='wb-inspector-head';
-    const photoStatusText=activeSlide.custom_image?'사용자 추가/붙여넣기 사진 적용됨':(job.kind==='image'?'원본 이미지 배경':`영상 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`);
+    const photoStatusText=activeSlide.custom_image?'내 사진 적용됨':(job.kind==='image'?'원본 이미지':`영상 ${Number(activeSlide.timestamp||0).toFixed(1)}초`);
     inspHead.append(
-      text('h4',`슬라이드 #${activeSlide.index} 하단 구성 편집 (${activeRole==='cover'?'첫장 표지 · 90% 후킹':activeRole==='cta'?'마지막장 요약':'본문 카드'})`),
+      text('h4',`슬라이드 #${activeSlide.index} 실시간 수정 (${activeRole==='cover'?'첫장 표지':activeRole==='cta'?'마지막장 요약':'본문 카드'})`),
       text('span',photoStatusText)
     );
 
-    // Forward declare inputs & update helper so all sections can call applyActiveSlideUpdate
+    // Tab Navigation Bar inside Right Inspector
+    const inspTabsBar=document.createElement('div');
+    inspTabsBar.className='wb-inspector-tabs';
+    inspTabsBar.setAttribute('role','tablist');
+    const tabDefs=[
+      {id:'text',label:'① 문구 · 후킹 편집'},
+      {id:'photo',label:'② 사진 · 배경 교체'},
+      {id:'style',label:'③ 테마 · 글꼴 · 획'}
+    ];
+    const tabPanels={};
+    const switchCarouselInspectorTab=tabId=>{
+      activeCarouselInspectorTab=tabId;
+      inspTabsBar.querySelectorAll('.wb-insp-tab-btn').forEach(b=>{
+        const isAct=(b.dataset.wbTab===tabId);
+        b.classList.toggle('active',isAct);
+        b.setAttribute('aria-selected',String(isAct));
+      });
+      for(const [k,panelEl] of Object.entries(tabPanels)){
+        if(panelEl)panelEl.hidden=(k!==tabId);
+      }
+    };
+    for(const td of tabDefs){
+      const tBtn=text('button',td.label);
+      tBtn.type='button';
+      tBtn.className='wb-insp-tab-btn'+(td.id===activeCarouselInspectorTab?' active':'');
+      tBtn.dataset.wbTab=td.id;
+      tBtn.setAttribute('role','tab');
+      tBtn.setAttribute('aria-selected',String(td.id===activeCarouselInspectorTab));
+      tBtn.onclick=()=>switchCarouselInspectorTab(td.id);
+      inspTabsBar.append(tBtn);
+    }
+
+    // Forward declare inputs & real-time update helpers
     let headInput,subtitleInput,bodyTextarea,badgeInput,roleSelect,tplSelect,fontSelectEl,s1Num,s1Color,s2Num,s2Color;
     const composeThreeTierText=()=>{
       const t=(headInput?.value||'').trim();
@@ -601,7 +690,8 @@ function renderCarouselPreview(){
       const b=(bodyTextarea?.value||'').trim();
       return [t,s,b].filter(Boolean).join('\n');
     };
-    const applyActiveSlideUpdate=extra=>act(`슬라이드 #${activeSlide.index} 재합성 중…`,()=>update('carousel-slide-update',{
+
+    const buildSlidePayload=(extra={})=>({
       index:activeSlide.index,
       timestamp:extra.timestamp!==undefined?extra.timestamp:activeSlide.timestamp,
       title:extra.title!==undefined?extra.title:(headInput?.value||'').trim(),
@@ -619,21 +709,271 @@ function renderCarouselPreview(){
       ...(extra.image_data_url?{image_data_url:extra.image_data_url}:{}),
       ...(extra.clear_custom_image?{clear_custom_image:true}:{}),
       ...(extra.hook_formula?{hook_formula:extra.hook_formula}:{})
-    }),`슬라이드 #${activeSlide.index} 변경사항을 카드에 반영했습니다.`);
+    });
 
-    // --- SECTION 1: 사진 수정 (이미지 파일 추가 · Ctrl+V 복사 붙여넣기 · 영상 시점 캡처) ---
+    // Instant DOM Live Preview Overlay while typing (0ms feedback) + Debounced Silent Server Render (240ms)
+    const updateInstantTypingOverlay=()=>{
+      if(!liveOverlay)return;
+      const curTitle=(headInput?.value||'').trim();
+      const curSub=(subtitleInput?.value||'').trim();
+      const curBody=(bodyTextarea?.value||'').trim();
+      const curBadge=(badgeInput?.value||'').trim();
+      const curFontKey=fontSelectEl?.value||activeSlide.font_family||job?.carousel?.font_family||'heavy_kr';
+      const fCss=(CSS_FONT_MAP[curFontKey]||CSS_FONT_MAP.heavy_kr).replace(/"/g,"'");
+      const s1W=Number(s1Num?.value||0);
+      const s1C=s1Color?.value||'#000000';
+      const s2W=Number(s2Num?.value||0);
+      const s2C=s2Color?.value||'#facc15';
+      const strokeShadow=buildLiveDoubleStrokeTextShadow(s1W,s1C,s2W,s2C,380,'0 2px 6px rgba(0,0,0,0.85)');
+
+      liveOverlay.hidden=false;
+      liveOverlay.style.fontFamily=fCss;
+      liveOverlay.innerHTML=`
+        <div class="wb-live-overlay-card" style="font-family:${fCss};text-shadow:${strokeShadow};">
+          ${curBadge?`<span class="wb-live-badge">${formatHighlightPreviewHtml(curBadge)}</span>`:''}
+          ${curTitle?`<div class="wb-live-title">${formatHighlightPreviewHtml(curTitle)}</div>`:''}
+          ${curSub?`<div class="wb-live-sub">${formatHighlightPreviewHtml(curSub)}</div>`:''}
+          ${curBody?`<div class="wb-live-body">${formatHighlightPreviewHtml(curBody.replace(/\n/g,'<br>'))}</div>`:''}
+        </div>
+      `;
+      const sumCard=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-card-summary strong`);
+      if(sumCard)sumCard.textContent=(curTitle||'문구 없음').slice(0,24);
+      if(liveSyncBadge){
+        liveSyncBadge.textContent='실시간 반영 중…';
+        liveSyncBadge.classList.add('syncing');
+      }
+    };
+
+    const runSilentSlideUpdate=async(extra={})=>{
+      const targetJobId=job?.id;
+      if(!targetJobId)return;
+      const payload=buildSlidePayload(extra);
+      if(liveSyncBadge){
+        liveSyncBadge.textContent='카드 합성 중…';
+        liveSyncBadge.classList.add('syncing');
+      }
+      carouselSilentInflight=true;
+      try{
+        const nextJob=await api(`jobs/${targetJobId}/carousel-slide-update`,payload);
+        if(job?.id!==targetJobId)return;
+        job=nextJob;
+        const updatedSlide=(job.carousel?.slides||[]).find(s=>Number(s.index)===Number(payload.index));
+        if(updatedSlide){
+          Object.assign(activeSlide,updatedSlide);
+          const newUrl=`/studio/jobs/${job.id}/media/${updatedSlide.file}?t=${Date.now()}_${updatedSlide.sha256||''}`;
+          const preloader=new Image();
+          preloader.onload=()=>{
+            if(bigImg)bigImg.src=newUrl;
+            const thumbImg=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${updatedSlide.index}"] .storyboard-thumb-img`);
+            if(thumbImg)thumbImg.src=newUrl;
+            if(liveOverlay)liveOverlay.hidden=true;
+            if(liveSyncBadge){
+              liveSyncBadge.textContent='✓ 실시간 반영됨';
+              liveSyncBadge.classList.remove('syncing');
+            }
+          };
+          preloader.src=newUrl;
+        }
+      }catch(err){
+        if(liveSyncBadge){
+          liveSyncBadge.textContent='저장 대기';
+          liveSyncBadge.classList.remove('syncing');
+        }
+      }finally{
+        carouselSilentInflight=false;
+      }
+    };
+
+    const scheduleRealtimeSlideSync=(extra={},delayMs=240)=>{
+      updateInstantTypingOverlay();
+      if(carouselRealtimeTimer)clearTimeout(carouselRealtimeTimer);
+      carouselRealtimeTimer=setTimeout(()=>{
+        runSilentSlideUpdate(extra);
+      },delayMs);
+    };
+
+    const applyActiveSlideUpdate=(extra={})=>{
+      if(carouselRealtimeTimer)clearTimeout(carouselRealtimeTimer);
+      return runSilentSlideUpdate(extra);
+    };
+
+    // =========================================================================
+    // TAB 1 PANEL: ① 문구 · 후킹 편집 (후킹 공식 + 제목 + 부제목 + 본문 + 배지)
+    // =========================================================================
+    const tabTextPanel=document.createElement('div');
+    tabTextPanel.className='wb-tab-panel';
+    tabPanels.text=tabTextPanel;
+
+    const hookFormulaBox=document.createElement('div');
+    hookFormulaBox.className='wb-structured-section wb-cover-hook-box';
+    const hookHead=document.createElement('div');
+    hookHead.className='wb-section-head';
+    hookHead.append(
+      text('strong',activeSlide.index===1?'첫 장(표지) 90% 바이럴 후킹 공식 (클릭 즉시 변환)':'슬라이드 후킹 공식 변환 (클릭 즉시 반영)'),
+      text('span','원클릭 실시간 적용')
+    );
+    const hookChipsRow=document.createElement('div');
+    hookChipsRow.className='cover-hook-formula-chips';
+    const curFormula=$('carousel-cover-hook-formula')?.value||'number';
+    for(const [fKey,fMeta] of Object.entries(coverHookFormulaMeta)){
+      const chip=document.createElement('button');
+      chip.type='button';
+      chip.className='cover-hook-chip'+(fKey===curFormula?' active':'');
+      chip.append(text('strong',fMeta.name),text('small',fMeta.desc));
+      chip.onclick=()=>{
+        if($('carousel-cover-hook-formula'))$('carousel-cover-hook-formula').value=fKey;
+        hookChipsRow.querySelectorAll('.cover-hook-chip').forEach(c=>c.classList.toggle('active',c===chip));
+        const prod=($('product-name')?.value||job?.product?.name||'').trim();
+        const lines=extractBestHookLines();
+        const seedTopic=(headInput?.value||'').trim()||lines[0]||'핵심 포인트';
+        const seedSub=(subtitleInput?.value||'').trim()||lines[1]||'';
+        const formatted=formatCoverHookByFormula(fKey,seedTopic,seedSub,prod,slides.length);
+        if(headInput)headInput.value=formatted.title;
+        if(subtitleInput)subtitleInput.value=formatted.subtitle;
+        if(badgeInput&&activeRole==='cover')badgeInput.value=formatted.badge;
+        if(activeSlide.index===1&&$('carousel-cover-title')){
+          $('carousel-cover-title').value=formatted.combined;
+        }
+        updateInstantTypingOverlay();
+        applyActiveSlideUpdate({
+          title:formatted.title,
+          subtitle:formatted.subtitle,
+          badge:activeRole==='cover'?formatted.badge:(badgeInput?.value||'').trim(),
+          hook_formula:fKey
+        });
+      };
+      hookChipsRow.append(chip);
+    }
+    hookFormulaBox.append(hookHead,hookChipsRow);
+
+    // Title Input
+    const titleSection=document.createElement('div');
+    titleSection.className='wb-structured-section wb-text-tier-box';
+    const headTopBar=document.createElement('div');
+    headTopBar.className='wb-section-head';
+    const headLabelEl=text('strong',activeRole==='cover'?'1. 제목 (첫장 핵심 후킹 대제목)':(activeRole==='cta'?'1. 제목 (마지막장 핵심 결론)':'1. 제목 (슬라이드 메인 헤드라인)'));
+    const syntaxBtns=document.createElement('div');
+    syntaxBtns.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
+    const btnHlBox=text('button','+ [박스 강조]');btnHlBox.type='button';btnHlBox.className='secondary btn-xs';
+    const btnHlAcc=text('button','+ *색상 강조*');btnHlAcc.type='button';btnHlAcc.className='secondary btn-xs';
+    headInput=document.createElement('input');
+    headInput.type='text';
+    headInput.id='wb-active-head-input';
+    headInput.value=initHead;
+    headInput.placeholder='예: [잘 터지는] *캐러셀* 제작하기 (입력 즉시 미리보기에 반영됩니다)';
+    headInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
+    btnHlBox.onclick=()=>{
+      const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
+      const sel=headInput.value.slice(st,en)||'핵심키워드';
+      headInput.value=headInput.value.slice(0,st)+`[${sel}]`+headInput.value.slice(en);
+      headInput.focus();
+      scheduleRealtimeSlideSync({},100);
+    };
+    btnHlAcc.onclick=()=>{
+      const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
+      const sel=headInput.value.slice(st,en)||'강조단어';
+      headInput.value=headInput.value.slice(0,st)+`*${sel}*`+headInput.value.slice(en);
+      headInput.focus();
+      scheduleRealtimeSlideSync({},100);
+    };
+    syntaxBtns.append(btnHlBox,btnHlAcc);
+    headTopBar.append(headLabelEl,syntaxBtns);
+    titleSection.append(headTopBar,headInput);
+
+    // Subtitle Input
+    const subtitleSection=document.createElement('div');
+    subtitleSection.className='wb-structured-section wb-text-tier-box';
+    const subTopBar=document.createElement('div');
+    subTopBar.className='wb-section-head';
+    subTopBar.append(
+      text('strong','2. 부제목 (제목 아래 보조 카피 · 훅 설명)'),
+      text('span','입력 즉시 실시간 반영')
+    );
+    subtitleInput=document.createElement('input');
+    subtitleInput.type='text';
+    subtitleInput.id='wb-active-subtitle-input';
+    subtitleInput.value=initSubtitle;
+    subtitleInput.placeholder=activeRole==='cover'?'예: 잘 되는 캐러셀에는 공식이 있습니다!':'예: 실사용에서 가장 먼저 체감된 핵심 차이점';
+    subtitleInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
+    subtitleSection.append(subTopBar,subtitleInput);
+
+    // Body Text + Badge Input
+    const bodyTextSection=document.createElement('div');
+    bodyTextSection.className='wb-structured-section wb-text-tier-box';
+    const bodyTopBar=document.createElement('div');
+    bodyTopBar.className='wb-section-head';
+    bodyTopBar.append(text('strong','3. 본문 텍스트 및 상단 배지'));
+    const bodyBtnGroup=document.createElement('div');
+    bodyBtnGroup.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
+    bodyTextarea=document.createElement('textarea');
+    bodyTextarea.id='wb-active-body-input';
+    bodyTextarea.rows=2;
+    bodyTextarea.value=initBodyText;
+    bodyTextarea.placeholder='슬라이드에 추가로 넣을 본문 텍스트나 체크포인트를 입력하세요';
+    bodyTextarea.addEventListener('input',()=>scheduleRealtimeSlideSync({},240));
+    const btnAddBullet=text('button','+ 체크포인트 줄 추가');
+    btnAddBullet.type='button';
+    btnAddBullet.className='secondary btn-xs';
+    btnAddBullet.onclick=()=>{
+      const lines=extractBestHookLines();
+      const candidate=lines[(activeSlide.index+1)%lines.length]||'핵심 실사용 체크 포인트';
+      const cur=bodyTextarea.value.trim();
+      bodyTextarea.value=cur?`${cur}\n· ${candidate}`:`· ${candidate}`;
+      bodyTextarea.focus();
+      scheduleRealtimeSlideSync({},100);
+    };
+    const btnClearBody=text('button','본문 비우기');
+    btnClearBody.type='button';
+    btnClearBody.className='secondary btn-xs';
+    btnClearBody.onclick=()=>{bodyTextarea.value='';bodyTextarea.focus();scheduleRealtimeSlideSync({},100);};
+    bodyBtnGroup.append(btnAddBullet,btnClearBody);
+    bodyTopBar.append(bodyBtnGroup);
+
+    const badgeRow=document.createElement('div');
+    badgeRow.style.cssText='display:flex;align-items:center;gap:8px;margin-top:6px;';
+    const badgeLbl=text('span','상단 배지(Kicker):');
+    badgeLbl.style.cssText='font-size:11.5px;font-weight:700;color:#475569;white-space:nowrap;';
+    badgeInput=document.createElement('input');
+    badgeInput.type='text';
+    badgeInput.id='wb-active-badge-input';
+    badgeInput.style.cssText='flex:1;margin:0;';
+    badgeInput.value=activeSlide.badge||(activeRole==='cover'?'MAIN COVER':(activeRole==='cta'?'SUMMARY · CTA':`POINT 0${Math.max(1,activeSlide.index-1)}`));
+    badgeInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
+    badgeRow.append(badgeLbl,badgeInput);
+
+    bodyTextSection.append(bodyTopBar,bodyTextarea,badgeRow);
+    tabTextPanel.append(hookFormulaBox,titleSection,subtitleSection,bodyTextSection);
+
+    // Keep legacy #wb-active-sub-input hidden alias synced
+    const legacySubHidden=document.createElement('textarea');
+    legacySubHidden.id='wb-active-sub-input';
+    legacySubHidden.hidden=true;
+    legacySubHidden.value=[initSubtitle,initBodyText].filter(Boolean).join('\n');
+    const syncLegacySub=()=>{
+      legacySubHidden.value=[(subtitleInput?.value||'').trim(),(bodyTextarea?.value||'').trim()].filter(Boolean).join('\n');
+    };
+    subtitleInput.addEventListener('input',syncLegacySub);
+    bodyTextarea.addEventListener('input',syncLegacySub);
+
+    // =========================================================================
+    // TAB 2 PANEL: ② 사진 · 배경 교체 (클립보드 붙여넣기 · 파일 추가 · 좌측 영상 시점 캡처)
+    // =========================================================================
+    const tabPhotoPanel=document.createElement('div');
+    tabPhotoPanel.className='wb-tab-panel';
+    tabPanels.photo=tabPhotoPanel;
+
     const photoBox=document.createElement('div');
     photoBox.className='wb-structured-section wb-photo-edit-box';
     const photoHead=document.createElement('div');
     photoHead.className='wb-section-head';
-    const photoTitle=text('strong','1. 사진 수정 (이미지 추가 · 복사 붙여넣기 · 장면 캡처)');
+    const photoTitle=text('strong','슬라이드 사진 교체 (클립보드 Ctrl+V · 파일 추가 · 좌측 영상 시점 캡처)');
     const photoBadge=text('span',activeSlide.custom_image?'외부 사진 적용됨':'영상/원본 프레임');
     photoBadge.className='wb-section-pill'+(activeSlide.custom_image?' active':'');
     photoHead.append(photoTitle,photoBadge);
 
     const photoActionRow=document.createElement('div');
     photoActionRow.className='wb-photo-action-row';
-    const btnUploadPhoto=text('button','+ 이미지 파일 추가/교체');
+    const btnUploadPhoto=text('button','+ 내 PC 이미지 파일로 교체');
     btnUploadPhoto.type='button';
     btnUploadPhoto.className='secondary btn-xs';
     btnUploadPhoto.onclick=()=>{
@@ -661,17 +1001,29 @@ function renderCarouselPreview(){
     photoActionRow.append(btnUploadPhoto,btnPastePhoto,btnAddSlideWithPhoto);
 
     if(job.kind!=='image'){
-      const btnTsMinus=text('button','-0.5초');btnTsMinus.type='button';btnTsMinus.className='secondary btn-xs';
-      btnTsMinus.onclick=()=>applyActiveSlideUpdate({timestamp:Math.max(0,Number(activeSlide.timestamp||0)-0.5),clear_custom_image:true});
-      const btnTsPlus=text('button','+0.5초');btnTsPlus.type='button';btnTsPlus.className='secondary btn-xs';
-      btnTsPlus.onclick=()=>applyActiveSlideUpdate({timestamp:Math.min(Math.max(0,maxDur-0.1),Number(activeSlide.timestamp||0)+0.5),clear_custom_image:true});
-      const btnTsCapture=text('button','현재 영상 시점 캡처');btnTsCapture.type='button';btnTsCapture.className='secondary btn-xs';
+      const videoCaptureBox=document.createElement('div');
+      videoCaptureBox.className='wb-structured-section';
+      videoCaptureBox.style.marginTop='8px';
+      const vcHead=document.createElement('div');
+      vcHead.className='wb-section-head';
+      vcHead.append(text('strong','좌측 원본 영상에서 장면 가져오기'),text('span',`현재 슬라이드 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`));
+      const vcBtns=document.createElement('div');
+      vcBtns.className='wb-photo-action-row';
+      const btnTsCapture=text('button','좌측 영상의 현재 재생 시점으로 배경 즉시 교체');
+      btnTsCapture.type='button';
+      btnTsCapture.className='btn-xs';
       btnTsCapture.onclick=()=>{
         const cur=$('preview')?.currentTime;
         const rawTs=(typeof cur==='number'&&Number.isFinite(cur))?cur:Number(activeSlide.timestamp||0);
         applyActiveSlideUpdate({timestamp:Math.min(Math.max(0,maxDur-0.1),rawTs),clear_custom_image:true});
       };
-      photoActionRow.append(btnTsMinus,btnTsPlus,btnTsCapture);
+      const btnTsMinus=text('button','-0.5초 이전 장면');btnTsMinus.type='button';btnTsMinus.className='secondary btn-xs';
+      btnTsMinus.onclick=()=>applyActiveSlideUpdate({timestamp:Math.max(0,Number(activeSlide.timestamp||0)-0.5),clear_custom_image:true});
+      const btnTsPlus=text('button','+0.5초 다음 장면');btnTsPlus.type='button';btnTsPlus.className='secondary btn-xs';
+      btnTsPlus.onclick=()=>applyActiveSlideUpdate({timestamp:Math.min(Math.max(0,maxDur-0.1),Number(activeSlide.timestamp||0)+0.5),clear_custom_image:true});
+      vcBtns.append(btnTsCapture,btnTsMinus,btnTsPlus);
+      videoCaptureBox.append(vcHead,vcBtns);
+      tabPhotoPanel.append(videoCaptureBox);
     }
     if(activeSlide.custom_image){
       const btnResetFrame=text('button','원본 영상/이미지 배경으로 복원');
@@ -680,148 +1032,35 @@ function renderCarouselPreview(){
       btnResetFrame.onclick=()=>applyActiveSlideUpdate({clear_custom_image:true});
       photoActionRow.append(btnResetFrame);
     }
-    const photoHint=text('p','팁: 웹페이지나 캡처 도구에서 이미지를 복사(Ctrl+C)한 뒤 이 화면에서 Ctrl+V를 누르면 현재 슬라이드 사진이 즉시 바뀝니다.');
+    const photoHint=text('p','팁: 웹페이지나 캡처 도구에서 이미지를 복사(Ctrl+C)한 뒤 화면에서 바로 Ctrl+V를 누르거나, 좌측 추출 프레임의 [슬라이드 배경] 버튼을 클릭하면 즉시 바뀝니다.');
     photoHint.className='hint';
     photoBox.append(photoHead,photoActionRow,photoHint);
+    tabPhotoPanel.prepend(photoBox);
 
-    // --- COVER HOOK FORMULA BAR (Especially highlighted on Slide 1 / Cover, or available to convert any slide into a hook cover) ---
-    const hookFormulaBox=document.createElement('div');
-    hookFormulaBox.className='wb-structured-section wb-cover-hook-box';
-    const hookHead=document.createElement('div');
-    hookHead.className='wb-section-head';
-    hookHead.append(
-      text('strong',activeSlide.index===1?'첫 장(표지)이 90% — 바이럴 후킹 공식 원클릭 적용':'슬라이드 후킹 공식 변환 (질문형 · 숫자형 · 반전형)'),
-      text('span','클릭 시 제목·부제목 즉시 변환')
-    );
-    const hookChipsRow=document.createElement('div');
-    hookChipsRow.className='cover-hook-formula-chips';
-    const curFormula=$('carousel-cover-hook-formula')?.value||'number';
-    for(const [fKey,fMeta] of Object.entries(coverHookFormulaMeta)){
-      const chip=document.createElement('button');
-      chip.type='button';
-      chip.className='cover-hook-chip'+(fKey===curFormula?' active':'');
-      chip.append(text('strong',fMeta.name),text('small',fMeta.desc));
-      chip.onclick=()=>{
-        if($('carousel-cover-hook-formula'))$('carousel-cover-hook-formula').value=fKey;
-        document.querySelectorAll('.cover-hook-chip').forEach(c=>c.classList.toggle('active',c.dataset.coverHookFormula===fKey||c===chip));
-        const prod=($('product-name')?.value||job?.product?.name||'').trim();
-        const lines=extractBestHookLines();
-        const seedTopic=(headInput?.value||'').trim()||lines[0]||'핵심 포인트';
-        const seedSub=(subtitleInput?.value||'').trim()||lines[1]||'';
-        const formatted=formatCoverHookByFormula(fKey,seedTopic,seedSub,prod,slides.length);
-        if(headInput)headInput.value=formatted.title;
-        if(subtitleInput)subtitleInput.value=formatted.subtitle;
-        if(badgeInput&&activeRole==='cover')badgeInput.value=formatted.badge;
-        if(activeSlide.index===1&&$('carousel-cover-title')){
-          $('carousel-cover-title').value=formatted.combined;
-        }
-        applyActiveSlideUpdate({
-          title:formatted.title,
-          subtitle:formatted.subtitle,
-          badge:activeRole==='cover'?formatted.badge:(badgeInput?.value||'').trim(),
-          hook_formula:fKey
-        });
+    // =========================================================================
+    // TAB 3 PANEL: ③ 테마 · 글꼴 · 획 (역할 선택 · 8종 테마 · 25종 글꼴 · 2중 획)
+    // =========================================================================
+    const tabStylePanel=document.createElement('div');
+    tabStylePanel.className='wb-tab-panel';
+    tabPanels.style=tabStylePanel;
+
+    const styleBox=document.createElement('div');
+    styleBox.className='wb-structured-section';
+
+    // Quick Role Preset Buttons
+    const roleQuickBar=document.createElement('div');
+    roleQuickBar.className='wb-role-quick-bar';
+    for(const [rKey,rShort] of [['cover','표지(Cover) 레이아웃'],['body','본문(Body) 레이아웃'],['cta','요약(CTA) 레이아웃']]){
+      const rBtn=text('button',rShort);
+      rBtn.type='button';
+      rBtn.className='secondary btn-xs'+(rKey===activeRole?' active':'');
+      rBtn.onclick=()=>{
+        roleSelect.value=rKey;
+        roleQuickBar.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===rBtn));
+        applyActiveSlideUpdate({role:rKey});
       };
-      hookChipsRow.append(chip);
+      roleQuickBar.append(rBtn);
     }
-    hookFormulaBox.append(hookHead,hookChipsRow);
-
-    // --- SECTION 2: 제목 (Title) ---
-    const titleSection=document.createElement('div');
-    titleSection.className='wb-structured-section wb-text-tier-box';
-    const headTopBar=document.createElement('div');
-    headTopBar.className='wb-section-head';
-    const headLabelEl=text('strong',activeRole==='cover'?'2. 제목 (첫장 핵심 후킹 대제목)':(activeRole==='cta'?'2. 제목 (마지막장 핵심 결론)':'2. 제목 (슬라이드 메인 헤드라인)'));
-    const syntaxBtns=document.createElement('div');
-    syntaxBtns.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
-    const btnHlBox=text('button','+ [박스 강조]');btnHlBox.type='button';btnHlBox.className='secondary btn-xs';
-    const btnHlAcc=text('button','+ *색상 강조*');btnHlAcc.type='button';btnHlAcc.className='secondary btn-xs';
-    headInput=document.createElement('input');
-    headInput.type='text';
-    headInput.id='wb-active-head-input';
-    headInput.value=initHead;
-    headInput.placeholder='예: [잘 터지는] *캐러셀* 제작하기 ([대괄호]=박스 강조, *별표*=색상 강조)';
-    btnHlBox.onclick=()=>{
-      const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
-      const sel=headInput.value.slice(st,en)||'핵심키워드';
-      headInput.value=headInput.value.slice(0,st)+`[${sel}]`+headInput.value.slice(en);
-      headInput.focus();
-    };
-    btnHlAcc.onclick=()=>{
-      const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
-      const sel=headInput.value.slice(st,en)||'강조단어';
-      headInput.value=headInput.value.slice(0,st)+`*${sel}*`+headInput.value.slice(en);
-      headInput.focus();
-    };
-    syntaxBtns.append(btnHlBox,btnHlAcc);
-    headTopBar.append(headLabelEl,syntaxBtns);
-    titleSection.append(headTopBar,headInput);
-
-    // --- SECTION 3: 부제목 (Subtitle) ---
-    const subtitleSection=document.createElement('div');
-    subtitleSection.className='wb-structured-section wb-text-tier-box';
-    const subTopBar=document.createElement('div');
-    subTopBar.className='wb-section-head';
-    subTopBar.append(
-      text('strong','3. 부제목 (제목 아래 핵심 보조 카피 · 훅 설명)'),
-      text('span','1줄 요약 서브타이틀')
-    );
-    subtitleInput=document.createElement('input');
-    subtitleInput.type='text';
-    subtitleInput.id='wb-active-subtitle-input';
-    subtitleInput.value=initSubtitle;
-    subtitleInput.placeholder=activeRole==='cover'?'예: 잘 되는 캐러셀에는 공식이 있습니다!':'예: 실사용에서 가장 먼저 체감된 핵심 차이점';
-    subtitleSection.append(subTopBar,subtitleInput);
-
-    // --- SECTION 4: 본문 텍스트 추가 (Body Copy / Bullet Lines) ---
-    const bodyTextSection=document.createElement('div');
-    bodyTextSection.className='wb-structured-section wb-text-tier-box';
-    const bodyTopBar=document.createElement('div');
-    bodyTopBar.className='wb-section-head';
-    bodyTopBar.append(text('strong','4. 본문 텍스트 추가 (상세 설명 · 체크리스트 줄 추가)'));
-    const bodyBtnGroup=document.createElement('div');
-    bodyBtnGroup.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
-    bodyTextarea=document.createElement('textarea');
-    bodyTextarea.id='wb-active-body-input';
-    bodyTextarea.rows=2;
-    bodyTextarea.value=initBodyText;
-    bodyTextarea.placeholder='슬라이드에 추가로 넣을 본문 텍스트나 체크포인트를 입력하세요 (줄바꿈으로 여러 줄 추가 가능)';
-    const btnAddBullet=text('button','+ 체크포인트 줄 추가');
-    btnAddBullet.type='button';
-    btnAddBullet.className='secondary btn-xs';
-    btnAddBullet.onclick=()=>{
-      const lines=extractBestHookLines();
-      const candidate=lines[(activeSlide.index+1)%lines.length]||'핵심 실사용 체크 포인트';
-      const cur=bodyTextarea.value.trim();
-      bodyTextarea.value=cur?`${cur}\n· ${candidate}`:`· ${candidate}`;
-      bodyTextarea.focus();
-    };
-    const btnClearBody=text('button','본문 비우기');
-    btnClearBody.type='button';
-    btnClearBody.className='secondary btn-xs';
-    btnClearBody.onclick=()=>{bodyTextarea.value='';bodyTextarea.focus();};
-    bodyBtnGroup.append(btnAddBullet,btnClearBody);
-    bodyTopBar.append(bodyBtnGroup);
-    bodyTextSection.append(bodyTopBar,bodyTextarea);
-
-    // Keep legacy #wb-active-sub-input hidden alias synced so any external script reading it continues to work
-    const legacySubHidden=document.createElement('textarea');
-    legacySubHidden.id='wb-active-sub-input';
-    legacySubHidden.hidden=true;
-    legacySubHidden.value=[initSubtitle,initBodyText].filter(Boolean).join('\n');
-    const syncLegacySub=()=>{
-      legacySubHidden.value=[(subtitleInput?.value||'').trim(),(bodyTextarea?.value||'').trim()].filter(Boolean).join('\n');
-    };
-    subtitleInput.addEventListener('input',syncLegacySub);
-    bodyTextarea.addEventListener('input',syncLegacySub);
-
-    // --- SECTION 5: 레이아웃 테마 · 글씨체 · 테두리 설정 ---
-    const styleDrawer=document.createElement('details');
-    styleDrawer.className='wb-style-drawer';
-    styleDrawer.open=true;
-    const styleSummary=document.createElement('summary');
-    styleSummary.textContent='5. 슬라이드 역할 · 8종 레이아웃 테마 · 글씨체 · 2중 테두리 설정';
-    styleDrawer.append(styleSummary);
 
     const roleThemeRow=document.createElement('div');
     roleThemeRow.className='columns';
@@ -843,28 +1082,7 @@ function renderCarouselPreview(){
       tplSelect.append(opt);
     }
     tplLabelEl.append(tplSelect);
-
-    const badgeLabelEl=text('label','상단 배지 / 킥커');
-    badgeInput=document.createElement('input');
-    badgeInput.type='text';
-    badgeInput.id='wb-active-badge-input';
-    badgeInput.value=activeSlide.badge||(activeRole==='cover'?'MAIN COVER':(activeRole==='cta'?'SUMMARY · CTA':`POINT 0${Math.max(1,activeSlide.index-1)}`));
-    badgeLabelEl.append(badgeInput);
-    roleThemeRow.append(roleLabelEl,tplLabelEl,badgeLabelEl);
-
-    // Quick Role Preset Buttons
-    const roleQuickBar=document.createElement('div');
-    roleQuickBar.className='wb-role-quick-bar';
-    for(const [rKey,rShort] of [['cover','표지(Cover) 레이아웃'],['body','본문(Body) 레이아웃'],['cta','요약(CTA) 레이아웃']]){
-      const rBtn=text('button',rShort);
-      rBtn.type='button';
-      rBtn.className='secondary btn-xs'+(rKey===activeRole?' active':'');
-      rBtn.onclick=()=>{
-        roleSelect.value=rKey;
-        applyActiveSlideUpdate({role:rKey});
-      };
-      roleQuickBar.append(rBtn);
-    }
+    roleThemeRow.append(roleLabelEl,tplLabelEl);
 
     // Per-slide Font + 1st & 2nd Double-Stroke Controls
     const activeFontKey=activeSlide.font_family||job.carousel.font_family||$('carousel-font')?.value||'heavy_kr';
@@ -875,11 +1093,11 @@ function renderCarouselPreview(){
 
     const fontStrokeRow=document.createElement('div');
     fontStrokeRow.className='columns typography-fx-grid';
-    fontStrokeRow.style.marginTop='6px';
+    fontStrokeRow.style.marginTop='8px';
     const fontLabelWrap=document.createElement('label');
     const fontHeadSpan=document.createElement('span');
     fontHeadSpan.className='font-label-head';
-    fontHeadSpan.append(text('span','슬라이드 글씨체'));
+    fontHeadSpan.append(text('span','슬라이드 글꼴 (25종 + 내 폰트)'));
     const btnWbUploadFont=text('button','+ 내 폰트');
     btnWbUploadFont.type='button';
     btnWbUploadFont.className='secondary btn-xs btn-upload-custom-font';
@@ -896,7 +1114,7 @@ function renderCarouselPreview(){
     const applyWbFontPreview=(fKey)=>{
       const fCss=CSS_FONT_MAP[fKey]||CSS_FONT_MAP.heavy_kr;
       if(fontSelectEl)fontSelectEl.style.fontFamily=fCss;
-      if(textInput)textInput.style.fontFamily=fCss;
+      if(headInput)headInput.style.fontFamily=fCss;
       if(subtitleInput)subtitleInput.style.fontFamily=fCss;
       if(bodyTextarea)bodyTextarea.style.fontFamily=fCss;
     };
@@ -908,8 +1126,9 @@ function renderCarouselPreview(){
     const s1Range=document.createElement('input');s1Range.type='range';s1Range.className='px-size-range-slider';s1Range.min='0';s1Range.max='24';s1Range.step='1';s1Range.value=String(activeStrokeW);
     s1Num=document.createElement('input');s1Num.type='number';s1Num.id='wb-active-stroke-width';s1Num.min='0';s1Num.max='24';s1Num.step='1';s1Num.value=String(activeStrokeW);
     s1Color=document.createElement('input');s1Color.type='color';s1Color.id='wb-active-stroke-color';s1Color.className='stroke-color-picker';s1Color.value=activeStrokeC;
-    s1Range.oninput=()=>{s1Num.value=s1Range.value;};
-    s1Num.oninput=()=>{s1Range.value=s1Num.value;};
+    s1Range.oninput=()=>{s1Num.value=s1Range.value;scheduleRealtimeSlideSync({},160);};
+    s1Num.oninput=()=>{s1Range.value=s1Num.value;scheduleRealtimeSlideSync({},160);};
+    s1Color.oninput=()=>scheduleRealtimeSlideSync({},160);
     s1Row.append(s1Range,s1Num,text('span','px'),s1Color);
     s1Label.append(s1Row);
 
@@ -918,61 +1137,40 @@ function renderCarouselPreview(){
     const s2Range=document.createElement('input');s2Range.type='range';s2Range.className='px-size-range-slider';s2Range.min='0';s2Range.max='24';s2Range.step='1';s2Range.value=String(activeDStrokeW);
     s2Num=document.createElement('input');s2Num.type='number';s2Num.id='wb-active-double-stroke-width';s2Num.min='0';s2Num.max='24';s2Num.step='1';s2Num.value=String(activeDStrokeW);
     s2Color=document.createElement('input');s2Color.type='color';s2Color.id='wb-active-double-stroke-color';s2Color.className='stroke-color-picker';s2Color.value=activeDStrokeC;
-    s2Range.oninput=()=>{s2Num.value=s2Range.value;};
-    s2Num.oninput=()=>{s2Range.value=s2Num.value;};
+    s2Range.oninput=()=>{s2Num.value=s2Range.value;scheduleRealtimeSlideSync({},160);};
+    s2Num.oninput=()=>{s2Range.value=s2Num.value;scheduleRealtimeSlideSync({},160);};
+    s2Color.oninput=()=>scheduleRealtimeSlideSync({},160);
     s2Row.append(s2Range,s2Num,text('span','px'),s2Color);
     s2Label.append(s2Row);
 
     fontStrokeRow.append(fontLabelWrap,s1Label,s2Label);
-    styleDrawer.append(roleThemeRow,roleQuickBar,fontStrokeRow);
+    styleBox.append(roleQuickBar,roleThemeRow,fontStrokeRow);
+    tabStylePanel.append(styleBox);
 
     roleSelect.onchange=()=>applyActiveSlideUpdate({role:roleSelect.value});
     tplSelect.onchange=()=>applyActiveSlideUpdate({template:tplSelect.value});
     fontSelectEl.onchange=()=>{
       applyWbFontPreview(fontSelectEl.value);
+      updateInstantTypingOverlay();
       applyActiveSlideUpdate({font_family:fontSelectEl.value});
     };
 
-    // Action Footer inside Inspector
+    // Initialize active tab visibility
+    switchCarouselInspectorTab(activeCarouselInspectorTab);
+
+    // Subtle status bar at bottom of Right Inspector (manual trigger still available for instant force-refresh)
     const wbFooter=document.createElement('div');
     wbFooter.className='wb-inspector-footer wb-inspector-actions';
-    const orderGroup=document.createElement('div');
-    orderGroup.style.cssText='display:flex;gap:6px;flex-wrap:wrap;';
-    if(activeSlide.index>1){
-      const bLeft=text('button','◀ 순서 앞으로');bLeft.type='button';bLeft.className='secondary btn-xs';
-      bLeft.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
-        const nextIdx=activeSlide.index-1;
-        await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:-1});
-        activeCarouselSlideIndex=nextIdx;
-        renderCarouselPreview();
-      });
-      orderGroup.append(bLeft);
-    }
-    if(activeSlide.index<slides.length){
-      const bRight=text('button','순서 뒤로 ▶');bRight.type='button';bRight.className='secondary btn-xs';
-      bRight.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
-        const nextIdx=activeSlide.index+1;
-        await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:1});
-        activeCarouselSlideIndex=nextIdx;
-        renderCarouselPreview();
-      });
-      orderGroup.append(bRight);
-    }
-    if(slides.length>2){
-      const bDel=text('button','슬라이드 삭제');bDel.type='button';bDel.className='secondary btn-xs btn-subtle-danger';
-      bDel.onclick=()=>act(`슬라이드 #${activeSlide.index} 삭제 중…`,async()=>{
-        await update('carousel-slide-action',{action:'delete',index:activeSlide.index});
-        activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);
-        renderCarouselPreview();
-      });
-      orderGroup.append(bDel);
-    }
-    const btnApplySlide=text('button',`슬라이드 #${activeSlide.index} (사진·제목·부제목·본문) 적용`);
+    const autoSyncHint=text('span','문구·테마·글꼴·획 수정 시 클릭 없이 중앙 카드에 실시간 자동 반영됩니다.');
+    autoSyncHint.className='hint';
+    autoSyncHint.style.margin='0';
+    const btnApplySlide=text('button',`슬라이드 #${activeSlide.index} 즉시 확정`);
     btnApplySlide.type='button';
+    btnApplySlide.className='secondary btn-xs';
     btnApplySlide.onclick=()=>applyActiveSlideUpdate({});
-    wbFooter.append(orderGroup,btnApplySlide);
+    wbFooter.append(autoSyncHint,btnApplySlide);
 
-    wbInspectorCol.append(inspHead,photoBox,hookFormulaBox,titleSection,subtitleSection,bodyTextSection,legacySubHidden,styleDrawer,wbFooter);
+    wbInspectorCol.append(inspHead,inspTabsBar,tabTextPanel,tabPhotoPanel,tabStylePanel,legacySubHidden,wbFooter);
     wbGrid.append(wbPreviewCol,wbInspectorCol);
     workbench.append(wbGrid);
   }
@@ -3235,8 +3433,42 @@ function bindDraggableChip(chipId,xInputId,yInputId,wInputId,hInputId,fontSizeIn
       minY=Math.min(50,Math.max(6,halfH));
       maxY=Math.max(50,Math.min(94,100-halfH));
     }
-    const xPct=Math.max(minX,Math.min(maxX,((e.clientX-grabOffsetX-rect.left)/rect.width)*100));
-    const yPct=Math.max(minY,Math.min(maxY,((e.clientY-grabOffsetY-rect.top)/rect.height)*100));
+    let xPct=Math.max(minX,Math.min(maxX,((e.clientX-grabOffsetX-rect.left)/rect.width)*100));
+    let yPct=Math.max(minY,Math.min(maxY,((e.clientY-grabOffsetY-rect.top)/rect.height)*100));
+    const guideX=$('magnetic-guide-x'),guideY=$('magnetic-guide-y'),guideYLabel=$('magnetic-guide-y-label');
+    let snappedX=false,snappedY=false,snapYTarget=50,snapYText='세로 중앙 (50%)';
+    if(!e.altKey){
+      if(Math.abs(xPct-50)<=4.5){
+        xPct=50;
+        snappedX=true;
+      }
+      if(Math.abs(yPct-50)<=3.5){
+        yPct=50;
+        snappedY=true;
+        snapYTarget=50;
+        snapYText='세로 정중앙 (50%)';
+      }else if(Math.abs(yPct-18)<=2.8){
+        yPct=18;
+        snappedY=true;
+        snapYTarget=18;
+        snapYText='상단 훅 기준선 (18%)';
+      }else if(Math.abs(yPct-78)<=2.8){
+        yPct=78;
+        snappedY=true;
+        snapYTarget=78;
+        snapYText='하단 자막 기준선 (78%)';
+      }
+    }
+    if(guideX)guideX.hidden=!snappedX;
+    if(guideY){
+      guideY.hidden=!snappedY;
+      if(snappedY){
+        guideY.style.setProperty('--snap-y',`${snapYTarget}%`);
+        if(guideYLabel)guideYLabel.textContent=snapYText;
+      }
+    }
+    chip.classList.toggle('snapped-center-x',snappedX);
+    chip.classList.toggle('snapped-center-y',snappedY);
     if($(xInputId))$(xInputId).value=String(Math.round(xPct*10)/10);
     if($(yInputId))$(yInputId).value=String(Math.round(yPct*10)/10);
     syncDraggableOverlayCanvas();
@@ -3281,7 +3513,10 @@ function bindDraggableChip(chipId,xInputId,yInputId,wInputId,hInputId,fontSizeIn
     if(!mode)return;
     const wasTap=(movedDistance<6);
     mode=null;
-    chip.classList.remove('dragging','resizing');
+    chip.classList.remove('dragging','resizing','snapped-center-x','snapped-center-y');
+    const guideX=$('magnetic-guide-x'),guideY=$('magnetic-guide-y');
+    if(guideX)guideX.hidden=true;
+    if(guideY)guideY.hidden=true;
     try{chip.releasePointerCapture(e.pointerId);}catch{}
     saveActiveJobLocalDraft();
     if(wasTap&&layerName){
@@ -3589,6 +3824,78 @@ document.querySelectorAll('[data-snap-active]').forEach(btn=>{
     saveActiveJobLocalDraft();
   });
 });
+
+// --- Left Studio Preview Width Resizer (01 Analysis / 02-A Video Edit / 02-B Carousel Edit) ---
+function applyStudioPreviewWidth(rawPx,{save=true}={}){
+  const px=Math.round(Math.max(280,Math.min(680,Number(rawPx)||430)));
+  document.documentElement.style.setProperty('--studio-player-width',`${px}px`);
+  const mediaCard=$('media');
+  if(mediaCard)mediaCard.style.setProperty('--studio-player-width',`${px}px`);
+  if($('studio-preview-width-range'))$('studio-preview-width-range').value=String(px);
+  if($('studio-preview-width-val'))$('studio-preview-width-val').textContent=`${px}px`;
+  document.querySelectorAll('.btn-preview-size').forEach(btn=>{
+    const targetPx=Number(btn.dataset.previewWidth||btn.dataset.previewSize||0);
+    btn.classList.toggle('active',Math.abs(targetPx-px)<=14);
+  });
+  if(save){
+    try{localStorage.setItem('takoh-studio-player-width',String(px));}catch{}
+  }
+  requestAnimationFrame(()=>syncDraggableOverlayCanvas());
+}
+(function initStudioPreviewWidthResizer(){
+  let savedPx=430;
+  try{
+    const stored=Number(localStorage.getItem('takoh-studio-player-width'));
+    if(Number.isFinite(stored)&&stored>=280&&stored<=680)savedPx=stored;
+  }catch{}
+  applyStudioPreviewWidth(savedPx,{save:false});
+  document.querySelectorAll('.btn-preview-size').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const targetPx=Number(btn.dataset.previewWidth||btn.dataset.previewSize||430);
+      applyStudioPreviewWidth(targetPx,{save:true});
+    });
+  });
+  if($('studio-preview-width-range')){
+    $('studio-preview-width-range').addEventListener('input',e=>{
+      applyStudioPreviewWidth(e.target.value,{save:true});
+    });
+  }
+  const resizer=$('studio-player-resizer');
+  const playerCol=$('studio-player-column');
+  if(resizer&&playerCol){
+    let dragging=false,startX=0,startW=430;
+    resizer.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      dragging=true;
+      startX=e.clientX;
+      startW=playerCol.getBoundingClientRect().width||430;
+      resizer.classList.add('dragging');
+      document.body.classList.add('resizing-studio-player');
+      try{resizer.setPointerCapture(e.pointerId);}catch{}
+    });
+    resizer.addEventListener('pointermove',e=>{
+      if(!dragging)return;
+      e.preventDefault();
+      const nextW=startW+(e.clientX-startX);
+      applyStudioPreviewWidth(nextW,{save:false});
+    });
+    const endResize=e=>{
+      if(!dragging)return;
+      dragging=false;
+      resizer.classList.remove('dragging');
+      document.body.classList.remove('resizing-studio-player');
+      try{resizer.releasePointerCapture(e.pointerId);}catch{}
+      const curW=Number($('studio-preview-width-range')?.value||430);
+      applyStudioPreviewWidth(curW,{save:true});
+    };
+    resizer.addEventListener('pointerup',endResize);
+    resizer.addEventListener('pointercancel',endResize);
+    resizer.addEventListener('dblclick',()=>{
+      applyStudioPreviewWidth(430,{save:true});
+      message('미리보기 화면 크기를 표준(430px)으로 초기화했습니다.');
+    });
+  }
+})();
 
 function bindDraggableMaskBox(){
   const chip=$('drag-mask-box'),canvas=$('player-overlay-canvas');
