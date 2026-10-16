@@ -2222,50 +2222,140 @@ body:not(.quick-sidebar-mode)[data-active-stage="carousel"] .content-studio-cont
   margin: 0 2px;
 }
 
-/* Bundled Open-Source Korean Display Fonts (@font-face) */
+/* Bundled & System Korean Studio Fonts (@font-face) */
+@font-face {
+  font-family: "StudioFont_heavy_kr";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/0") format("truetype"), url("/studio/fonts/file/heavy_kr") format("truetype"), local("Malgun Gothic Bold"), local("Malgun Gothic");
+  font-display: swap;
+}
 @font-face {
   font-family: "StudioFont_black_han_sans";
-  src: url("/studio/fonts/file/black_han_sans") format("truetype"), local("Black Han Sans");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/1") format("truetype"), url("/studio/fonts/file/black_han_sans") format("truetype"), local("Black Han Sans");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_gasoek_one";
-  src: url("/studio/fonts/file/gasoek_one") format("truetype"), local("Gasoek One");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/2") format("truetype"), url("/studio/fonts/file/gasoek_one") format("truetype"), local("Gasoek One");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_do_hyeon";
-  src: url("/studio/fonts/file/do_hyeon") format("truetype"), local("Do Hyeon"), local("BM DoHyeon");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/3") format("truetype"), url("/studio/fonts/file/do_hyeon") format("truetype"), local("Do Hyeon"), local("BM DoHyeon");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_jua";
-  src: url("/studio/fonts/file/jua") format("truetype"), local("Jua"), local("BM JUA");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/4") format("truetype"), url("/studio/fonts/file/jua") format("truetype"), local("Jua"), local("BM JUA");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_bagel_fat_one";
-  src: url("/studio/fonts/file/bagel_fat_one") format("truetype"), local("Bagel Fat One");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/5") format("truetype"), url("/studio/fonts/file/bagel_fat_one") format("truetype"), local("Bagel Fat One");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_hy_headline";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/6") format("truetype"), url("/studio/fonts/file/hy_headline") format("truetype"), local("HYHeadLine-Medium"), local("HY헤드라인M");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_hy_gothic_extra";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/7") format("truetype"), url("/studio/fonts/file/hy_gothic_extra") format("truetype"), local("HYGothic-Extra"), local("HY견고딕");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_pyeongchang_peace_bold";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/8") format("truetype"), url("/studio/fonts/file/pyeongchang_peace_bold") format("truetype"), local("Headline R"), local("휴먼둥근헤드라인");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_sans";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/9") format("truetype"), url("/studio/fonts/file/sans") format("truetype"), local("Noto Sans KR"), local("Malgun Gothic");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_gowun_dodum";
-  src: url("/studio/fonts/file/gowun_dodum") format("truetype"), local("Gowun Dodum");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/10") format("truetype"), url("/studio/fonts/file/gowun_dodum") format("truetype"), local("Gowun Dodum");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_orbit";
-  src: url("/studio/fonts/file/orbit") format("truetype"), local("Orbit");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/11") format("truetype"), url("/studio/fonts/file/orbit") format("truetype"), local("Orbit");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_malgun_regular";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/12") format("truetype"), url("/studio/fonts/file/malgun_regular") format("truetype"), local("Malgun Gothic");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_gulim_clean";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/13") format("truetype"), url("/studio/fonts/file/gulim_clean") format("truetype"), local("New Gulim"), local("새굴림"), local("Gulim");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_serif";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/15") format("truetype"), url("/studio/fonts/file/serif") format("truetype"), local("Gowun Batang Bold"), local("Gowun Batang");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_gowun_batang_bold";
-  src: url("/studio/fonts/file/gowun_batang_bold") format("truetype"), local("Gowun Batang Bold"), local("Gowun Batang");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/17") format("truetype"), url("/studio/fonts/file/gowun_batang_bold") format("truetype"), local("Gowun Batang Bold"), local("Gowun Batang");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_batang_kr";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/18") format("truetype"), url("/studio/fonts/file/batang_kr") format("truetype"), local("Noto Serif KR"), local("Batang"), local("바탕");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_hy_myeongjo_extra";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/19") format("truetype"), url("/studio/fonts/file/hy_myeongjo_extra") format("truetype"), local("HYMyeongJo-Extra"), local("HY견명조");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_hy_sin_myeongjo";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/20") format("truetype"), url("/studio/fonts/file/hy_sin_myeongjo") format("truetype"), local("HYSinMyeongJo-Medium"), local("HY신명조");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_brush_kr";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/21") format("truetype"), url("/studio/fonts/file/brush_kr") format("truetype"), local("Nanum Pen Script"), local("NanumPen");
   font-display: swap;
 }
 @font-face {
   font-family: "StudioFont_nanum_pen";
-  src: url("/studio/fonts/file/nanum_pen") format("truetype"), local("Nanum Pen Script"), local("NanumPen");
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/22") format("truetype"), url("/studio/fonts/file/nanum_pen") format("truetype"), local("Nanum Pen Script"), local("NanumPen");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_gungseo_kr";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/23") format("truetype"), url("/studio/fonts/file/gungseo_kr") format("truetype"), local("Pyunji R"), local("휴먼편지체"), local("Gungsuh");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_hy_gungseo_bold";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/25") format("truetype"), url("/studio/fonts/file/hy_gungseo_bold") format("truetype"), local("HYGungSo-Bold"), local("HY궁서B");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_magic_kr";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/26") format("truetype"), url("/studio/fonts/file/magic_kr") format("truetype"), local("Magic R"), local("휴먼매직체");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_hy_mokgak";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/27") format("truetype"), url("/studio/fonts/file/hy_mokgak") format("truetype"), local("HYPMokGak-Bold"), local("HY목각파임B");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_yet_hangul";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/28") format("truetype"), url("/studio/fonts/file/yet_hangul") format("truetype"), local("Yet R"), local("휴먼옛체");
+  font-display: swap;
+}
+@font-face {
+  font-family: "StudioFont_pyeongchang_regular";
+  src: url("/studio/delivery/f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0/file/30") format("truetype"), url("/studio/fonts/file/pyeongchang_regular") format("truetype"), local("HYGraphic-Medium"), local("HY그래픽M");
   font-display: swap;
 }
 

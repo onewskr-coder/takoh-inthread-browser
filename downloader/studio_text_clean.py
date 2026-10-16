@@ -183,29 +183,40 @@ STUDIO_BUNDLED_FONTS_DIR = Path(__file__).parent / 'fonts'
 _BUNDLED_FONTS_DIR = STUDIO_BUNDLED_FONTS_DIR
 
 STUDIO_FONT_CATALOG = [
-    {'key': 'heavy_kr', 'name': 'HY견고딕 · 임팩트 헤비 (릴스·쇼츠 기본)', 'group': '임팩트·타이틀 (굵은 강조)', 'file': 'H2GTRE.TTF', 'source': 'system'},
-    {'key': 'black_han_sans', 'name': '검은고딕 Black Han Sans (초강력 훅 타이틀)', 'group': '임팩트·타이틀 (굵은 강조)', 'file': 'BlackHanSans-Regular.ttf', 'source': 'bundled'},
-    {'key': 'gasoek_one', 'name': '가석체 Gasoek One (초극태 포스터 헤드라인)', 'group': '임팩트·타이틀 (굵은 강조)', 'file': 'GasoekOne-Regular.ttf', 'source': 'bundled'},
-    {'key': 'do_hyeon', 'name': '배민 도현체 Do Hyeon ( 깔끔한 레트로 굵은 고딕)', 'group': '임팩트·타이틀 (굵은 강조)', 'file': 'DoHyeon-Regular.ttf', 'source': 'bundled'},
-    {'key': 'hy_headline', 'name': 'HY헤드라인 (뉴스·매거진 헤드라인)', 'group': '임팩트·타이틀 (굵은 강조)', 'file': 'H2HDRM.TTF', 'source': 'system'},
-    {'key': 'hy_mokgak', 'name': 'HY목각파임B (강렬한 판화·목각 타이틀)', 'group': '임팩트·타이틀 (굵은 강조)', 'file': 'H2MKPB.TTF', 'source': 'system'},
-    {'key': 'jua', 'name': '배민 주아체 Jua (친근한 라운드 붓터치)', 'group': '라운드·트렌디·감성', 'file': 'Jua-Regular.ttf', 'source': 'bundled'},
-    {'key': 'bagel_fat_one', 'name': '베이글팻원 Bagel Fat One (통통한 팝아트 훅)', 'group': '라운드·트렌디·감성', 'file': 'BagelFatOne-Regular.ttf', 'source': 'bundled'},
-    {'key': 'hy_graphic', 'name': 'HY그래픽M (둥근 모던 그래픽)', 'group': '라운드·트렌디·감성', 'file': 'H2GPRM.TTF', 'source': 'system'},
-    {'key': 'hy_post', 'name': 'HY포스트M (감성 포스터 둥근체)', 'group': '라운드·트렌디·감성', 'file': 'H2PORM.TTF', 'source': 'system'},
-    {'key': 'hy_samul', 'name': 'HY얕은샘물M (깔끔한 둥근 포인트)', 'group': '라운드·트렌디·감성', 'file': 'H2SA1M.TTF', 'source': 'system'},
-    {'key': 'orbit', 'name': '오르빗 Orbit (테크·모던 타자기 감성)', 'group': '라운드·트렌디·감성', 'file': 'Orbit-Regular.ttf', 'source': 'bundled'},
-    {'key': 'sans', 'name': '본고딕 Noto Sans KR (모던 산세리프 기본)', 'group': '고딕·본문·자막 (가독성)', 'file': 'NotoSansKR-VF.ttf', 'source': 'system'},
-    {'key': 'gowun_dodum', 'name': '고운돋움 Gowun Dodum (부드러운 에디토리얼 고딕)', 'group': '고딕·본문·자막 (가독성)', 'file': 'GowunDodum-Regular.ttf', 'source': 'bundled'},
-    {'key': 'nanum_gothic', 'name': '나눔고딕 볼드 NanumGothic (선명한 표준 자막)', 'group': '고딕·본문·자막 (가독성)', 'file': 'ngBold.ttf', 'source': 'system'},
-    {'key': 'serif', 'name': '본명조 Noto Serif KR (매거진 에디토리얼 명조)', 'group': '명조·에디토리얼·매거진', 'file': 'NotoSerifKR-VF.ttf', 'source': 'system'},
-    {'key': 'gowun_batang', 'name': '고운바탕 볼드 Gowun Batang (감성 에세이 명조)', 'group': '명조·에디토리얼·매거진', 'file': 'GowunBatang-Bold.ttf', 'source': 'bundled'},
-    {'key': 'batang_kr', 'name': 'HY견명조 / 바탕체 (클래식 시네마 명조)', 'group': '명조·에디토리얼·매거진', 'file': 'H2MJRE.TTF', 'source': 'system'},
-    {'key': 'hy_yet', 'name': '휴먼옛체 (전통 해학·클래식 포인트)', 'group': '명조·에디토리얼·매거진', 'file': 'HMFMOLD.TTF', 'source': 'system'},
-    {'key': 'brush_kr', 'name': '휴먼매직체 (손글씨·캘리그라피 포인트)', 'group': '손글씨·캘리그라피·붓글씨', 'file': 'HMKMMAG.TTF', 'source': 'system'},
-    {'key': 'nanum_pen', 'name': '나눔펜 스크립트 Nanum Pen (자연스러운 다이어리 손글씨)', 'group': '손글씨·캘리그라피·붓글씨', 'file': 'NanumPenScript-Regular.ttf', 'source': 'bundled'},
-    {'key': 'hy_pyunji', 'name': '휴먼편지체 (따뜻한 감성 손편지체)', 'group': '손글씨·캘리그라피·붓글씨', 'file': 'HMFMPYUN.TTF', 'source': 'system'},
-    {'key': 'gungseo_kr', 'name': 'HY궁서B (정통 붓글씨·진지한 강조)', 'group': '손글씨·캘리그라피·붓글씨', 'file': 'H2GSRB.TTF', 'source': 'system'},
+    {'key': 'heavy_kr', 'name': '맑은 고딕 Bold (기본 훅 고딕)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'malgunbd.ttf', 'source': 'system'},
+    {'key': 'black_han_sans', 'name': '검은고딕 Black Han Sans (초고밀도 헤비 타이틀)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'BlackHanSans-Regular.ttf', 'source': 'bundled'},
+    {'key': 'gasoek_one', 'name': '가석체 Gasoek One (초극태 임팩트 블록)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'GasoekOne-Regular.ttf', 'source': 'bundled'},
+    {'key': 'do_hyeon', 'name': '배민 도현체 Do Hyeon (직선 레트로 간판)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'DoHyeon-Regular.ttf', 'source': 'bundled'},
+    {'key': 'jua', 'name': '배민 주아체 Jua (친근한 라운드 훅)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'Jua-Regular.ttf', 'source': 'bundled'},
+    {'key': 'bagel_fat_one', 'name': '베이글팻원 Bagel Fat One (트렌디 볼륨 팝)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'BagelFatOne-Regular.ttf', 'source': 'bundled'},
+    {'key': 'hy_headline', 'name': 'HY헤드라인M (클래식 뉴스 헤드라인)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'H2HDRM.TTF', 'source': 'system'},
+    {'key': 'hy_gothic_extra', 'name': 'HY견고딕 (단단한 타이틀 고딕)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'H2GTRE.TTF', 'source': 'system'},
+    {'key': 'pyeongchang_peace_bold', 'name': '휴먼둥근헤드라인 (와이드 모던 디스플레이)', 'group': '1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)', 'file': 'HMKMRHD.TTF', 'source': 'system'},
+    {'key': 'sans', 'name': '본고딕 Noto Sans KR (깔끔한 산세리프)', 'group': '2. 모던·산세리프 본문 (깔끔한 가독성·자막)', 'file': 'NotoSansKR-VF.ttf', 'source': 'system'},
+    {'key': 'gowun_dodum', 'name': '고운돋움 Gowun Dodum (단정한 청정 고딕)', 'group': '2. 모던·산세리프 본문 (깔끔한 가독성·자막)', 'file': 'GowunDodum-Regular.ttf', 'source': 'bundled'},
+    {'key': 'orbit', 'name': '오르빗 Orbit (모던 테크·인포그래픽)', 'group': '2. 모던·산세리프 본문 (깔끔한 가독성·자막)', 'file': 'Orbit-Regular.ttf', 'source': 'bundled'},
+    {'key': 'malgun_regular', 'name': '맑은 고딕 Regular (슬림 본문 고딕)', 'group': '2. 모던·산세리프 본문 (깔끔한 가독성·자막)', 'file': 'malgun.ttf', 'source': 'system'},
+    {'key': 'gulim_clean', 'name': '새굴림 / 굴림 클린 산세리프', 'group': '2. 모던·산세리프 본문 (깔끔한 가독성·자막)', 'file': 'NGULIM.TTF', 'source': 'system'},
+    {'key': 'nanum_gothic', 'name': '나눔고딕 볼드 NanumGothic (선명한 표준 자막)', 'group': '2. 모던·산세리프 본문 (깔끔한 가독성·자막)', 'file': 'ngBold.ttf', 'source': 'system'},
+    {'key': 'serif', 'name': '고운바탕 Bold (매거진 에디토리얼 세리프)', 'group': '3. 매거진·에디토리얼 명조 (감성·뉴스·저널)', 'file': 'GowunBatang-Bold.ttf', 'source': 'bundled'},
+    {'key': 'gowun_batang', 'name': '고운바탕 볼드 Gowun Batang (감성 에세이 명조)', 'group': '3. 매거진·에디토리얼 명조 (감성·뉴스·저널)', 'file': 'GowunBatang-Bold.ttf', 'source': 'bundled'},
+    {'key': 'gowun_batang_bold', 'name': '고운바탕 볼드 Gowun Batang (감성 에세이 명조)', 'group': '3. 매거진·에디토리얼 명조 (감성·뉴스·저널)', 'file': 'GowunBatang-Bold.ttf', 'source': 'bundled'},
+    {'key': 'batang_kr', 'name': '바탕체 / 본명조 (클래식 뉴스·교양 명조)', 'group': '3. 매거진·에디토리얼 명조 (감성·뉴스·저널)', 'file': 'NotoSerifKR-VF.ttf', 'source': 'system'},
+    {'key': 'hy_myeongjo_extra', 'name': 'HY견명조 (무게감 있는 매거진 표지 명조)', 'group': '3. 매거진·에디토리얼 명조 (감성·뉴스·저널)', 'file': 'H2MJRE.TTF', 'source': 'system'},
+    {'key': 'hy_sin_myeongjo', 'name': 'HY신명조 (신문·에세이 본문 명조)', 'group': '3. 매거진·에디토리얼 명조 (감성·뉴스·저널)', 'file': 'H2MJSM.TTF', 'source': 'system'},
+    {'key': 'brush_kr', 'name': '나눔손글씨 펜 (자연스러운 손글씨 노트)', 'group': '4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)', 'file': 'NanumPenScript-Regular.ttf', 'source': 'bundled'},
+    {'key': 'nanum_pen', 'name': '나눔손글씨 펜 (자연스러운 손글씨 노트)', 'group': '4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)', 'file': 'NanumPenScript-Regular.ttf', 'source': 'bundled'},
+    {'key': 'gungseo_kr', 'name': '궁서체 / 휴먼편지체 (정통 감성 붓글씨)', 'group': '4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)', 'file': 'HMFMPYUN.TTF', 'source': 'system'},
+    {'key': 'hy_pyunji', 'name': '휴먼편지체 (따뜻한 감성 손편지체)', 'group': '4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)', 'file': 'HMFMPYUN.TTF', 'source': 'system'},
+    {'key': 'hy_gungseo_bold', 'name': 'HY궁서B (굵은 캘리그라피 붓글씨)', 'group': '4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)', 'file': 'H2GSRB.TTF', 'source': 'system'},
+    {'key': 'magic_kr', 'name': '휴먼매직체 (경쾌한 마커 손글씨)', 'group': '4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)', 'file': 'HMKMMAG.TTF', 'source': 'system'},
+    {'key': 'hy_mokgak', 'name': 'HY목각파임B (우드블록 스탬프)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'H2MKPB.TTF', 'source': 'system'},
+    {'key': 'yet_hangul', 'name': '휴먼옛체 (전통 고전 감성)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'HMFMOLD.TTF', 'source': 'system'},
+    {'key': 'hy_yet', 'name': '휴먼옛체 (전통 고전 감성)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'HMFMOLD.TTF', 'source': 'system'},
+    {'key': 'pyeongchang_regular', 'name': 'HY그래픽M (모던 라운드 그래픽)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'H2GPRM.TTF', 'source': 'system'},
+    {'key': 'hy_graphic', 'name': 'HY그래픽M (둥근 모던 그래픽)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'H2GPRM.TTF', 'source': 'system'},
+    {'key': 'hy_post', 'name': 'HY포스트M (감성 포스터 둥근체)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'H2PORM.TTF', 'source': 'system'},
+    {'key': 'hy_samul', 'name': 'HY얕은샘물M (깔끔한 둥근 포인트)', 'group': '5. 레트로·특수 디스플레이 (개성 연출)', 'file': 'H2SA1M.TTF', 'source': 'system'},
 ]
 
 _CUSTOM_FONTS_DIR = None
@@ -258,23 +269,39 @@ def _load_korean_font(font_px, bold=True, style='sans', weight=None):
 
     # 2. Check bundled downloaded fonts (`downloader/fonts/`) & mapped system catalog keys
     bundled_map = {
+        'heavy_kr': ('C:/Windows/Fonts/malgunbd.ttf', 'C:/Windows/Fonts/H2GTRE.TTF', 'C:/Windows/Fonts/NotoSansKR-VF.ttf'),
+        'malgun_bold': ('C:/Windows/Fonts/malgunbd.ttf', 'C:/Windows/Fonts/malgun.ttf'),
         'black_han_sans': (STUDIO_BUNDLED_FONTS_DIR / 'BlackHanSans-Regular.ttf', 'C:/Windows/Fonts/H2GTRE.TTF'),
         'gasoek_one': (STUDIO_BUNDLED_FONTS_DIR / 'GasoekOne-Regular.ttf', STUDIO_BUNDLED_FONTS_DIR / 'BlackHanSans-Regular.ttf', 'C:/Windows/Fonts/H2GTRE.TTF'),
         'do_hyeon': (STUDIO_BUNDLED_FONTS_DIR / 'DoHyeon-Regular.ttf', 'C:/Windows/Fonts/H2HDRM.TTF', 'C:/Windows/Fonts/H2GTRE.TTF'),
         'jua': (STUDIO_BUNDLED_FONTS_DIR / 'Jua-Regular.ttf', 'C:/Windows/Fonts/H2GPRM.TTF', 'C:/Windows/Fonts/malgunbd.ttf'),
         'bagel_fat_one': (STUDIO_BUNDLED_FONTS_DIR / 'BagelFatOne-Regular.ttf', STUDIO_BUNDLED_FONTS_DIR / 'Jua-Regular.ttf', 'C:/Windows/Fonts/H2GTRE.TTF'),
-        'gowun_dodum': (STUDIO_BUNDLED_FONTS_DIR / 'GowunDodum-Regular.ttf', 'C:/Windows/Fonts/NotoSansKR-VF.ttf', 'C:/Windows/Fonts/malgun.ttf'),
-        'gowun_batang': (STUDIO_BUNDLED_FONTS_DIR / 'GowunBatang-Bold.ttf', 'C:/Windows/Fonts/NotoSerifKR-VF.ttf', 'C:/Windows/Fonts/batang.ttc'),
-        'nanum_pen': (STUDIO_BUNDLED_FONTS_DIR / 'NanumPenScript-Regular.ttf', 'C:/Windows/Fonts/HMKMMAG.TTF', 'C:/Windows/Fonts/HMFMPYUN.TTF'),
-        'orbit': (STUDIO_BUNDLED_FONTS_DIR / 'Orbit-Regular.ttf', 'C:/Windows/Fonts/NotoSansKR-VF.ttf', 'C:/Windows/Fonts/malgun.ttf'),
         'hy_headline': ('C:/Windows/Fonts/H2HDRM.TTF', 'C:/Windows/Fonts/HMKMRHD.TTF', 'C:/Windows/Fonts/H2GTRE.TTF'),
+        'hy_gothic_extra': ('C:/Windows/Fonts/H2GTRE.TTF', 'C:/Windows/Fonts/H2GTRM.TTF', 'C:/Windows/Fonts/malgunbd.ttf'),
+        'pyeongchang_peace_bold': ('C:/Windows/Fonts/HMKMRHD.TTF', 'C:/Windows/Fonts/H2PORM.TTF', 'C:/Windows/Fonts/H2HDRM.TTF'),
+        'gowun_dodum': (STUDIO_BUNDLED_FONTS_DIR / 'GowunDodum-Regular.ttf', 'C:/Windows/Fonts/NotoSansKR-VF.ttf', 'C:/Windows/Fonts/malgun.ttf'),
+        'orbit': (STUDIO_BUNDLED_FONTS_DIR / 'Orbit-Regular.ttf', 'C:/Windows/Fonts/NotoSansKR-VF.ttf', 'C:/Windows/Fonts/malgun.ttf'),
+        'malgun_regular': ('C:/Windows/Fonts/malgun.ttf', 'C:/Windows/Fonts/malgunsl.ttf'),
+        'gulim_clean': ('C:/Windows/Fonts/NGULIM.TTF', 'C:/Windows/Fonts/gulim.ttc', 'C:/Windows/Fonts/malgun.ttf'),
+        'nanum_gothic': ('C:/Windows/Fonts/ngBold.ttf' if bold else 'C:/Windows/Fonts/ng.ttf', 'C:/Windows/Fonts/ng.ttf', 'C:/Windows/Fonts/malgunbd.ttf'),
+        'serif': (STUDIO_BUNDLED_FONTS_DIR / 'GowunBatang-Bold.ttf', 'C:/Windows/Fonts/NotoSerifKR-VF.ttf', 'C:/Windows/Fonts/batang.ttc'),
+        'gowun_batang': (STUDIO_BUNDLED_FONTS_DIR / 'GowunBatang-Bold.ttf', 'C:/Windows/Fonts/NotoSerifKR-VF.ttf', 'C:/Windows/Fonts/batang.ttc'),
+        'gowun_batang_bold': (STUDIO_BUNDLED_FONTS_DIR / 'GowunBatang-Bold.ttf', 'C:/Windows/Fonts/NotoSerifKR-VF.ttf', 'C:/Windows/Fonts/batang.ttc'),
+        'hy_myeongjo_extra': ('C:/Windows/Fonts/H2MJRE.TTF', 'C:/Windows/Fonts/batang.ttc'),
+        'hy_sin_myeongjo': ('C:/Windows/Fonts/H2MJSM.TTF', 'C:/Windows/Fonts/batang.ttc'),
+        'brush_kr': (STUDIO_BUNDLED_FONTS_DIR / 'NanumPenScript-Regular.ttf', 'C:/Windows/Fonts/HMKMMAG.TTF', 'C:/Windows/Fonts/HMFMPYUN.TTF'),
+        'nanum_pen': (STUDIO_BUNDLED_FONTS_DIR / 'NanumPenScript-Regular.ttf', 'C:/Windows/Fonts/HMKMMAG.TTF', 'C:/Windows/Fonts/HMFMPYUN.TTF'),
+        'gungseo_kr': ('C:/Windows/Fonts/HMFMPYUN.TTF', 'C:/Windows/Fonts/H2GSRB.TTF', 'C:/Windows/Fonts/batang.ttc'),
+        'hy_pyunji': ('C:/Windows/Fonts/HMFMPYUN.TTF', 'C:/Windows/Fonts/HMKMMAG.TTF', 'C:/Windows/Fonts/malgun.ttf'),
+        'hy_gungseo_bold': ('C:/Windows/Fonts/H2GSRB.TTF', 'C:/Windows/Fonts/batang.ttc'),
+        'magic_kr': ('C:/Windows/Fonts/HMKMMAG.TTF', 'C:/Windows/Fonts/HMFMPYUN.TTF', 'C:/Windows/Fonts/H2GSRB.TTF'),
         'hy_mokgak': ('C:/Windows/Fonts/H2MKPB.TTF', 'C:/Windows/Fonts/H2GTRE.TTF', 'C:/Windows/Fonts/malgunbd.ttf'),
+        'yet_hangul': ('C:/Windows/Fonts/HMFMOLD.TTF', 'C:/Windows/Fonts/H2GSRB.TTF', 'C:/Windows/Fonts/batang.ttc'),
+        'hy_yet': ('C:/Windows/Fonts/HMFMOLD.TTF', 'C:/Windows/Fonts/H2GSRB.TTF', 'C:/Windows/Fonts/batang.ttc'),
+        'pyeongchang_regular': ('C:/Windows/Fonts/H2GPRM.TTF', 'C:/Windows/Fonts/H2SA1M.TTF', 'C:/Windows/Fonts/H2PORM.TTF'),
         'hy_graphic': ('C:/Windows/Fonts/H2GPRM.TTF', 'C:/Windows/Fonts/H2PORM.TTF', 'C:/Windows/Fonts/malgunbd.ttf'),
         'hy_post': ('C:/Windows/Fonts/H2PORM.TTF', 'C:/Windows/Fonts/H2PORL.TTF', 'C:/Windows/Fonts/H2GPRM.TTF'),
         'hy_samul': ('C:/Windows/Fonts/H2SA1M.TTF', 'C:/Windows/Fonts/H2PORM.TTF', 'C:/Windows/Fonts/malgun.ttf'),
-        'nanum_gothic': ('C:/Windows/Fonts/ngBold.ttf' if bold else 'C:/Windows/Fonts/ng.ttf', 'C:/Windows/Fonts/ng.ttf', 'C:/Windows/Fonts/malgunbd.ttf'),
-        'hy_yet': ('C:/Windows/Fonts/HMFMOLD.TTF', 'C:/Windows/Fonts/H2GSRB.TTF', 'C:/Windows/Fonts/batang.ttc'),
-        'hy_pyunji': ('C:/Windows/Fonts/HMFMPYUN.TTF', 'C:/Windows/Fonts/HMKMMAG.TTF', 'C:/Windows/Fonts/malgun.ttf'),
     }
     if style_lower in bundled_map:
         for cand in bundled_map[style_lower]:
@@ -285,9 +312,9 @@ def _load_korean_font(font_px, bold=True, style='sans', weight=None):
                 except Exception:
                     pass
 
-    if style_lower in ('serif', 'batang_kr'):
+    if style_lower == 'batang_kr':
         vf_path = Path('C:/Windows/Fonts/NotoSerifKR-VF.ttf')
-        if style_lower == 'serif' and vf_path.exists():
+        if vf_path.exists():
             try:
                 f = ImageFont.truetype(str(vf_path), px)
                 w = int(weight if weight is not None else (700 if bold else 400))
@@ -295,18 +322,7 @@ def _load_korean_font(font_px, bold=True, style='sans', weight=None):
                 return f
             except Exception:
                 pass
-        candidates = (
-            ('C:/Windows/Fonts/H2MJRE.TTF', 'C:/Windows/Fonts/batang.ttc', 'C:/Windows/Fonts/georgia.ttf', 'C:/Windows/Fonts/malgunbd.ttf')
-            if style_lower == 'batang_kr'
-            else ('C:/Windows/Fonts/H2MJRE.TTF' if bold else 'C:/Windows/Fonts/batang.ttc', 'C:/Windows/Fonts/batang.ttc', 'C:/Windows/Fonts/georgia.ttf', 'C:/Windows/Fonts/malgunbd.ttf')
-        )
-    elif style_lower == 'gungseo_kr':
-        candidates = (
-            'C:/Windows/Fonts/H2GSRB.TTF',
-            'C:/Windows/Fonts/batang.ttc',
-            'C:/Windows/Fonts/H2MJRE.TTF',
-            'C:/Windows/Fonts/malgunbd.ttf',
-        )
+        candidates = ('C:/Windows/Fonts/batang.ttc', 'C:/Windows/Fonts/H2MJSM.TTF', 'C:/Windows/Fonts/H2MJRE.TTF')
     elif style_lower == 'display_en':
         candidates = (
             'C:/Windows/Fonts/BOD_R.TTF' if not bold else 'C:/Windows/Fonts/BOD_B.TTF',

@@ -4556,6 +4556,34 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
     custom_fonts_dir.mkdir(parents=True, exist_ok=True)
     set_custom_fonts_dir(custom_fonts_dir)
 
+    try:
+        font_delivery_id = 'f0' * 24
+        font_delivery_dir = root / 'deliveries' / font_delivery_id
+        font_delivery_dir.mkdir(parents=True, exist_ok=True)
+        font_files_meta = []
+        for idx, f_entry in enumerate(STUDIO_FONT_CATALOG):
+            f_name = str(f_entry.get('file') or '')
+            src_fp = next((c for c in (_BUNDLED_FONTS_DIR / f_name, Path('C:/Windows/Fonts') / f_name) if c.is_file()), None)
+            if src_fp is not None:
+                dest_fp = font_delivery_dir / f'file-{idx}'
+                if not dest_fp.is_file() or dest_fp.stat().st_size != src_fp.stat().st_size:
+                    shutil.copy2(src_fp, dest_fp)
+                font_files_meta.append({'name': f_name, 'mime': 'font/ttf', 'key': f_entry.get('key'), 'index': idx})
+        (font_delivery_dir / 'packet.json').write_text(
+            json.dumps({
+                'id': font_delivery_id,
+                'created': time.time() + 365 * 86400 * 10,
+                'when': (time.time() + 365 * 86400 * 10) * 1000,
+                'automatic': False,
+                'name': 'studio-fonts-bundle',
+                'mime': 'font/ttf',
+                'files': font_files_meta,
+            }, ensure_ascii=False),
+            encoding='utf-8',
+        )
+    except Exception:
+        pass
+
     def _read_custom_fonts_manifest():
         mf = custom_fonts_dir / 'fonts.json'
         if mf.is_file():
@@ -4639,6 +4667,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
 
     @bp.route('/fonts/file/<font_key>', methods=['GET'])
     def studio_font_file(font_key):
+        from studio_text_clean import STUDIO_FONT_CATALOG as _LIVE_FONT_CATALOG
         font_key = str(font_key or '').strip().lower()
         if font_key.startswith('custom_'):
             entries = _read_custom_fonts_manifest()
@@ -4649,10 +4678,49 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if not f_path.is_file():
                 abort(404)
             return send_file(f_path, max_age=86400)
-        entry = next((e for e in STUDIO_FONT_CATALOG if str(e.get('key') or '').lower() == font_key), None)
-        if not entry:
+        entry = next((e for e in _LIVE_FONT_CATALOG if str(e.get('key') or '').lower() == font_key), None)
+        f_name = str(entry.get('file') or '') if entry else ''
+        fallback_files = {
+            'heavy_kr': 'malgunbd.ttf',
+            'malgun_bold': 'malgunbd.ttf',
+            'black_han_sans': 'BlackHanSans-Regular.ttf',
+            'gasoek_one': 'GasoekOne-Regular.ttf',
+            'do_hyeon': 'DoHyeon-Regular.ttf',
+            'jua': 'Jua-Regular.ttf',
+            'bagel_fat_one': 'BagelFatOne-Regular.ttf',
+            'hy_headline': 'H2HDRM.TTF',
+            'hy_gothic_extra': 'H2GTRE.TTF',
+            'pyeongchang_peace_bold': 'HMKMRHD.TTF',
+            'sans': 'NotoSansKR-VF.ttf',
+            'gowun_dodum': 'GowunDodum-Regular.ttf',
+            'orbit': 'Orbit-Regular.ttf',
+            'malgun_regular': 'malgun.ttf',
+            'gulim_clean': 'NGULIM.TTF',
+            'nanum_gothic': 'ngBold.ttf',
+            'serif': 'GowunBatang-Bold.ttf',
+            'gowun_batang': 'GowunBatang-Bold.ttf',
+            'gowun_batang_bold': 'GowunBatang-Bold.ttf',
+            'batang_kr': 'NotoSerifKR-VF.ttf',
+            'hy_myeongjo_extra': 'H2MJRE.TTF',
+            'hy_sin_myeongjo': 'H2MJSM.TTF',
+            'brush_kr': 'NanumPenScript-Regular.ttf',
+            'nanum_pen': 'NanumPenScript-Regular.ttf',
+            'gungseo_kr': 'HMFMPYUN.TTF',
+            'hy_pyunji': 'HMFMPYUN.TTF',
+            'hy_gungseo_bold': 'H2GSRB.TTF',
+            'magic_kr': 'HMKMMAG.TTF',
+            'hy_mokgak': 'H2MKPB.TTF',
+            'yet_hangul': 'HMFMOLD.TTF',
+            'hy_yet': 'HMFMOLD.TTF',
+            'pyeongchang_regular': 'H2GPRM.TTF',
+            'hy_graphic': 'H2GPRM.TTF',
+            'hy_post': 'H2PORM.TTF',
+            'hy_samul': 'H2SA1M.TTF',
+        }
+        if not f_name:
+            f_name = fallback_files.get(font_key, '')
+        if not f_name:
             abort(404)
-        f_name = str(entry.get('file') or '')
         for candidate in (_BUNDLED_FONTS_DIR / f_name, Path('C:/Windows/Fonts') / f_name):
             if candidate.is_file():
                 return send_file(candidate, max_age=86400)

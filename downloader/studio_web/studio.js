@@ -893,6 +893,14 @@ function renderCarouselPreview(){
     }
     fontSelectEl.value=activeFontKey;
     if(!fontSelectEl.value)fontSelectEl.value='heavy_kr';
+    const applyWbFontPreview=(fKey)=>{
+      const fCss=CSS_FONT_MAP[fKey]||CSS_FONT_MAP.heavy_kr;
+      if(fontSelectEl)fontSelectEl.style.fontFamily=fCss;
+      if(textInput)textInput.style.fontFamily=fCss;
+      if(subtitleInput)subtitleInput.style.fontFamily=fCss;
+      if(bodyTextarea)bodyTextarea.style.fontFamily=fCss;
+    };
+    applyWbFontPreview(fontSelectEl.value);
     fontLabelWrap.append(fontHeadSpan,fontSelectEl);
 
     const s1Label=text('label','1차 안쪽 테두리 (px·색상)');
@@ -920,7 +928,10 @@ function renderCarouselPreview(){
 
     roleSelect.onchange=()=>applyActiveSlideUpdate({role:roleSelect.value});
     tplSelect.onchange=()=>applyActiveSlideUpdate({template:tplSelect.value});
-    fontSelectEl.onchange=()=>applyActiveSlideUpdate({font_family:fontSelectEl.value});
+    fontSelectEl.onchange=()=>{
+      applyWbFontPreview(fontSelectEl.value);
+      applyActiveSlideUpdate({font_family:fontSelectEl.value});
+    };
 
     // Action Footer inside Inspector
     const wbFooter=document.createElement('div');
@@ -1027,34 +1038,38 @@ function renderAttachmentsPreview(){
   }
 }
 const CSS_FONT_MAP={
-  heavy_kr:'"Malgun Gothic","Pretendard","Apple SD Gothic Neo",Impact,sans-serif',
-  malgun_bold:'"Malgun Gothic","Pretendard",sans-serif',
+  heavy_kr:'"StudioFont_heavy_kr","Malgun Gothic","Pretendard","Apple SD Gothic Neo",Impact,sans-serif',
+  malgun_bold:'"StudioFont_heavy_kr","Malgun Gothic","Pretendard",sans-serif',
   black_han_sans:'"StudioFont_black_han_sans","Black Han Sans","Malgun Gothic",Impact,sans-serif',
   gasoek_one:'"StudioFont_gasoek_one","Gasoek One","Black Han Sans","Malgun Gothic",Impact,sans-serif',
   do_hyeon:'"StudioFont_do_hyeon","Do Hyeon","BM DoHyeon","Malgun Gothic",sans-serif',
   jua:'"StudioFont_jua","Jua","BM JUA","Malgun Gothic",sans-serif',
   bagel_fat_one:'"StudioFont_bagel_fat_one","Bagel Fat One","Malgun Gothic",cursive,sans-serif',
-  hy_headline:'"HY헤드라인M","HYHeadline-Medium","Malgun Gothic",Impact,sans-serif',
-  hy_gothic_extra:'"HY견고딕","HYGothic-Extra","Malgun Gothic",sans-serif',
-  pyeongchang_peace_bold:'"평창평화체 Bold","PyeongChang Peace Bold","PyeongChangPeace-Bold","Malgun Gothic",sans-serif',
-  sans:'"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif',
-  malgun_regular:'"Malgun Gothic","Apple SD Gothic Neo",sans-serif',
+  hy_headline:'"StudioFont_hy_headline","HYHeadLine-Medium","HY헤드라인M","Malgun Gothic",Impact,sans-serif',
+  hy_gothic_extra:'"StudioFont_hy_gothic_extra","HYGothic-Extra","HY견고딕","Malgun Gothic",sans-serif',
+  pyeongchang_peace_bold:'"StudioFont_pyeongchang_peace_bold","Headline R","휴먼둥근헤드라인","Malgun Gothic",sans-serif',
+  sans:'"StudioFont_sans","Noto Sans KR","Pretendard","Malgun Gothic",sans-serif',
+  malgun_regular:'"StudioFont_malgun_regular","Malgun Gothic","Apple SD Gothic Neo",sans-serif',
   gowun_dodum:'"StudioFont_gowun_dodum","Gowun Dodum","Malgun Gothic",sans-serif',
   orbit:'"StudioFont_orbit","Orbit","Malgun Gothic",monospace,sans-serif',
-  gulim_clean:'"Gulim","굴림","Malgun Gothic",sans-serif',
-  serif:'"StudioFont_gowun_batang_bold","Gowun Batang","Batang","바탕",Georgia,serif',
+  gulim_clean:'"StudioFont_gulim_clean","New Gulim","새굴림","Gulim","굴림","Malgun Gothic",sans-serif',
+  serif:'"StudioFont_serif","StudioFont_gowun_batang_bold","Gowun Batang","Batang","바탕",Georgia,serif',
+  gowun_batang:'"StudioFont_gowun_batang_bold","Gowun Batang","Batang",Georgia,serif',
   gowun_batang_bold:'"StudioFont_gowun_batang_bold","Gowun Batang","Batang",Georgia,serif',
-  batang_kr:'"Batang","바탕","Gowun Batang",serif',
-  hy_myeongjo_extra:'"HY견명조","HYMyeongJo-Extra","Batang",serif',
-  hy_sin_myeongjo:'"HY신명조","HYSinMyeongJo-Medium","Batang",serif',
-  brush_kr:'"StudioFont_nanum_pen","Nanum Pen Script","Gungsuh","궁서",cursive,serif',
+  batang_kr:'"StudioFont_batang_kr","Noto Serif KR","Batang","바탕","Gowun Batang",serif',
+  hy_myeongjo_extra:'"StudioFont_hy_myeongjo_extra","HYMyeongJo-Extra","HY견명조","Batang",serif',
+  hy_sin_myeongjo:'"StudioFont_hy_sin_myeongjo","HYSinMyeongJo-Medium","HY신명조","Batang",serif',
+  brush_kr:'"StudioFont_brush_kr","StudioFont_nanum_pen","Nanum Pen Script","Gungsuh","궁서",cursive,serif',
   nanum_pen:'"StudioFont_nanum_pen","Nanum Pen Script","Gungsuh",cursive,serif',
-  gungseo_kr:'"Gungsuh","궁서","Batang",serif',
-  hy_gungseo_bold:'"HY궁서B","HYGungSo-Bold","Gungsuh","궁서",serif',
-  magic_kr:'"휴먼매직체","HumanMagic","Gungsuh",cursive,sans-serif',
-  hy_mokgak:'"HY목각파임B","HYMokGak-Bold","Malgun Gothic",serif',
-  yet_hangul:'"휴먼옛체","HumanYet","Batang",serif',
-  pyeongchang_regular:'"평창체 Regular","PyeongChang Regular","Malgun Gothic",sans-serif'
+  gungseo_kr:'"StudioFont_gungseo_kr","Pyunji R","휴먼편지체","Gungsuh","궁서",serif',
+  hy_pyunji:'"StudioFont_gungseo_kr","Pyunji R","휴먼편지체","Gungsuh",serif',
+  hy_gungseo_bold:'"StudioFont_hy_gungseo_bold","HYGungSo-Bold","HY궁서B","Gungsuh","궁서",serif',
+  magic_kr:'"StudioFont_magic_kr","Magic R","휴먼매직체","Gungsuh",cursive,sans-serif',
+  hy_mokgak:'"StudioFont_hy_mokgak","HYPMokGak-Bold","HY목각파임B","Malgun Gothic",serif',
+  yet_hangul:'"StudioFont_yet_hangul","Yet R","휴먼옛체","Batang",serif',
+  hy_yet:'"StudioFont_yet_hangul","Yet R","휴먼옛체","Batang",serif',
+  pyeongchang_regular:'"StudioFont_pyeongchang_regular","HYGraphic-Medium","HY그래픽M","Malgun Gothic",sans-serif',
+  hy_graphic:'"StudioFont_pyeongchang_regular","HYGraphic-Medium","HY그래픽M","Malgun Gothic",sans-serif'
 };
 let pendingCustomFontTargetSelect='overlay-title-font';
 function ensureDynamicFontStyleSheet(){
@@ -1119,11 +1134,10 @@ async function loadAvailableStudioFonts(){
   }catch{}
   try{
     const res=await api('fonts');
-    if(Array.isArray(res?.fonts)){
-      for(const f of res.fonts){
-        if(f.key&&f.source==='custom'){
-          registerCustomFontInDom(f.key,f.label,f.url||`/studio/fonts/file/${encodeURIComponent(f.key)}`);
-        }
+    const customList=Array.isArray(res?.custom)?res.custom:(Array.isArray(res?.fonts)?res.fonts.filter(f=>f.source==='custom'||f.custom):[]);
+    for(const f of customList){
+      if(f&&f.key){
+        registerCustomFontInDom(f.key,f.label||f.name||f.key,f.url||`/studio/fonts/file/${encodeURIComponent(f.key)}`);
       }
     }
   }catch{}
@@ -1257,7 +1271,14 @@ function syncCapcutInspectorFromBacking(layer){
     setValIfNotFocused('inspector-duration-select',$('overlay-title-duration')?.value||'0');
   }
   const fontVal=isTitle?($('overlay-title-font')?.value||'heavy_kr'):($('overlay-font')?.value||'sans');
-  if($('inspector-font-select'))$('inspector-font-select').value=fontVal;
+  const activeFontCss=CSS_FONT_MAP[fontVal]||CSS_FONT_MAP.sans;
+  if($('inspector-font-select')){
+    $('inspector-font-select').value=fontVal;
+    $('inspector-font-select').style.fontFamily=activeFontCss;
+  }
+  if($('inspector-text-input')){
+    $('inspector-text-input').style.fontFamily=activeFontCss;
+  }
 
   const isBold=isTitle?($('overlay-title-bold')?.value!=='0'):($('overlay-bold')?.value!=='0');
   const isItalic=isTitle?($('overlay-title-italic')?.value==='1'):($('overlay-italic')?.value==='1');
@@ -1792,38 +1813,39 @@ function syncDraggableOverlayCanvas(){
     const l1=rawLines[0]||tVal;
     const l2=rawLines.slice(1).join(' ');
     const primaryTextCol=tTextColor||'#ffea18';
+    const tFontInline=tFontCss.replace(/"/g,"'");
     if(tCol==='reels_giant_yellow_impact'){
-      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="color:${primaryTextCol};font-size:${l2Px}px;font-family:${tFontCss};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${primaryTextCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="color:${primaryTextCol};font-size:${l2Px}px;font-family:${tFontInline};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${primaryTextCol};font-size:${basePx}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
       titleBox.style.background=tUseBg?hexToRgbaCss(tBgColor||'#080a10',tBgOpacity/100):'transparent';
       titleBox.style.border=tUseBg?'1px solid rgba(255,234,24,0.65)':'1px dashed rgba(255,255,255,0.28)';
     }else if(tCol==='reels_rounded_black'){
       const cCol=tTextColor&&tTextColor!=='#ffea18'?tTextColor:'#ffffff';
-      titleTxt.innerHTML=rawLines.map(ln=>`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(ln)}</div>`).join('');
+      titleTxt.innerHTML=rawLines.map(ln=>`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(ln)}</div>`).join('');
       titleBox.style.background=tUseBg?hexToRgbaCss(tBgColor||'#0a0a0c',tBgOpacity/100):'transparent';
       titleBox.style.border=tUseBg?'1.5px solid rgba(255,255,255,0.22)':'1px dashed rgba(255,255,255,0.28)';
     }else if(tCol==='reels_top_banner_pink'){
-      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="display:inline-block;background:${tUseBg?'#eab0d5':'transparent'};color:${tUseBg?'#111114':'#f5b4c8'};font-size:${basePx}px;font-family:${tFontCss};padding:${tUseBg?'1px 7px':'0'};border-radius:${tBoxRadCss};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="display:inline-block;background:${tUseBg?'#eab0d5':'transparent'};color:${tUseBg?'#111114':'#f5b4c8'};font-size:${basePx}px;font-family:${tFontCss};padding:${tUseBg?'1px 7px':'0'};border-radius:${tBoxRadCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="display:inline-block;background:${tUseBg?'#eab0d5':'transparent'};color:${tUseBg?'#111114':'#f5b4c8'};font-size:${basePx}px;font-family:${tFontInline};padding:${tUseBg?'1px 7px':'0'};border-radius:${tBoxRadCss};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="display:inline-block;background:${tUseBg?'#eab0d5':'transparent'};color:${tUseBg?'#111114':'#f5b4c8'};font-size:${basePx}px;font-family:${tFontInline};padding:${tUseBg?'1px 7px':'0'};border-radius:${tBoxRadCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
       titleBox.style.background=tUseBg?hexToRgbaCss(tBgColor||'#050508',tBgOpacity/100):'transparent';
       titleBox.style.border=tUseBg?'1px solid rgba(234,176,213,0.6)':'1px dashed rgba(255,255,255,0.28)';
     }else if(tCol==='reels_3d_pop_shadow'){
       const popShadow=buildLiveDoubleStrokeTextShadow(Math.max(3,tStrokeW),tStrokeC,tDStrokeW,tDStrokeC,stageW,'3px 4px 0 #000');
       const cCol=tTextColor&&tTextColor!=='#ffea18'?tTextColor:'#ffffff';
-      titleTxt.innerHTML=rawLines.map(ln=>`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontCss};transform:rotate(-3deg);${commonTypoStyle}text-shadow:${popShadow};">${formatHighlightPreviewHtml(ln)}</div>`).join('');
+      titleTxt.innerHTML=rawLines.map(ln=>`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontInline};transform:rotate(-3deg);${commonTypoStyle}text-shadow:${popShadow};">${formatHighlightPreviewHtml(ln)}</div>`).join('');
       titleBox.style.background=tUseBg?hexToRgbaCss(tBgColor||'#0c0e16',tBgOpacity/100):'transparent';
       titleBox.style.border=tUseBg?'1px solid rgba(255,255,255,0.35)':'1px dashed rgba(255,255,255,0.28)';
     }else if(tCol==='reels_neon_green_glow'){
       const neonShadow=buildLiveDoubleStrokeTextShadow(tStrokeW,tStrokeC,tDStrokeW,tDStrokeC,stageW,'0 0 10px rgba(50,255,80,0.85), 0 2px 4px #000');
       const cCol=tTextColor&&tTextColor!=='#ffea18'?tTextColor:'#52ff5c';
-      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="color:${cCol};font-size:${l2Px}px;font-family:${tFontCss};margin-top:2px;${commonTypoStyle}text-shadow:${neonShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${neonShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="color:${cCol};font-size:${l2Px}px;font-family:${tFontInline};margin-top:2px;${commonTypoStyle}text-shadow:${neonShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${neonShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
       titleBox.style.background=tUseBg?hexToRgbaCss(tBgColor||'#0a0e12',tBgOpacity/100):'transparent';
       titleBox.style.border=tUseBg?'1px solid rgba(82,255,92,0.55)':'1px dashed rgba(255,255,255,0.28)';
     }else if(tCol==='reels_editorial_split'){
-      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="display:inline-block;background:${tUseBg?'rgba(12,14,18,0.92)':'transparent'};color:${primaryTextCol};border:${tUseBg?`1.5px solid ${primaryTextCol}`:'none'};font-size:${basePx}px;font-family:${tFontCss};padding:${tUseBg?'1px 7px':'0'};border-radius:${tBoxRadCss};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${primaryTextCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="display:inline-block;background:${tUseBg?'rgba(12,14,18,0.92)':'transparent'};color:${primaryTextCol};border:${tUseBg?`1.5px solid ${primaryTextCol}`:'none'};font-size:${basePx}px;font-family:${tFontInline};padding:${tUseBg?'1px 7px':'0'};border-radius:${tBoxRadCss};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${primaryTextCol};font-size:${basePx}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
       titleBox.style.background=tUseBg?hexToRgbaCss(tBgColor||'#0e1018',tBgOpacity/100):'transparent';
       titleBox.style.border=tUseBg?'1px solid rgba(255,234,24,0.6)':'1px dashed rgba(255,255,255,0.28)';
     }else{
       const fallbackCol=tTextColor||(tCol==='black'?'#141418':(tCol==='white'?'#ffffff':(tCol==='mint'?'#6effd8':'#ffe840')));
-      titleTxt.innerHTML=`<div style="color:${fallbackCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(tVal)}</div>`;
+      titleTxt.innerHTML=`<div style="color:${fallbackCol};font-size:${basePx}px;font-family:${tFontInline};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(tVal)}</div>`;
       titleBox.style.color=fallbackCol;
       titleBox.style.background=(!tUseBg||tCol==='outline')?'transparent':(tCol==='black'?'rgba(255,255,255,0.95)':hexToRgbaCss(tBgColor||'#0e1018',tBgOpacity/100));
       titleBox.style.border=tUseBg?'1px solid rgba(255,255,255,0.22)':'1px dashed rgba(255,255,255,0.28)';

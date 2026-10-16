@@ -356,7 +356,18 @@ Modeled directly after the 5 uploaded Korean Reels/Shorts/Threads viral video sc
   - Screenshots:
     - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_tight_box_checked.png`
     - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_tight_box_unchecked.png`
+- **All 25 Korean Studio Fonts Full WebFont (`@font-face`) & Backend Pillow Resolution Fix (`글꼴 25종 전체 실시간 미리보기·입력창·렌더링 완벽 적용`)**:
+  - `downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`
+  - Fixed broken inline HTML `style="...font-family:..."` quote escaping in `syncDraggableOverlayCanvas()` (`tFontCss.replace(/"/g, "'")`) where double quotes inside `CSS_FONT_MAP` prematurely closed the inline `style` attribute on `#drag-title-text` inner `<div>` elements.
+  - Mapped all 25 UI font keys (`heavy_kr`, `black_han_sans`, `gasoek_one`, `do_hyeon`, `jua`, `bagel_fat_one`, `hy_headline`, `hy_gothic_extra`, `pyeongchang_peace_bold`, `sans`, `gowun_dodum`, `orbit`, `malgun_regular`, `gulim_clean`, `serif`, `batang_kr`, `hy_myeongjo_extra`, `hy_sin_myeongjo`, `brush_kr`, `gungseo_kr`, `hy_gungseo_bold`, `magic_kr`, `hy_mokgak`, `yet_hangul`, `pyeongchang_regular`) to distinct TTF/TTC font files in both `STUDIO_FONT_CATALOG` / `_load_korean_font()` and `@font-face` (`StudioFont_<key>`) with `document.fonts.check` returning `true` for all 25 fonts.
+  - Applied live font family styling to `#inspector-font-select`, `#inspector-text-input`, and `02-B` `#wb-active-font-select` / `#wb-active-text-input` so the user immediately sees the chosen font in the selector, text input box, and video/carousel canvas.
+  - Screenshots:
+    - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_font_01_bagel_fat_one.png`
+    - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_font_02_brush_nanum_pen.png`
+    - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_font_03_hy_myeongjo_extra.png`
+    - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_font_04_gasoek_one.png`
 - **8 Canva 1:1 Card News Layouts Showcase**:
   `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_8_canva_editorial_layouts_showcase.png`
 - **6 Korean Viral Video Hook Templates Showcase**:
   `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_6_video_hook_templates_showcase.png`
+
