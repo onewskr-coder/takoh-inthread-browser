@@ -720,12 +720,12 @@ body.quick-sidebar-mode .stage-section-header{margin-bottom:14px;padding-bottom:
 /* Interactive Draggable Title & Subtitle Overlay Canvas on Player */
 .analysis-player-frame{position:relative;overflow:hidden;border-radius:12px;background:#0a0d12}
 .player-overlay-canvas{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
-.draggable-overlay-chip{position:absolute;left:50%;transform:translate(-50%,-50%);width:max-content;max-width:min(88%,460px);min-width:140px;box-sizing:border-box;padding:8px 14px 10px;border-radius:10px;background:rgba(14,16,24,0.92);color:#fff;border:2px dashed rgba(255,232,64,0.85);box-shadow:0 6px 20px rgba(0,0,0,0.45);pointer-events:auto;cursor:grab;user-select:none;touch-action:none;text-align:center;transition:box-shadow .12s,border-color .12s}
+.draggable-overlay-chip{position:absolute;left:50%;transform:translate(-50%,-50%);width:fit-content;max-width:92%;min-width:0;box-sizing:border-box;padding:4px 10px 5px;border-radius:9px;background:rgba(14,16,24,0.92);color:#fff;border:1.5px dashed rgba(255,232,64,0.85);box-shadow:0 4px 14px rgba(0,0,0,0.42);pointer-events:auto;cursor:grab;user-select:none;touch-action:none;text-align:center;transition:box-shadow .12s,border-color .12s}
 .draggable-overlay-chip:hover,.draggable-overlay-chip.dragging{border-color:#2dd4bf;box-shadow:0 8px 26px rgba(45,212,191,0.38);cursor:grabbing}
 .draggable-title-chip{top:14%;color:#ffe840;font-weight:800}
 .draggable-subtitle-chip{top:82%;color:#fff;font-weight:700;border-color:rgba(255,255,255,0.75)}
-.drag-chip-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,0.16);color:#d1fae5;margin-bottom:4px;letter-spacing:-0.2px;white-space:nowrap}
-.drag-chip-content{font-size:14px;line-height:1.38;white-space:pre-wrap;word-break:keep-all}
+.drag-chip-badge{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,0.16);color:#d1fae5;margin-bottom:2px;letter-spacing:-0.2px;white-space:nowrap}
+.drag-chip-content{font-size:14px;line-height:1.25;white-space:pre-wrap;word-break:keep-all;margin:0;padding:0}
 .title-hook-composer{padding:12px 14px;background:#f4f8f5;border:1px solid #d4e3d9;border-radius:10px;margin-bottom:10px}
 .title-hook-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 
@@ -3447,23 +3447,33 @@ body:not(.quick-sidebar-mode)[data-active-stage="carousel"] .content-studio-cont
   transform: scale(1.12);
   border-color: #0f172a !important;
 }
-.capcut-color-card .inline-check {
+.capcut-color-card .inline-check,
+.capcut-inspector-quick-btns .capcut-quick-bg-check {
   display: inline-flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   font-size: 11.5px !important;
   font-weight: 700 !important;
   color: #334155 !important;
   cursor: pointer;
 }
-.capcut-color-card .inline-check input[type="checkbox"] {
+.capcut-inspector-quick-btns .capcut-quick-bg-check {
+  padding: 5px 11px !important;
+  border-radius: 7px !important;
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+.capcut-color-card .inline-check input[type="checkbox"],
+.capcut-inspector-quick-btns .capcut-quick-bg-check input[type="checkbox"] {
   width: 15px !important;
   height: 15px !important;
   min-width: 15px !important;
+  max-width: 15px !important;
   margin: 0 !important;
   padding: 0 !important;
-  accent-color: #0f172a;
+  accent-color: #38bdf8;
 }
 
 /* Position Snap & Action Footer */
@@ -3507,5 +3517,24 @@ body:not(.quick-sidebar-mode)[data-active-stage="carousel"] .content-studio-cont
   background: #1e293b !important;
 }
 
-
-
+/* Tight Box Padding & Transparent Mode When Background Box Checkbox is Unchecked */
+.draggable-overlay-chip {
+  min-width: 0 !important;
+  width: fit-content;
+  padding: 4px 10px 5px !important;
+}
+.draggable-overlay-chip .drag-chip-content {
+  line-height: 1.24;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.draggable-overlay-chip.no-bg-box {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 1px dashed rgba(255, 255, 255, 0.28) !important;
+  padding: 2px 6px !important;
+}
+.draggable-overlay-chip.no-bg-box.selected-text-layer,
+.draggable-overlay-chip.no-bg-box:hover {
+  border-color: rgba(56, 189, 248, 0.85) !important;
+}

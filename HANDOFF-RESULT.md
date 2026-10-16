@@ -349,8 +349,14 @@ Modeled directly after the 5 uploaded Korean Reels/Shorts/Threads viral video sc
 - **Source Hub Sub-Navigation & Global Button Spacing Audit (`AUDIT ISSUES FOUND: 0` across all 9 workspaces)**:
   - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_source_subnav_buttons_spaced.png`
   - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_create_top_actions_spaced.png`
+- **Tight Text Box Padding (`박스 테두리·폰트 사이 간격 축소`) & Optional Background Box Checkbox (`배경 박스 사용` 체크/해제)**:
+  - `downloader/studio_text_clean.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`
+  - Reduced live preview chip padding (`4px 10px 5px`) and normalized legacy default `box_w=84` to `0` (`자동 fit-content`) so short text like `"왜 안넘어져?"` wraps tightly (`154px × 84px` instead of stretching across `84%` of the frame).
+  - Reduced Pillow/FFmpeg box padding (`pad_x = max(14, int(f_px * 0.34))`, `pad_y = max(9, int(f_px * 0.22))`) and added `_draw_optional_box_for_text` so checking `배경 박스 사용` draws a tight-fitting background card on any preset, and unchecking `배경 박스 사용` (`overlay_bg=False`) renders a 100% transparent background with only the text and 1st/2nd stroke outlines (`146px × 79px`, `.no-bg-box`).
+  - Screenshots:
+    - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_tight_box_checked.png`
+    - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_tight_box_unchecked.png`
 - **8 Canva 1:1 Card News Layouts Showcase**:
   `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_8_canva_editorial_layouts_showcase.png`
 - **6 Korean Viral Video Hook Templates Showcase**:
   `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_6_video_hook_templates_showcase.png`
-

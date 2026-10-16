@@ -2159,6 +2159,7 @@ def _render_video_hook_template_layer(
     text_align='center',
     scale_pct=100.0,
     opacity=100.0,
+    overlay_bg=True,
 ):
     """Render the 6 Korean viral Reels/Shorts/Threads video hook templates onto a transparent RGBA PIL Image."""
     import re
@@ -2178,6 +2179,7 @@ def _render_video_hook_template_layer(
     is_bold = bool(bold if bold is not None else True)
     is_italic = bool(italic)
     is_underline = bool(underline)
+    use_bg_box = bool(overlay_bg if overlay_bg is not None else True)
     align_norm = str(text_align or 'center').strip().lower()
     if align_norm not in ('left', 'center', 'right'):
         align_norm = 'center'
@@ -2276,12 +2278,27 @@ def _render_video_hook_template_layer(
     except (TypeError, ValueError):
         custom_bh = None
 
-    def _aligned_x(lw, container_x0, container_w, pad=18):
+    def _aligned_x(lw, container_x0, container_w, pad=12):
         if align_norm == 'left':
             return max(12, container_x0 + pad)
         if align_norm == 'right':
             return max(12, container_x0 + container_w - lw - pad)
         return max(12, container_x0 + (container_w - lw) // 2)
+
+    def _draw_optional_box_for_text(x0, y0, x1, y1, default_bg=(12, 14, 22, 232), border_col=None):
+        nonlocal layer, draw
+        if not use_bg_box:
+            return
+        bw_loc = max(24, x1 - x0)
+        bh_loc = max(20, y1 - y0)
+        eff_r = user_radius_px if user_radius_px is not None else max(14, int(base_px * 0.36))
+        eff_r = min(eff_r, min(bw_loc, bh_loc) // 2)
+        shadow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).rounded_rectangle([x0 + 3, y0 + 6, x1 + 3, y1 + 6], radius=eff_r, fill=(0, 0, 0, 105))
+        layer = Image.alpha_composite(layer, shadow.filter(ImageFilter.GaussianBlur(radius=8)))
+        draw = ImageDraw.Draw(layer)
+        box_fill = custom_bg_rgba if custom_bg_rgba is not None else default_bg
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=eff_r, fill=box_fill, outline=border_col, width=2 if border_col else 0)
 
     # -------------------------------------------------------------------------
     # 1. REELS ROUNDED BLACK BOX (`reels_rounded_black`) — "장 볼때 누구나 / 한번쯤 하는 고민"
@@ -2289,7 +2306,7 @@ def _render_video_hook_template_layer(
     if tpl == 'reels_rounded_black':
         f_px = max(22, int(base_px * 1.18))
         font = _load_korean_font(f_px, bold=is_bold, style=fam or 'sans', weight=800 if is_bold else 400)
-        line_gap = max(8, int(f_px * line_gap_ratio))
+        line_gap = max(6, int(f_px * line_gap_ratio))
         metrics = []
         max_lw = 0
         total_lh = 0
@@ -2300,28 +2317,29 @@ def _render_video_hook_template_layer(
             total_lh += lh
         total_lh += line_gap * max(0, len(metrics) - 1)
 
-        pad_x = max(32, int(f_px * 0.85))
-        pad_y = max(20, int(f_px * 0.56))
-        box_w = custom_bw if custom_bw is not None else min(width - 28, max_lw + pad_x * 2)
+        pad_x = max(14, int(f_px * 0.34))
+        pad_y = max(9, int(f_px * 0.22))
+        box_w = custom_bw if custom_bw is not None else min(width - 24, max_lw + pad_x * 2)
         box_h = custom_bh if custom_bh is not None else (total_lh + pad_y * 2)
         bx0 = max(8, min(width - box_w - 8, cx - box_w // 2))
         by0 = max(8, min(height - box_h - 8, cy - box_h // 2))
         bx1, by1 = bx0 + box_w, by0 + box_h
 
-        eff_r = user_radius_px if user_radius_px is not None else max(22, int(f_px * 0.62))
-        eff_r = min(eff_r, min(box_w, box_h) // 2)
-        shadow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        ImageDraw.Draw(shadow).rounded_rectangle([bx0 + 4, by0 + 10, bx1 + 4, by1 + 10], radius=eff_r, fill=(0, 0, 0, 125))
-        layer = Image.alpha_composite(layer, shadow.filter(ImageFilter.GaussianBlur(radius=12)))
-        draw = ImageDraw.Draw(layer)
+        if use_bg_box:
+            eff_r = user_radius_px if user_radius_px is not None else max(16, int(f_px * 0.42))
+            eff_r = min(eff_r, min(box_w, box_h) // 2)
+            shadow = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            ImageDraw.Draw(shadow).rounded_rectangle([bx0 + 3, by0 + 7, bx1 + 3, by1 + 7], radius=eff_r, fill=(0, 0, 0, 115))
+            layer = Image.alpha_composite(layer, shadow.filter(ImageFilter.GaussianBlur(radius=9)))
+            draw = ImageDraw.Draw(layer)
 
-        box_fill = custom_bg_rgba if custom_bg_rgba is not None else (4, 4, 6, 248)
-        draw.rounded_rectangle([bx0, by0, bx1, by1], radius=eff_r, fill=box_fill)
-        cur_y = by0 + max(8, (box_h - total_lh) // 2)
-        iw = user_stroke_w if user_stroke_w is not None else 0
+            box_fill = custom_bg_rgba if custom_bg_rgba is not None else (4, 4, 6, 246)
+            draw.rounded_rectangle([bx0, by0, bx1, by1], radius=eff_r, fill=box_fill)
+        cur_y = by0 + max(4, (box_h - total_lh) // 2)
+        iw = user_stroke_w if user_stroke_w is not None else (0 if use_bg_box else max(4, int(f_px * 0.12)))
         fg_col = custom_fg_rgba if custom_fg_rgba is not None else (255, 255, 255, 255)
         for ln, lw, lh, top_off in metrics:
-            lx = _aligned_x(lw, bx0, box_w, pad=max(18, pad_x // 2))
+            lx = _aligned_x(lw, bx0, box_w, pad=max(10, pad_x // 2))
             _draw_double_stroke_text(
                 draw,
                 (lx, cur_y - top_off),
@@ -2344,43 +2362,46 @@ def _render_video_hook_template_layer(
     if tpl == 'reels_top_banner_pink':
         f_px = max(22, int(base_px * 1.15))
         font = _load_korean_font(f_px, bold=is_bold, style=fam or 'heavy_kr', weight=800 if is_bold else 400)
-        line_gap = max(10, int(f_px * max(0.28, line_gap_ratio)))
+        line_gap = max(8, int(f_px * max(0.22, line_gap_ratio)))
         metrics = []
+        max_lw = 0
         total_lh = 0
         for ln in clean_lines:
             lw, lh, top_off = _measure_spaced_text(draw, ln, font, letter_spacing=ls_px)
             metrics.append((ln, lw, lh, top_off))
+            max_lw = max(max_lw, lw)
             total_lh += lh
         total_lh += line_gap * max(0, len(metrics) - 1)
 
-        pad_y = max(22, int(f_px * 0.52))
+        pad_x = max(16, int(f_px * 0.36))
+        pad_y = max(12, int(f_px * 0.28))
         banner_h = custom_bh if custom_bh is not None else (total_lh + pad_y * 2)
-        banner_w = custom_bw if custom_bw is not None else width
-        bx0 = 0 if custom_bw is None else max(0, min(width - banner_w, cx - banner_w // 2))
+        banner_w = custom_bw if custom_bw is not None else min(width - 20, max_lw + pad_x * 2)
+        bx0 = max(6, min(width - banner_w - 6, cx - banner_w // 2))
         bx1 = bx0 + banner_w
-        if custom_center_y is None or (cy <= int(height * 0.14) and custom_bh is None):
-            by0 = 0
-        else:
-            by0 = max(0, min(height - banner_h, cy - banner_h // 2))
+        by0 = max(6, min(height - banner_h - 6, cy - banner_h // 2))
         by1 = by0 + banner_h
 
-        eff_r = user_radius_px if user_radius_px is not None else 0
-        banner_fill = custom_bg_rgba if custom_bg_rgba is not None else (4, 4, 6, 255)
-        if eff_r > 0:
-            draw.rounded_rectangle([bx0, by0, bx1, by1], radius=min(eff_r, min(banner_w, banner_h) // 2), fill=banner_fill)
-        else:
-            draw.rectangle([bx0, by0, bx1, by1], fill=banner_fill)
-        cur_y = by0 + max(8, (banner_h - total_lh) // 2)
-        iw = user_stroke_w if user_stroke_w is not None else 0
+        eff_r = user_radius_px if user_radius_px is not None else 14
+        if use_bg_box:
+            banner_fill = custom_bg_rgba if custom_bg_rgba is not None else (4, 4, 6, 248)
+            if eff_r > 0:
+                draw.rounded_rectangle([bx0, by0, bx1, by1], radius=min(eff_r, min(banner_w, banner_h) // 2), fill=banner_fill)
+            else:
+                draw.rectangle([bx0, by0, bx1, by1], fill=banner_fill)
+        cur_y = by0 + max(5, (banner_h - total_lh) // 2)
+        iw = user_stroke_w if user_stroke_w is not None else (0 if use_bg_box else max(3, int(f_px * 0.10)))
         fg_main = custom_fg_rgba if custom_fg_rgba is not None else (255, 255, 255, 255)
         for idx_l, (ln, lw, lh, top_off) in enumerate(metrics):
-            lx = _aligned_x(lw, bx0, banner_w, pad=24)
+            lx = _aligned_x(lw, bx0, banner_w, pad=12)
             is_pink_bar = (idx_l == len(metrics) - 1 and len(metrics) >= 2) or ('[' in lines_raw[idx_l])
             if is_pink_bar:
-                hp_x = max(20, int(f_px * 0.46))
-                hp_y = max(8, int(f_px * 0.18))
-                draw.rounded_rectangle([lx - hp_x, cur_y - hp_y, lx + lw + hp_x, cur_y + lh + hp_y], radius=min(eff_r or 10, 24), fill=(230, 178, 192, 255))
-                _draw_double_stroke_text(draw, (lx, cur_y - top_off), ln, font=font, fill_rgba=(10, 10, 12, 255), inner_w=iw, inner_rgba=user_stroke_rgba, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
+                if use_bg_box:
+                    hp_x = max(12, int(f_px * 0.28))
+                    hp_y = max(5, int(f_px * 0.12))
+                    draw.rounded_rectangle([lx - hp_x, cur_y - hp_y, lx + lw + hp_x, cur_y + lh + hp_y], radius=min(eff_r or 10, 20), fill=(230, 178, 192, 255))
+                pink_fg = (10, 10, 12, 255) if use_bg_box else (245, 180, 208, 255)
+                _draw_double_stroke_text(draw, (lx, cur_y - top_off), ln, font=font, fill_rgba=pink_fg, inner_w=iw, inner_rgba=user_stroke_rgba, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
             else:
                 _draw_double_stroke_text(draw, (lx, cur_y - top_off), ln, font=font, fill_rgba=fg_main, inner_w=iw, inner_rgba=user_stroke_rgba, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
             cur_y += lh + line_gap
@@ -2392,7 +2413,7 @@ def _render_video_hook_template_layer(
     if tpl == 'reels_3d_pop_shadow':
         f_px = max(24, int(base_px * 1.32))
         font = _load_korean_font(f_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
-        line_gap = max(10, int(f_px * line_gap_ratio))
+        line_gap = max(8, int(f_px * line_gap_ratio))
         metrics = []
         total_lh = 0
         max_lw = 0
@@ -2403,19 +2424,26 @@ def _render_video_hook_template_layer(
             total_lh += lh
         total_lh += line_gap * max(0, len(metrics) - 1)
 
+        start_y = max(20, min(height - total_lh - 20, cy - total_lh // 2))
+        pad_x = max(14, int(f_px * 0.32))
+        pad_y = max(9, int(f_px * 0.20))
+        box_w_eff = custom_bw if custom_bw is not None else (max_lw + pad_x * 2)
+        box_h_eff = custom_bh if custom_bh is not None else (total_lh + pad_y * 2)
+        box_x0 = max(10, cx - box_w_eff // 2)
+        box_y0 = max(10, cy - box_h_eff // 2)
+        if use_bg_box:
+            _draw_optional_box_for_text(box_x0, box_y0, box_x0 + box_w_eff, box_y0 + box_h_eff, default_bg=(12, 14, 22, 218))
+
         sub_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         sdraw = ImageDraw.Draw(sub_layer)
-        start_y = max(20, min(height - total_lh - 20, cy - total_lh // 2))
         stroke_w = user_stroke_w if user_stroke_w is not None else max(5, int(f_px * 0.16))
         extrude_steps = max(5, int(f_px * 0.16))
         st_col = user_stroke_rgba if stroke_color else (10, 10, 12, 255)
         fg_col = custom_fg_rgba if custom_fg_rgba is not None else (255, 255, 255, 255)
 
         cur_y = start_y
-        box_x0 = max(12, cx - (custom_bw or max_lw) // 2)
-        box_w_eff = custom_bw or max_lw
         for ln, lw, lh, top_off in metrics:
-            lx = _aligned_x(lw, box_x0, box_w_eff, pad=8) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
+            lx = _aligned_x(lw, box_x0, box_w_eff, pad=10) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
             for step in range(extrude_steps, 0, -1):
                 _draw_double_stroke_text(
                     sdraw,
@@ -2452,7 +2480,7 @@ def _render_video_hook_template_layer(
     if tpl == 'reels_neon_green_glow':
         f_px = max(24, int(base_px * 1.38))
         font = _load_korean_font(f_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
-        line_gap = max(10, int(f_px * line_gap_ratio))
+        line_gap = max(8, int(f_px * line_gap_ratio))
         metrics = []
         total_lh = 0
         max_lw = 0
@@ -2464,13 +2492,20 @@ def _render_video_hook_template_layer(
         total_lh += line_gap * max(0, len(metrics) - 1)
 
         start_y = max(20, min(height - total_lh - 20, cy - total_lh // 2))
+        pad_x = max(14, int(f_px * 0.32))
+        pad_y = max(9, int(f_px * 0.20))
+        box_w_eff = custom_bw if custom_bw is not None else (max_lw + pad_x * 2)
+        box_h_eff = custom_bh if custom_bh is not None else (total_lh + pad_y * 2)
+        box_x0 = max(10, cx - box_w_eff // 2)
+        box_y0 = max(10, cy - box_h_eff // 2)
+        if use_bg_box:
+            _draw_optional_box_for_text(box_x0, box_y0, box_x0 + box_w_eff, box_y0 + box_h_eff, default_bg=(10, 14, 18, 224))
+
         glow_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         gdraw = ImageDraw.Draw(glow_layer)
         cur_y = start_y
-        box_x0 = max(12, cx - (custom_bw or max_lw) // 2)
-        box_w_eff = custom_bw or max_lw
         for idx_l, (ln, lw, lh, top_off) in enumerate(metrics):
-            lx = _aligned_x(lw, box_x0, box_w_eff, pad=8) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
+            lx = _aligned_x(lw, box_x0, box_w_eff, pad=10) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
             is_neon = (idx_l == len(metrics) - 1 and len(metrics) >= 2) or ('[' in lines_raw[idx_l] or '*' in lines_raw[idx_l])
             g_col = (50, 255, 78, 235) if is_neon else (0, 0, 0, 235)
             gdraw.text((lx, cur_y - top_off + 5), ln, font=font, fill=g_col, stroke_width=max(8, int(f_px * 0.24)), stroke_fill=(0, 0, 0, 245))
@@ -2484,7 +2519,7 @@ def _render_video_hook_template_layer(
         stroke_w = user_stroke_w if user_stroke_w is not None else max(5, int(f_px * 0.15))
         st_col = user_stroke_rgba if stroke_color else (8, 12, 8, 255)
         for idx_l, (ln, lw, lh, top_off) in enumerate(metrics):
-            lx = _aligned_x(lw, box_x0, box_w_eff, pad=8) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
+            lx = _aligned_x(lw, box_x0, box_w_eff, pad=10) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
             is_neon = (idx_l == len(metrics) - 1 and len(metrics) >= 2) or ('[' in lines_raw[idx_l] or '*' in lines_raw[idx_l])
             fg_col = (82, 255, 92, 255) if is_neon else (custom_fg_rgba or (255, 255, 255, 255))
             _draw_double_stroke_text(
@@ -2507,54 +2542,67 @@ def _render_video_hook_template_layer(
     # 5. REELS GIANT YELLOW IMPACT (`reels_giant_yellow_impact`) — "밭일하시는 부모님 / 이거면 끝"
     # -------------------------------------------------------------------------
     if tpl == 'reels_giant_yellow_impact':
+        has_two_lines = False
         if len(clean_lines) >= 2:
             top_ln = clean_lines[0]
             bot_ln = ' '.join(clean_lines[1:])
+            has_two_lines = True
         else:
-            words = clean_lines[0].split(' ')
-            mid = max(1, len(words) // 2)
-            top_ln = ' '.join(words[:mid])
-            bot_ln = ' '.join(words[mid:]) or clean_lines[0]
+            top_ln = ''
+            bot_ln = clean_lines[0]
 
-        top_px = max(24, int(base_px * 1.18))
-        bot_px = max(36, int(base_px * 2.10))
+        top_px = max(24, int(base_px * 1.05))
+        bot_px = max(32, int(base_px * (1.72 if has_two_lines else 1.38)))
         f_top = _load_korean_font(top_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
         f_bot = _load_korean_font(bot_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
 
-        max_avail = (custom_bw - 16) if custom_bw is not None else (width - 28)
+        max_avail = (custom_bw - 20) if custom_bw is not None else (width - 28)
         max_avail = max(80, max_avail)
-        tw, th, top_off_t = _measure_spaced_text(draw, top_ln, f_top, letter_spacing=ls_px)
-        if tw > max_avail:
-            top_px = max(20, int(top_px * max_avail / tw))
-            f_top = _load_korean_font(top_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
+        if has_two_lines:
             tw, th, top_off_t = _measure_spaced_text(draw, top_ln, f_top, letter_spacing=ls_px)
+            if tw > max_avail:
+                top_px = max(20, int(top_px * max_avail / tw))
+                f_top = _load_korean_font(top_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
+                tw, th, top_off_t = _measure_spaced_text(draw, top_ln, f_top, letter_spacing=ls_px)
+        else:
+            tw, th, top_off_t = 0, 0, 0
 
         bw, bh, top_off_b = _measure_spaced_text(draw, bot_ln, f_bot, letter_spacing=ls_px)
         if bw > max_avail:
-            bot_px = max(28, int(bot_px * max_avail / bw))
+            bot_px = max(26, int(bot_px * max_avail / bw))
             f_bot = _load_korean_font(bot_px, bold=is_bold, style=fam or 'heavy_kr', weight=900 if is_bold else 500)
             bw, bh, top_off_b = _measure_spaced_text(draw, bot_ln, f_bot, letter_spacing=ls_px)
 
-        gap = max(8, int(top_px * line_gap_ratio))
-        total_h = th + gap + bh
+        gap = max(6, int(top_px * line_gap_ratio)) if has_two_lines else 0
+        total_h = (th + gap + bh) if has_two_lines else bh
         start_y = max(18, min(height - total_h - 18, cy - total_h // 2))
 
-        box_x0 = max(12, cx - max(tw, bw, custom_bw or 0) // 2)
-        box_w_eff = max(tw, bw, custom_bw or 0)
-        tx = _aligned_x(tw, box_x0, box_w_eff, pad=6) if align_norm != 'center' else max(14, min(width - tw - 14, cx - tw // 2))
-        bx = _aligned_x(bw, box_x0, box_w_eff, pad=6) if align_norm != 'center' else max(14, min(width - bw - 14, cx - bw // 2))
+        pad_x = max(14, int(bot_px * 0.30))
+        pad_y = max(9, int(bot_px * 0.20))
+        content_w = max(tw, bw)
+        box_w_eff = custom_bw if custom_bw is not None else (content_w + pad_x * 2)
+        box_h_eff = custom_bh if custom_bh is not None else (total_h + pad_y * 2)
+        box_x0 = max(10, cx - box_w_eff // 2)
+        box_y0 = max(10, start_y - pad_y) if custom_bh is None else max(10, cy - box_h_eff // 2)
+        if use_bg_box:
+            _draw_optional_box_for_text(box_x0, box_y0, box_x0 + box_w_eff, box_y0 + box_h_eff, default_bg=(8, 10, 16, 228))
 
-        st_top = user_stroke_w if user_stroke_w is not None else max(5, int(top_px * 0.16))
-        st_bot = user_stroke_w if user_stroke_w is not None else max(7, int(bot_px * 0.16))
+        tx = _aligned_x(tw, box_x0, box_w_eff, pad=10) if align_norm != 'center' else max(14, min(width - tw - 14, cx - tw // 2))
+        bx = _aligned_x(bw, box_x0, box_w_eff, pad=10) if align_norm != 'center' else max(14, min(width - bw - 14, cx - bw // 2))
+
+        st_top = user_stroke_w if user_stroke_w is not None else max(4, int(top_px * 0.14))
+        st_bot = user_stroke_w if user_stroke_w is not None else max(5, int(bot_px * 0.14))
         st_col = user_stroke_rgba if stroke_color else (8, 8, 10, 255)
         bot_fg = custom_fg_rgba if custom_fg_rgba is not None else (255, 224, 20, 255)
 
-        for ox, oy in ((5, 8), (3, 4)):
-            _draw_double_stroke_text(draw, (tx + ox, start_y - top_off_t + oy), top_ln, font=f_top, fill_rgba=(0, 0, 0, 235), inner_w=st_top, inner_rgba=(0, 0, 0, 235), letter_spacing=ls_px)
-            _draw_double_stroke_text(draw, (bx + ox, start_y + th + gap - top_off_b + oy), bot_ln, font=f_bot, fill_rgba=(0, 0, 0, 245), inner_w=st_bot, inner_rgba=(0, 0, 0, 245), letter_spacing=ls_px)
+        for ox, oy in ((4, 6), (2, 3)):
+            if has_two_lines:
+                _draw_double_stroke_text(draw, (tx + ox, start_y - top_off_t + oy), top_ln, font=f_top, fill_rgba=(0, 0, 0, 225), inner_w=st_top, inner_rgba=(0, 0, 0, 225), letter_spacing=ls_px)
+            _draw_double_stroke_text(draw, (bx + ox, start_y + (th + gap if has_two_lines else 0) - top_off_b + oy), bot_ln, font=f_bot, fill_rgba=(0, 0, 0, 235), inner_w=st_bot, inner_rgba=(0, 0, 0, 235), letter_spacing=ls_px)
 
-        _draw_double_stroke_text(draw, (tx, start_y - top_off_t), top_ln, font=f_top, fill_rgba=(255, 255, 255, 255), inner_w=st_top, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
-        _draw_double_stroke_text(draw, (bx, start_y + th + gap - top_off_b), bot_ln, font=f_bot, fill_rgba=bot_fg, inner_w=st_bot, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
+        if has_two_lines:
+            _draw_double_stroke_text(draw, (tx, start_y - top_off_t), top_ln, font=f_top, fill_rgba=(255, 255, 255, 255), inner_w=st_top, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
+        _draw_double_stroke_text(draw, (bx, start_y + (th + gap if has_two_lines else 0) - top_off_b), bot_ln, font=f_bot, fill_rgba=bot_fg, inner_w=st_bot, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
         return _apply_layer_italic_and_opacity(layer, italic=is_italic, opacity=opacity, center_y=cy)
 
     # -------------------------------------------------------------------------
@@ -2562,7 +2610,7 @@ def _render_video_hook_template_layer(
     # -------------------------------------------------------------------------
     f_px = max(22, int(base_px * 1.05))
     font = _load_korean_font(f_px, bold=is_bold, style=fam or 'sans', weight=900 if is_bold else 500)
-    line_gap = max(8, int(f_px * line_gap_ratio))
+    line_gap = max(6, int(f_px * line_gap_ratio))
     metrics = []
     total_lh = 0
     max_lw = 0
@@ -2575,31 +2623,37 @@ def _render_video_hook_template_layer(
     total_lh += line_gap * max(0, len(metrics) - 1)
 
     start_y = max(36, min(height - total_lh - 24, cy - total_lh // 2))
-    kicker_txt = str(badge_text or 'EDITOR PICK').strip()
-    kf = _load_korean_font(max(13, int(f_px * 0.44)), bold=True, style=fam or 'sans', weight=800)
-    kb = draw.textbbox((0, 0), kicker_txt, font=kf)
-    kw, kh = kb[2] - kb[0], kb[3] - kb[1]
-    kx0 = cx - (kw + 28) // 2
-    ky0 = max(10, start_y - kh - 24)
-    draw.rounded_rectangle([kx0, ky0, kx0 + kw + 28, ky0 + kh + 14], radius=(kh + 14) // 2, fill=(255, 208, 28, 255))
-    draw.text((kx0 + 14, ky0 + 7 - kb[1]), kicker_txt, font=kf, fill=(14, 16, 20, 255))
+    kicker_txt = str(badge_text or '').strip()
+    if kicker_txt:
+        kf = _load_korean_font(max(13, int(f_px * 0.44)), bold=True, style=fam or 'sans', weight=800)
+        kb = draw.textbbox((0, 0), kicker_txt, font=kf)
+        kw, kh = kb[2] - kb[0], kb[3] - kb[1]
+        kx0 = cx - (kw + 24) // 2
+        ky0 = max(10, start_y - kh - 20)
+        draw.rounded_rectangle([kx0, ky0, kx0 + kw + 24, ky0 + kh + 12], radius=(kh + 12) // 2, fill=(255, 208, 28, 255))
+        draw.text((kx0 + 12, ky0 + 6 - kb[1]), kicker_txt, font=kf, fill=(14, 16, 20, 255))
 
     cur_y = start_y
     eff_r = user_radius_px if user_radius_px is not None else 12
     iw = user_stroke_w if user_stroke_w is not None else max(4, int(f_px * 0.12))
     st_col = user_stroke_rgba if stroke_color else (10, 12, 16, 245)
     fg_main = custom_fg_rgba if custom_fg_rgba is not None else (255, 255, 255, 255)
-    box_x0 = max(12, cx - max(max_lw, custom_bw or 0) // 2)
-    box_w_all = max(max_lw, custom_bw or 0)
+    pad_x = max(14, int(f_px * 0.32))
+    pad_y = max(8, int(f_px * 0.18))
+    box_w_all = max(max_lw + pad_x * 2, custom_bw or 0)
+    box_x0 = max(12, cx - box_w_all // 2)
+    if use_bg_box and len(metrics) == 1:
+        _draw_optional_box_for_text(box_x0, start_y - pad_y, box_x0 + box_w_all, start_y + total_lh + pad_y, default_bg=(14, 16, 22, 236), border_col=(255, 208, 28, 210))
     for idx_l, (raw_ln, clean_ln, lw, lh, top_off) in enumerate(metrics):
-        lx = _aligned_x(lw, box_x0, box_w_all, pad=8) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
+        lx = _aligned_x(lw, box_x0, box_w_all, pad=10) if align_norm != 'center' else max(16, min(width - lw - 16, cx - lw // 2))
         if idx_l == len(metrics) - 1 and len(metrics) >= 2:
-            box_w_eff = max(lw + 28, custom_bw or 0)
-            bx0 = cx - box_w_eff // 2
-            bx1 = bx0 + box_w_eff
-            box_bg = custom_bg_rgba if custom_bg_rgba is not None else (14, 16, 22, 240)
-            draw.rounded_rectangle([bx0, cur_y - 6, bx1, cur_y + lh + 8], radius=min(eff_r, (lh + 14) // 2), fill=box_bg, outline=(255, 208, 28, 220), width=2)
-            _draw_double_stroke_text(draw, (lx, cur_y - top_off), clean_ln, font=font, fill_rgba=(255, 224, 36, 255), inner_w=user_stroke_w or 0, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
+            if use_bg_box:
+                box_w_eff = max(lw + 22, custom_bw or 0)
+                bx0 = cx - box_w_eff // 2
+                bx1 = bx0 + box_w_eff
+                box_bg = custom_bg_rgba if custom_bg_rgba is not None else (14, 16, 22, 240)
+                draw.rounded_rectangle([bx0, cur_y - 5, bx1, cur_y + lh + 7], radius=min(eff_r, (lh + 12) // 2), fill=box_bg, outline=(255, 208, 28, 220), width=2)
+            _draw_double_stroke_text(draw, (lx, cur_y - top_off), clean_ln, font=font, fill_rgba=(255, 224, 36, 255), inner_w=(user_stroke_w or 0) if use_bg_box else iw, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
         else:
             _draw_double_stroke_text(draw, (lx, cur_y - top_off), clean_ln, font=font, fill_rgba=fg_main, inner_w=iw, inner_rgba=st_col, outer_w=user_double_w, outer_rgba=user_double_rgba, letter_spacing=ls_px, underline=is_underline)
         cur_y += lh + line_gap
@@ -2687,6 +2741,7 @@ def render_overlay_rgba_layer(
             text_align=text_align or 'center',
             scale_pct=scale_pct,
             opacity=opacity,
+            overlay_bg=bool(overlay_bg or force_opaque_bg),
         )
 
     draw = ImageDraw.Draw(overlay_layer)
@@ -2777,9 +2832,9 @@ def render_overlay_rgba_layer(
 
     safe_margin_x = max(24, int(width * 0.075))
     if custom_bw is not None:
-        max_text_width = max(60, custom_bw - max(28, int(font_px * 1.1)))
+        max_text_width = max(60, custom_bw - max(20, int(font_px * 0.72)))
     else:
-        max_text_width = max(80, width - safe_margin_x * 2 - (28 if overlay_bg or force_opaque_bg else 0))
+        max_text_width = max(80, width - safe_margin_x * 2 - (20 if overlay_bg or force_opaque_bg else 0))
 
     if ('[' in headline_raw or '*' in headline_raw):
         lines = _wrap_korean_editorial_lines(draw, headline_raw, font, max_text_width + int(font_px * 1.4))
@@ -2888,17 +2943,17 @@ def render_overlay_rgba_layer(
     else:
         align_mode = (theme.get('align') if (theme and custom_center_x is None) else 'center') or 'center'
 
-    pad_x = max(22, int(font_px * 0.72))
-    pad_y = max(16, int(font_px * 0.52))
+    pad_x = max(14, int(font_px * 0.34))
+    pad_y = max(9, int(font_px * 0.22))
     if custom_bw is not None:
         box_x0 = max(6, min(width - custom_bw - 6, int(center_x - custom_bw / 2)))
         box_x1 = box_x0 + custom_bw
     elif align_mode == 'left' and custom_center_x is None:
         box_x0 = safe_margin_x
-        box_x1 = min(width - safe_margin_x, max(box_x0 + max_w + pad_x * 2, int(width * 0.84)))
+        box_x1 = min(width - safe_margin_x, box_x0 + max_w + pad_x * 2)
     elif align_mode == 'right' and custom_center_x is None:
         box_x1 = width - safe_margin_x
-        box_x0 = max(safe_margin_x, box_x1 - max(max_w + pad_x * 2, int(width * 0.42)))
+        box_x0 = max(safe_margin_x, box_x1 - (max_w + pad_x * 2))
     else:
         box_x0 = max(10, int(center_x - max_w / 2) - pad_x)
         box_x1 = min(width - 10, int(center_x + max_w / 2) + pad_x)
@@ -2906,13 +2961,13 @@ def render_overlay_rgba_layer(
         cy_eff = int(round(custom_center_y)) if custom_center_y is not None else (start_y + total_h // 2)
         box_y0 = max(6, min(height - custom_bh - 6, cy_eff - custom_bh // 2))
         box_y1 = box_y0 + custom_bh
-        start_y = max(box_y0 + 8, box_y0 + (custom_bh - total_h) // 2)
+        start_y = max(box_y0 + 6, box_y0 + (custom_bh - total_h) // 2)
     else:
         box_y0 = max(10, start_y - pad_y)
         box_y1 = min(height - 10, start_y + total_h + pad_y)
 
     # 2. Card Container + Soft Drop Shadow + Accent Bar
-    has_card_box = bool((overlay_bg or force_opaque_bg) and (not theme or theme.get('bg') is not None or force_opaque_bg or str(bg_color_hex or '').strip()))
+    has_card_box = bool((overlay_bg or force_opaque_bg) and (not theme or theme.get('bg') is not None or force_opaque_bg))
     if has_card_box:
         radius = user_radius_px if user_radius_px is not None else max(12, int(font_px * 0.42))
         radius = min(radius, max(0, min(box_x1 - box_x0, box_y1 - box_y0) // 2))

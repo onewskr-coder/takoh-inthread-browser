@@ -209,7 +209,12 @@
 </div>
 </button>
 </div>
-<div class="capcut-inspector-quick-btns">
+<div class="capcut-inspector-quick-btns" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+<label class="capcut-quick-bg-check" style="margin:0;padding:5px 11px;border-radius:7px;background:#0f172a;color:#f8fafc;border:1px solid #334155;font-size:11.5px;font-weight:800;display:inline-flex;flex-direction:row;align-items:center;gap:6px;cursor:pointer;width:auto;">
+<input id="inspector-bg-enabled-quick" type="checkbox" checked style="width:15px !important;height:15px !important;min-width:15px;margin:0;padding:0;accent-color:#38bdf8;flex:0 0 15px;">
+<span style="white-space:nowrap;">배경 박스 사용</span>
+</label>
+<button type="button" id="btn-inspector-tight-box" class="secondary btn-xs" title="박스 테두리와 글자 사이 여백을 글자 길이에 딱 맞게 자동 축소합니다">박스 여백 글자 딱 맞춤</button>
 <button type="button" id="btn-inspector-autofill" class="secondary btn-xs" title="01 분석·OCR·본문에서 핵심 후킹 문구를 자동으로 가져옵니다">분석·OCR 문구 자동 채우기</button>
 <button type="button" id="btn-reset-overlay-pos" class="secondary btn-xs" title="텍스트 위치를 화면 중앙 기본값으로 초기화합니다">위치 중앙 정렬</button>
 <button type="button" id="btn-inspector-clear-layer" class="secondary btn-xs" title="현재 선택된 텍스트 레이어의 문구를 비웁니다">현재 텍스트 비우기</button>
@@ -429,7 +434,7 @@
 <div class="capcut-section">
 <div class="capcut-color-stroke-grid">
 <div class="capcut-color-card">
-<span class="capcut-sec-label">⑪ 색상 (글자 색상 · 배경 박스 색상)</span>
+<span class="capcut-sec-label">⑪ 색상 (글자 색상 · 배경 박스 체크 및 색상)</span>
 <div class="capcut-color-row">
 <label for="inspector-text-color">글자 색상</label>
 <input id="inspector-text-color" type="color" value="#ffe014" class="stroke-color-picker">
@@ -443,9 +448,9 @@
 </div>
 </div>
 <div class="capcut-color-row" style="margin-top:6px;">
-<label class="inline-check" style="margin:0;gap:5px;font-size:12px;">
-<input id="inspector-bg-enabled" type="checkbox" checked>
-<span>배경 박스 사용</span>
+<label class="inline-check" style="margin:0;gap:6px;font-size:12px;display:inline-flex;flex-direction:row;align-items:center;width:auto;cursor:pointer;" title="체크하면 글자 뒤에 배경 박스를 표시하고, 해제하면 투명 배경에 글자만 표시합니다">
+<input id="inspector-bg-enabled" type="checkbox" checked style="width:15px !important;height:15px !important;min-width:15px;margin:0;padding:0;accent-color:#38bdf8;flex:0 0 15px;">
+<span style="white-space:nowrap;font-weight:700;">배경 박스 사용</span>
 </label>
 <input id="inspector-bg-color" type="color" value="#080a10" class="stroke-color-picker" title="배경 박스 색상">
 <label for="inspector-bg-opacity" style="font-size:11px;color:#94a3b8;margin:0;">배경 불투명도</label>
@@ -527,8 +532,8 @@
 <option value="yet_hangul">휴먼옛체 (전통 고전 감성)</option>
 <option value="pyeongchang_regular">평창체 Regular (모던 라운드 산세리프)</option>
 </optgroup></select>
-<input id="overlay-title-box-w" type="range" min="25" max="96" value="84">
-<span id="overlay-title-box-w-val">84%</span>
+<input id="overlay-title-box-w" type="range" min="0" max="96" value="0">
+<span id="overlay-title-box-w-val">자동</span>
 <input id="overlay-title-box-h" type="range" min="0" max="55" value="0">
 <span id="overlay-title-box-h-val">자동</span>
 <button type="button" id="btn-reset-title-box-dim">자동</button>
