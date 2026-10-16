@@ -3508,20 +3508,145 @@ if($('timeline-scrubber-range')){
     syncNleScrubberPlayhead(val,dur);
   });
 }
-if($('btn-capture-scrubber-bundle'))$('btn-capture-scrubber-bundle').onclick=()=>act('현재 영상 시점을 고화질 캡처해 동반 첨부 이미지 및 프레임에 추가하는 중…',async()=>{
+let scrubberCaptureTimer=null;
+function showScrubberCaptureStatus(text,isError=false){
+  const el=$('scrubber-capture-status');
+  if(!el)return;
+  el.hidden=false;
+  el.textContent=text;
+  el.className='scrubber-capture-status '+(isError?'is-error':'is-ok');
+  if(scrubberCaptureTimer)clearTimeout(scrubberCaptureTimer);
+  scrubberCaptureTimer=setTimeout(()=>{el.hidden=true;},4500);
+}
+async function captureCurrentVideoMomentToBundle({switchToBundleTab=false}={}){
   if(!job||job.kind==='image')throw new Error('영상이 불러와진 상태에서 캡처할 수 있습니다.');
-  const ts=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
-  await update('attachments-config',{action:'capture_time',timestamp:ts,add_to_bundle:true,label:`영상 캡처 (${ts.toFixed(2)}초)`});
+  const targetId=job.id;
+  const prevAttCount=(job.attachments||[]).length;
+  if(prevAttCount>=9)throw new Error('동반 첨부 이미지는 최대 9장(영상 포함 총 10개)까지 추가할 수 있습니다.');
+  const rawTs=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
+  const dur=Number(job?.media?.duration||$('preview')?.duration||10);
+  const ts=Math.max(0,Math.min(Number.isFinite(rawTs)?rawTs:0,Math.max(0,dur-0.08)));
+  const tsRound=Math.round(ts*100)/100;
+  const label=`영상 캡처 (${tsRound.toFixed(2)}초)`;
+
+  showScrubberCaptureStatus(`현재 시점(${tsRound.toFixed(2)}초) 캡처 중…`);
+
+  // 1) Try native capture_time action first
+  let next=await api(`jobs/${targetId}/attachments-config`,{
+    action:'capture_time',
+    timestamp:tsRound,
+    add_to_bundle:true,
+    label
+  });
+
+  // 2) Fallback if the running helper server on port 5006 was started before capture_time was loaded
+  if((next?.attachments||[]).length<=prevAttCount){
+    const existingSlides=(next?.carousel?.slides||job?.carousel?.slides||[]);
+    if(existingSlides.length>0&&existingSlides.length<10){
+      const addedJob=await api(`jobs/${targetId}/carousel-slide-action`,{
+        action:'add',
+        timestamp:tsRound,
+        text:''
+      });
+      const newSlides=(addedJob?.carousel?.slides||[]);
+      const lastSlide=newSlides[newSlides.length-1];
+      const slideFile=lastSlide?.file||`carousel-${newSlides.length}.jpg`;
+      await api(`jobs/${targetId}/attachments-config`,{
+        action:'add_frame',
+        file:slideFile,
+        label
+      });
+      next=await api(`jobs/${targetId}/carousel-slide-action`,{
+        action:'delete',
+        index:lastSlide?.index||newSlides.length
+      });
+    }else if(existingSlides.length===0){
+      await api(`jobs/${targetId}/carousel-generate`,{
+        count:2,
+        aspect:'original',
+        erase_mode:'keep',
+        slide_texts:['','']
+      });
+      await api(`jobs/${targetId}/carousel-slide-update`,{
+        index:1,
+        timestamp:tsRound,
+        erase_mode:'keep',
+        text:''
+      });
+      next=await api(`jobs/${targetId}/attachments-config`,{
+        action:'add_frame',
+        file:'carousel-1.jpg',
+        label
+      });
+    }else{
+      // Carousel already has 10 slides: temporarily update the last slide, copy to bundle, then restore
+      const lastSlide=existingSlides[existingSlides.length-1];
+      const origTs=Number(lastSlide.timestamp||0);
+      const origText=String(lastSlide.text||'');
+      const origMode=String(lastSlide.erase_mode||'keep');
+      await api(`jobs/${targetId}/carousel-slide-update`,{
+        index:lastSlide.index,
+        timestamp:tsRound,
+        erase_mode:'keep',
+        text:''
+      });
+      await api(`jobs/${targetId}/attachments-config`,{
+        action:'add_frame',
+        file:lastSlide.file,
+        label
+      });
+      next=await api(`jobs/${targetId}/carousel-slide-update`,{
+        index:lastSlide.index,
+        timestamp:origTs,
+        erase_mode:origMode,
+        text:origText
+      });
+    }
+  }
+
+  // Ensure the newly captured frame also appears in the extracted frames timeline (#frames) in memory
+  const latestAtt=(next?.attachments||[])[(next?.attachments||[]).length-1];
+  if(latestAtt?.file){
+    if(!next.evidence)next.evidence={};
+    if(!Array.isArray(next.evidence.frames))next.evidence.frames=[];
+    const alreadyInFrames=next.evidence.frames.some(f=>f.file===latestAtt.file||f.file===latestAtt.source_file);
+    if(!alreadyInFrames){
+      next.evidence.frames.push({
+        index:next.evidence.frames.length,
+        timestamp:tsRound,
+        file:latestAtt.file,
+        url:`/studio/jobs/${targetId}/media/${latestAtt.file}`
+      });
+    }
+  }
+
+  if(job?.id===targetId){
+    job=next;
+    render();
+    await refreshJobs();
+  }
   if($('upload-format'))$('upload-format').value='combo';
+  if(switchToBundleTab||(window.currentProductionStage==='editing'&&activeEditTab!=='bundle')){
+    selectEditTab('bundle');
+  }
+  const newCount=(next?.attachments||[]).length;
+  showScrubberCaptureStatus(`✓ ${tsRound.toFixed(2)}초 장면 캡처 완료 · 동반 이미지 #${newCount} 추가됨`);
+}
+if($('btn-capture-scrubber-bundle'))$('btn-capture-scrubber-bundle').onclick=()=>act('현재 영상 시점을 고화질 캡처해 동반 첨부 이미지 및 프레임에 추가하는 중…',async()=>{
+  await captureCurrentVideoMomentToBundle();
 },'현재 시점 장면을 캡처하여 동반 첨부 이미지 및 추출 프레임에 추가했습니다!');
+if($('btn-bundle-capture-now'))$('btn-bundle-capture-now').onclick=()=>act('현재 영상 시점을 고화질 캡처해 동반 첨부 이미지에 추가하는 중…',async()=>{
+  await captureCurrentVideoMomentToBundle({switchToBundleTab:true});
+},'현재 시점 장면을 캡처하여 동반 첨부 이미지에 추가했습니다!');
 if($('btn-capture-scrubber-carousel'))$('btn-capture-scrubber-carousel').onclick=()=>act('현재 영상 시점으로 활성 캐러셀 슬라이드 배경을 교체하는 중…',async()=>{
   if(!job||job.kind==='image')throw new Error('영상이 불러와진 상태에서 사용할 수 있습니다.');
   const ts=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
   if((job.carousel?.slides||[]).length>0){
     const targetIdx=activeCarouselSlideIndex||1;
     await update('carousel-slide-update',{index:targetIdx,timestamp:ts});
+    showScrubberCaptureStatus(`✓ 슬라이드 #${targetIdx} 배경을 ${ts.toFixed(2)}초 장면으로 교체 완료`);
   }else{
-    await update('attachments-config',{action:'capture_time',timestamp:ts,add_to_bundle:false,label:`캐러셀용 캡처 (${ts.toFixed(2)}초)`});
+    await captureCurrentVideoMomentToBundle();
   }
 },'선택한 영상 시점으로 장면을 캡처·적용했습니다!');
 
