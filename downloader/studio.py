@@ -4861,6 +4861,48 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             title_badge = str(data.get('title_badge') or '').strip()[:36]
             overlay_badge = str(data.get('overlay_badge') or data.get('badge_text') or '').strip()[:36]
             overlay_template = str(data.get('template') or '').strip()[:36]
+            raw_text_layers = data.get('text_layers') if isinstance(data.get('text_layers'), list) else None
+            text_layers = None
+            if raw_text_layers is not None:
+                text_layers = []
+                for idx_l, raw_l in enumerate(raw_text_layers[:16]):
+                    if not isinstance(raw_l, dict):
+                        continue
+                    l_txt = str(raw_l.get('text') or '').strip()[:300]
+                    l_preset = str(raw_l.get('preset') or raw_l.get('color') or 'reels_giant_yellow_impact').strip()[:48]
+                    l_align = str(raw_l.get('align') or 'center').strip().lower()[:12]
+                    if l_align not in ('left', 'center', 'right'):
+                        l_align = 'center'
+                    text_layers.append({
+                        'id': str(raw_l.get('id') or f'text_{idx_l + 1}')[:36],
+                        'text': l_txt,
+                        'badge': str(raw_l.get('badge') or '').strip()[:36],
+                        'preset': l_preset,
+                        'font': str(raw_l.get('font') or 'heavy_kr').strip()[:48],
+                        'size': _parse_bound_num(raw_l.get('size', 54.0), 12.0, 180.0) or 54.0,
+                        'scale_pct': _parse_bound_num(raw_l.get('scale_pct', 100.0), 40.0, 250.0) or 100.0,
+                        'opacity': _parse_bound_num(raw_l.get('opacity', 100.0), 10.0, 100.0) or 100.0,
+                        'letter_spacing': _parse_bound_num(raw_l.get('letter_spacing', 0.0), -10.0, 40.0) or 0.0,
+                        'line_spacing': _parse_bound_num(raw_l.get('line_spacing', 1.2), 0.7, 3.0) or 1.2,
+                        'align': l_align,
+                        'bold': bool(raw_l.get('bold', True)),
+                        'italic': bool(raw_l.get('italic', False)),
+                        'underline': bool(raw_l.get('underline', False)),
+                        'text_color': str(raw_l.get('text_color') or '').strip()[:24],
+                        'bg_enabled': bool(raw_l.get('bg_enabled', raw_l.get('bg', True))),
+                        'bg_color': str(raw_l.get('bg_color') or '#0e1018').strip()[:24],
+                        'bg_opacity': _parse_bound_num(raw_l.get('bg_opacity', 88.0), 0.0, 100.0) if raw_l.get('bg_opacity') is not None else 88.0,
+                        'box_radius': _parse_bound_num(raw_l.get('box_radius', 18.0), 0.0, 120.0) if raw_l.get('box_radius') is not None else 18.0,
+                        'stroke_width': _parse_bound_num(raw_l.get('stroke_width', 4.0), 0.0, 36.0) if raw_l.get('stroke_width') is not None else 4.0,
+                        'stroke_color': str(raw_l.get('stroke_color') or '#000000').strip()[:24],
+                        'double_stroke_width': _parse_bound_num(raw_l.get('double_stroke_width', 0.0), 0.0, 36.0) or 0.0,
+                        'double_stroke_color': str(raw_l.get('double_stroke_color') or '#facc15').strip()[:24],
+                        'x': _parse_pct(raw_l.get('x')) if _parse_pct(raw_l.get('x')) is not None else 50.0,
+                        'y': _parse_pct(raw_l.get('y')) if _parse_pct(raw_l.get('y')) is not None else 50.0,
+                        'box_w': _parse_pct(raw_l.get('box_w')),
+                        'box_h': _parse_pct(raw_l.get('box_h')),
+                        'duration': _parse_bound_num(raw_l.get('duration', 0.0), 0.0, 300.0) or 0.0,
+                    })
             raw_rect = data.get('rectangle') if isinstance(data.get('rectangle'), dict) else None
             rectangle = None
             if raw_rect:
@@ -4965,6 +5007,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             video_zoom=video_zoom,
                             focus_x=focus_x,
                             focus_y=focus_y,
+                            text_layers=text_layers,
                         )
                     except Exception as err:
                         raise StudioError('이미지 글자 편집 실패: ' + str(err)[:160], 422)
@@ -4984,6 +5027,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         'video_zoom': video_zoom,
                         'focus_x': focus_x,
                         'focus_y': focus_y,
+                        'text_layers': text_layers,
                         'overlay_text': overlay_text,
                         'overlay_position': overlay_position,
                         'overlay_size': overlay_size,
@@ -5121,87 +5165,134 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 from studio_text_clean import render_transparent_overlay_png
                 png_inputs = []
 
-                if title_text:
-                    title_png = temp_dir / 'title_overlay.png'
-                    tx_px = (width * (title_x / 100.0)) if title_x is not None else None
-                    ty_px = (height * (title_y / 100.0)) if title_y is not None else None
-                    render_transparent_overlay_png(
-                        width=width,
-                        height=height,
-                        destination_png=title_png,
-                        overlay_text=title_text,
-                        overlay_position=title_position or 'top',
-                        overlay_size=title_size,
-                        overlay_color=title_color,
-                        overlay_bg=title_bg,
-                        custom_center_x=tx_px,
-                        custom_center_y=ty_px,
-                        template=overlay_template,
-                        badge_text=title_badge,
-                        font_family=title_font,
-                        box_w_pct=title_box_w,
-                        box_h_pct=title_box_h,
-                        box_radius=title_box_radius,
-                        stroke_width=title_stroke_width,
-                        stroke_color=title_stroke_color,
-                        double_stroke_width=title_double_stroke_width,
-                        double_stroke_color=title_double_stroke_color,
-                        bold=title_bold,
-                        italic=title_italic,
-                        underline=title_underline,
-                        text_color_hex=title_text_color,
-                        bg_color_hex=title_bg_color,
-                        bg_opacity=title_bg_opacity,
-                        letter_spacing=title_letter_spacing,
-                        line_spacing=title_line_spacing,
-                        text_align=title_align,
-                        scale_pct=title_scale_pct,
-                        opacity=title_opacity,
-                    )
-                    enable_expr = ''
-                    if title_end > title_start and title_end > 0.0:
-                        enable_expr = f":enable='between(t,{round(title_start, 2)},{round(title_end, 2)})'"
-                    png_inputs.append((title_png, enable_expr))
+                if isinstance(text_layers, list):
+                    for idx_l, lyr in enumerate(text_layers):
+                        l_txt = str(lyr.get('text') or '').strip()
+                        if not l_txt:
+                            continue
+                        lyr_png = temp_dir / f'text_layer_{idx_l}.png'
+                        lx_px = width * (float(lyr.get('x', 50.0)) / 100.0)
+                        ly_px = height * (float(lyr.get('y', 50.0)) / 100.0)
+                        l_preset = str(lyr.get('preset') or 'reels_giant_yellow_impact').strip()
+                        l_bg = bool(lyr.get('bg_enabled', True)) and (l_preset != 'outline')
+                        render_transparent_overlay_png(
+                            width=width,
+                            height=height,
+                            destination_png=lyr_png,
+                            overlay_text=l_txt,
+                            overlay_position='middle',
+                            overlay_size=float(lyr.get('size', 54.0) or 54.0),
+                            overlay_color='white' if l_preset == 'outline' else l_preset,
+                            overlay_bg=l_bg,
+                            custom_center_x=lx_px,
+                            custom_center_y=ly_px,
+                            template=overlay_template,
+                            badge_text=str(lyr.get('badge') or '').strip(),
+                            font_family=str(lyr.get('font') or 'heavy_kr').strip(),
+                            box_w_pct=lyr.get('box_w'),
+                            box_h_pct=lyr.get('box_h'),
+                            box_radius=lyr.get('box_radius', 18.0),
+                            stroke_width=lyr.get('stroke_width', 4.0),
+                            stroke_color=str(lyr.get('stroke_color') or '#000000').strip(),
+                            double_stroke_width=lyr.get('double_stroke_width', 0.0),
+                            double_stroke_color=str(lyr.get('double_stroke_color') or '#facc15').strip(),
+                            bold=bool(lyr.get('bold', True)),
+                            italic=bool(lyr.get('italic', False)),
+                            underline=bool(lyr.get('underline', False)),
+                            text_color_hex=str(lyr.get('text_color') or '').strip(),
+                            bg_color_hex=str(lyr.get('bg_color') or '#0e1018').strip(),
+                            bg_opacity=lyr.get('bg_opacity', 88.0),
+                            letter_spacing=lyr.get('letter_spacing', 0.0),
+                            line_spacing=lyr.get('line_spacing', 1.2),
+                            text_align=str(lyr.get('align') or 'center').strip(),
+                            scale_pct=lyr.get('scale_pct', 100.0),
+                            opacity=lyr.get('opacity', 100.0),
+                        )
+                        l_dur = float(lyr.get('duration', 0.0) or 0.0)
+                        enable_expr = f":enable='between(t,0.0,{round(l_dur, 2)})'" if l_dur > 0.0 else ''
+                        png_inputs.append((lyr_png, enable_expr))
+                else:
+                    if title_text:
+                        title_png = temp_dir / 'title_overlay.png'
+                        tx_px = (width * (title_x / 100.0)) if title_x is not None else None
+                        ty_px = (height * (title_y / 100.0)) if title_y is not None else None
+                        render_transparent_overlay_png(
+                            width=width,
+                            height=height,
+                            destination_png=title_png,
+                            overlay_text=title_text,
+                            overlay_position=title_position or 'top',
+                            overlay_size=title_size,
+                            overlay_color=title_color,
+                            overlay_bg=title_bg,
+                            custom_center_x=tx_px,
+                            custom_center_y=ty_px,
+                            template=overlay_template,
+                            badge_text=title_badge,
+                            font_family=title_font,
+                            box_w_pct=title_box_w,
+                            box_h_pct=title_box_h,
+                            box_radius=title_box_radius,
+                            stroke_width=title_stroke_width,
+                            stroke_color=title_stroke_color,
+                            double_stroke_width=title_double_stroke_width,
+                            double_stroke_color=title_double_stroke_color,
+                            bold=title_bold,
+                            italic=title_italic,
+                            underline=title_underline,
+                            text_color_hex=title_text_color,
+                            bg_color_hex=title_bg_color,
+                            bg_opacity=title_bg_opacity,
+                            letter_spacing=title_letter_spacing,
+                            line_spacing=title_line_spacing,
+                            text_align=title_align,
+                            scale_pct=title_scale_pct,
+                            opacity=title_opacity,
+                        )
+                        enable_expr = ''
+                        if title_end > title_start and title_end > 0.0:
+                            enable_expr = f":enable='between(t,{round(title_start, 2)},{round(title_end, 2)})'"
+                        png_inputs.append((title_png, enable_expr))
 
-                if overlay_text:
-                    sub_png = temp_dir / 'sub_overlay.png'
-                    ox_px = (width * (overlay_x / 100.0)) if overlay_x is not None else None
-                    oy_px = (height * (overlay_y / 100.0)) if overlay_y is not None else None
-                    render_transparent_overlay_png(
-                        width=width,
-                        height=height,
-                        destination_png=sub_png,
-                        overlay_text=overlay_text,
-                        overlay_position=overlay_position or 'bottom',
-                        overlay_size=overlay_size,
-                        overlay_color=overlay_color,
-                        overlay_bg=overlay_bg,
-                        custom_center_x=ox_px,
-                        custom_center_y=oy_px,
-                        force_opaque_bg=False,
-                        template=overlay_template,
-                        badge_text=overlay_badge,
-                        font_family=overlay_font,
-                        box_w_pct=overlay_box_w,
-                        box_h_pct=overlay_box_h,
-                        box_radius=overlay_box_radius,
-                        stroke_width=overlay_stroke_width,
-                        stroke_color=overlay_stroke_color,
-                        double_stroke_width=overlay_double_stroke_width,
-                        double_stroke_color=overlay_double_stroke_color,
-                        bold=overlay_bold,
-                        italic=overlay_italic,
-                        underline=overlay_underline,
-                        text_color_hex=overlay_text_color,
-                        bg_color_hex=overlay_bg_color,
-                        bg_opacity=overlay_bg_opacity,
-                        letter_spacing=overlay_letter_spacing,
-                        line_spacing=overlay_line_spacing,
-                        text_align=overlay_align,
-                        scale_pct=overlay_scale_pct,
-                        opacity=overlay_opacity,
-                    )
-                    png_inputs.append((sub_png, ''))
+                    if overlay_text:
+                        sub_png = temp_dir / 'sub_overlay.png'
+                        ox_px = (width * (overlay_x / 100.0)) if overlay_x is not None else None
+                        oy_px = (height * (overlay_y / 100.0)) if overlay_y is not None else None
+                        render_transparent_overlay_png(
+                            width=width,
+                            height=height,
+                            destination_png=sub_png,
+                            overlay_text=overlay_text,
+                            overlay_position=overlay_position or 'bottom',
+                            overlay_size=overlay_size,
+                            overlay_color=overlay_color,
+                            overlay_bg=overlay_bg,
+                            custom_center_x=ox_px,
+                            custom_center_y=oy_px,
+                            force_opaque_bg=False,
+                            template=overlay_template,
+                            badge_text=overlay_badge,
+                            font_family=overlay_font,
+                            box_w_pct=overlay_box_w,
+                            box_h_pct=overlay_box_h,
+                            box_radius=overlay_box_radius,
+                            stroke_width=overlay_stroke_width,
+                            stroke_color=overlay_stroke_color,
+                            double_stroke_width=overlay_double_stroke_width,
+                            double_stroke_color=overlay_double_stroke_color,
+                            bold=overlay_bold,
+                            italic=overlay_italic,
+                            underline=overlay_underline,
+                            text_color_hex=overlay_text_color,
+                            bg_color_hex=overlay_bg_color,
+                            bg_opacity=overlay_bg_opacity,
+                            letter_spacing=overlay_letter_spacing,
+                            line_spacing=overlay_line_spacing,
+                            text_align=overlay_align,
+                            scale_pct=overlay_scale_pct,
+                            opacity=overlay_opacity,
+                        )
+                        png_inputs.append((sub_png, ''))
 
                 output = temp_dir / 'edited.mp4'
                 args = [binary, '-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-i', str(cleaned or base_source)]
@@ -5249,6 +5340,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     'video_zoom': video_zoom,
                     'focus_x': focus_x,
                     'focus_y': focus_y,
+                    'text_layers': text_layers,
                     'overlay_text': overlay_text,
                     'overlay_position': overlay_position,
                     'overlay_size': overlay_size,

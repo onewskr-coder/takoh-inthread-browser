@@ -3552,6 +3552,7 @@ def clean_and_overlay_image(
     video_zoom=100.0,
     focus_x=50.0,
     focus_y=50.0,
+    text_layers=None,
     detector=None,
 ):
     """Erase existing text in an image (via Blur, Cover Box, or Complete AI Inpaint Deletion + Mask) and optionally apply zoom and Korean overlays."""
@@ -3683,89 +3684,138 @@ def clean_and_overlay_image(
             pass
         return None
 
-    if str(title_text or '').strip():
-        tx_px = _pct_to_px(title_x, width)
-        ty_px = _pct_to_px(title_y, height)
-        frame = draw_korean_overlay_pil(
-            frame,
-            overlay_text=title_text,
-            overlay_position=title_position or 'top',
-            overlay_size=title_size,
-            overlay_color=title_color,
-            overlay_bg=title_bg,
-            custom_center_x=tx_px,
-            custom_center_y=ty_px,
-            template=template,
-            badge_text=title_badge,
-            swipe_hint=False,
-            font_family=title_font,
-            box_w_pct=title_box_w,
-            box_h_pct=title_box_h,
-            box_radius=title_box_radius,
-            stroke_width=title_stroke_width,
-            stroke_color=title_stroke_color,
-            double_stroke_width=title_double_stroke_width,
-            double_stroke_color=title_double_stroke_color,
-            bold=title_bold,
-            italic=title_italic,
-            underline=title_underline,
-            text_color_hex=title_text_color,
-            bg_color_hex=title_bg_color,
-            bg_opacity=title_bg_opacity,
-            letter_spacing=title_letter_spacing,
-            line_spacing=title_line_spacing,
-            text_align=title_align,
-            scale_pct=title_scale_pct,
-            opacity=title_opacity,
-        )
+    has_multi_layers = isinstance(text_layers, list)
+    applied_any_layer = False
+    if has_multi_layers:
+        for lyr in text_layers:
+            if not isinstance(lyr, dict):
+                continue
+            l_txt = str(lyr.get('text') or '').strip()
+            if not l_txt:
+                continue
+            lx_px = _pct_to_px(lyr.get('x', 50), width)
+            ly_px = _pct_to_px(lyr.get('y', 50), height)
+            l_preset = str(lyr.get('preset') or lyr.get('color') or 'reels_giant_yellow_impact').strip()
+            l_bg = bool(lyr.get('bg_enabled', lyr.get('bg', True))) and (l_preset != 'outline')
+            frame = draw_korean_overlay_pil(
+                frame,
+                overlay_text=l_txt,
+                overlay_position='middle',
+                overlay_size=float(lyr.get('size', 54) or 54),
+                overlay_color='white' if l_preset == 'outline' else l_preset,
+                overlay_bg=l_bg,
+                custom_center_x=lx_px,
+                custom_center_y=ly_px,
+                template=template,
+                badge_text=str(lyr.get('badge') or '').strip(),
+                swipe_hint=False,
+                font_family=str(lyr.get('font') or 'heavy_kr').strip(),
+                box_w_pct=lyr.get('box_w'),
+                box_h_pct=lyr.get('box_h'),
+                box_radius=lyr.get('box_radius', 18),
+                stroke_width=lyr.get('stroke_width', 4),
+                stroke_color=str(lyr.get('stroke_color') or '#000000').strip(),
+                double_stroke_width=lyr.get('double_stroke_width', 0),
+                double_stroke_color=str(lyr.get('double_stroke_color') or '#facc15').strip(),
+                bold=bool(lyr.get('bold', True)),
+                italic=bool(lyr.get('italic', False)),
+                underline=bool(lyr.get('underline', False)),
+                text_color_hex=str(lyr.get('text_color') or '').strip(),
+                bg_color_hex=str(lyr.get('bg_color') or '#0e1018').strip(),
+                bg_opacity=lyr.get('bg_opacity', 88),
+                letter_spacing=lyr.get('letter_spacing', 0.0),
+                line_spacing=lyr.get('line_spacing', 1.2),
+                text_align=str(lyr.get('align') or 'center').strip(),
+                scale_pct=lyr.get('scale_pct', 100.0),
+                opacity=lyr.get('opacity', 100.0),
+            )
+            applied_any_layer = True
+    else:
+        if str(title_text or '').strip():
+            tx_px = _pct_to_px(title_x, width)
+            ty_px = _pct_to_px(title_y, height)
+            frame = draw_korean_overlay_pil(
+                frame,
+                overlay_text=title_text,
+                overlay_position=title_position or 'top',
+                overlay_size=title_size,
+                overlay_color=title_color,
+                overlay_bg=title_bg,
+                custom_center_x=tx_px,
+                custom_center_y=ty_px,
+                template=template,
+                badge_text=title_badge,
+                swipe_hint=False,
+                font_family=title_font,
+                box_w_pct=title_box_w,
+                box_h_pct=title_box_h,
+                box_radius=title_box_radius,
+                stroke_width=title_stroke_width,
+                stroke_color=title_stroke_color,
+                double_stroke_width=title_double_stroke_width,
+                double_stroke_color=title_double_stroke_color,
+                bold=title_bold,
+                italic=title_italic,
+                underline=title_underline,
+                text_color_hex=title_text_color,
+                bg_color_hex=title_bg_color,
+                bg_opacity=title_bg_opacity,
+                letter_spacing=title_letter_spacing,
+                line_spacing=title_line_spacing,
+                text_align=title_align,
+                scale_pct=title_scale_pct,
+                opacity=title_opacity,
+            )
+            applied_any_layer = True
 
-    if str(overlay_text or '').strip():
-        ox_px = _pct_to_px(overlay_x, width)
-        oy_px = _pct_to_px(overlay_y, height)
-        frame = draw_korean_overlay_pil(
-            frame,
-            overlay_text=overlay_text,
-            overlay_position=overlay_position,
-            overlay_size=overlay_size,
-            overlay_color=overlay_color,
-            overlay_bg=overlay_bg,
-            custom_center_x=ox_px,
-            custom_center_y=oy_px,
-            force_opaque_bg=False,
-            template=template,
-            badge_text=badge_text,
-            slide_index=slide_index,
-            slide_total=slide_total,
-            sub_text=sub_text,
-            swipe_hint=swipe_hint,
-            slide_role=slide_role,
-            font_family=overlay_font,
-            box_w_pct=overlay_box_w,
-            box_h_pct=overlay_box_h,
-            box_radius=overlay_box_radius,
-            stroke_width=overlay_stroke_width,
-            stroke_color=overlay_stroke_color,
-            double_stroke_width=overlay_double_stroke_width,
-            double_stroke_color=overlay_double_stroke_color,
-            bold=overlay_bold,
-            italic=overlay_italic,
-            underline=overlay_underline,
-            text_color_hex=overlay_text_color,
-            bg_color_hex=overlay_bg_color,
-            bg_opacity=overlay_bg_opacity,
-            letter_spacing=overlay_letter_spacing,
-            line_spacing=overlay_line_spacing,
-            text_align=overlay_align,
-            scale_pct=overlay_scale_pct,
-            opacity=overlay_opacity,
-        )
+        if str(overlay_text or '').strip():
+            ox_px = _pct_to_px(overlay_x, width)
+            oy_px = _pct_to_px(overlay_y, height)
+            frame = draw_korean_overlay_pil(
+                frame,
+                overlay_text=overlay_text,
+                overlay_position=overlay_position,
+                overlay_size=overlay_size,
+                overlay_color=overlay_color,
+                overlay_bg=overlay_bg,
+                custom_center_x=ox_px,
+                custom_center_y=oy_px,
+                force_opaque_bg=False,
+                template=template,
+                badge_text=badge_text,
+                slide_index=slide_index,
+                slide_total=slide_total,
+                sub_text=sub_text,
+                swipe_hint=swipe_hint,
+                slide_role=slide_role,
+                font_family=overlay_font,
+                box_w_pct=overlay_box_w,
+                box_h_pct=overlay_box_h,
+                box_radius=overlay_box_radius,
+                stroke_width=overlay_stroke_width,
+                stroke_color=overlay_stroke_color,
+                double_stroke_width=overlay_double_stroke_width,
+                double_stroke_color=overlay_double_stroke_color,
+                bold=overlay_bold,
+                italic=overlay_italic,
+                underline=overlay_underline,
+                text_color_hex=overlay_text_color,
+                bg_color_hex=overlay_bg_color,
+                bg_opacity=overlay_bg_opacity,
+                letter_spacing=overlay_letter_spacing,
+                line_spacing=overlay_line_spacing,
+                text_align=overlay_align,
+                scale_pct=overlay_scale_pct,
+                opacity=overlay_opacity,
+            )
+            applied_any_layer = True
 
     _write_image_bgr(destination, frame)
     return {
         'engine': 'RapidOCR + Inpaint + Pillow Editorial Magazine Engine',
         'erase_mode': erase_mode,
         'detected_boxes': boxes_count,
-        'overlay_applied': bool(str(overlay_text or '').strip() or str(title_text or '').strip()),
+        'overlay_applied': applied_any_layer,
     }
 
 

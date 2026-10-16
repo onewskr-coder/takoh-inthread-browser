@@ -4384,8 +4384,8 @@ body.resizing-studio-player {
   flex-direction: row !important;
   align-items: center !important;
   justify-content: space-between !important;
-  flex-wrap: nowrap !important;
-  gap: 8px !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
   padding: 6px 10px !important;
   border-radius: 10px !important;
   margin-bottom: 8px !important;
@@ -4394,26 +4394,92 @@ body.resizing-studio-player {
   display: flex !important;
   align-items: center !important;
   gap: 5px !important;
-  flex-shrink: 0 !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  flex-wrap: wrap !important;
 }
-.capcut-layer-pill {
+.capcut-add-text-btn {
   min-height: 28px !important;
   height: 28px !important;
-  padding: 2px 10px !important;
+  padding: 2px 11px !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  border-radius: 6px !important;
+  background: #2563eb !important;
+  border: 1px solid #3b82f6 !important;
+  color: #ffffff !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+}
+.capcut-add-text-btn:hover {
+  background: #1d4ed8 !important;
+}
+.inspector-dynamic-layer-pills {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+}
+.inspector-empty-layer-hint {
+  font-size: 11px !important;
+  color: #94a3b8 !important;
+  font-weight: 600 !important;
+  padding: 2px 6px !important;
+}
+.capcut-layer-pill {
+  min-height: 27px !important;
+  height: 27px !important;
+  padding: 2px 8px !important;
   font-size: 11.5px !important;
   border-radius: 6px !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(71, 85, 105, 0.65) !important;
+  color: #cbd5e1 !important;
+}
+.capcut-layer-pill.active {
+  background: rgba(37, 99, 235, 0.22) !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
 }
 .capcut-layer-pill small {
-  display: none !important;
+  display: inline !important;
+  font-size: 10.5px !important;
+  color: #94a3b8 !important;
+  font-weight: 600 !important;
+  max-width: 96px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.capcut-layer-pill.active small {
+  color: #dbeafe !important;
+}
+.layer-pill-del {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  color: #94a3b8 !important;
+  margin-left: 2px !important;
+}
+.layer-pill-del:hover {
+  background: rgba(239, 68, 68, 0.28) !important;
+  color: #fca5a5 !important;
 }
 .capcut-inspector-quick-btns {
   display: flex !important;
   align-items: center !important;
   gap: 4px !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
 }
 .capcut-inspector-quick-btns button,
 .capcut-quick-bg-check {
@@ -4424,8 +4490,52 @@ body.resizing-studio-player {
   white-space: nowrap !important;
   margin: 0 !important;
 }
-
-
-
-
-
+.btn-danger-ghost {
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  color: #fca5a5 !important;
+  background: rgba(127, 29, 29, 0.22) !important;
+}
+.btn-danger-ghost:hover {
+  background: rgba(220, 38, 38, 0.35) !important;
+  border-color: #f87171 !important;
+  color: #ffffff !important;
+}
+.multi-text-layers-stage {
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 12 !important;
+}
+.multi-text-layers-stage .draggable-multi-text-chip {
+  pointer-events: auto !important;
+}
+.chip-floating-del-btn {
+  position: absolute !important;
+  top: -11px !important;
+  right: -11px !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  background: #dc2626 !important;
+  border: 1.5px solid #ffffff !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  z-index: 30 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55) !important;
+}
+.draggable-multi-text-chip:hover .chip-floating-del-btn,
+.draggable-multi-text-chip.active-inspector-layer .chip-floating-del-btn {
+  display: inline-flex !important;
+}
+.chip-floating-del-btn:hover {
+  background: #b91c1c !important;
+  transform: scale(1.08) !important;
+}
