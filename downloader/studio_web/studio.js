@@ -3040,6 +3040,9 @@ function render(){
   $('extension-upload').disabled=job?.status!=='publish_ready';
   if($('extension-batch-upload'))$('extension-batch-upload').disabled=job?.status!=='publish_ready';
   if($('source-post-text'))$('source-post-text').value=job?.source_text||'';
+  if($('source-post-translated-text')){
+    $('source-post-translated-text').value=job?.source_text_ko||job?.analysis?.result?.source_translation||'';
+  }
   if($('ocr-original-text')){
     const ocrCombined=job?.media_ocr?.combined_text||(job?.media_ocr?.texts||[]).join('\n')||'';
     $('ocr-original-text').value=ocrCombined;
@@ -3508,6 +3511,27 @@ function render(){
     summaryBox.append(scopeBadge,summaryTitle);
     $('analysis').append(summaryBox);
 
+    const rawPostCaption=(job?.source_text||$('source-post-text')?.value||'').trim();
+    const koPostCaption=(data.source_translation||job?.source_text_ko||$('source-post-translated-text')?.value||'').trim();
+    if(rawPostCaption||koPostCaption){
+      const captionBox=document.createElement('div');
+      captionBox.className='analysis-block analysis-post-caption-block';
+      captionBox.append(text('h4','참고한 원본 게시물 제목·설명(캡션)·본문 및 한국어 번역'));
+      if(rawPostCaption){
+        const origWrap=document.createElement('div');
+        origWrap.className='analysis-caption-subitem';
+        origWrap.append(text('strong','원본 게시물 제목·설명·본문'),text('p',rawPostCaption));
+        captionBox.append(origWrap);
+      }
+      if(koPostCaption&&koPostCaption!==rawPostCaption){
+        const transWrap=document.createElement('div');
+        transWrap.className='analysis-caption-subitem translated';
+        transWrap.append(text('strong','한국어 자연 번역 · 핵심 정리'),text('p',koPostCaption));
+        captionBox.append(transWrap);
+      }
+      $('analysis').append(captionBox);
+    }
+
     if(Array.isArray(data.observations)&&data.observations.length){
       const obsSection=document.createElement('div');
       obsSection.className='analysis-block';
@@ -3572,14 +3596,17 @@ function render(){
     const placeholder=document.createElement('div');
     placeholder.className='analysis-placeholder';
     placeholder.append(
-      text('strong','아직 AI 장면·음성 분석을 실행하지 않았습니다'),
-      text('p','위 [STEP 0]에서 사용할 AI 모델을 고른 뒤 [선택한 AI 모델로 장면·음성 분석 시작]을 누르면 시간대별 주요 장면, 내레이션 요약, 후킹 구간, 상품 검색 키워드를 추출합니다.')
+      text('strong','아직 AI 장면·음성·본문 통합 분석을 실행하지 않았습니다'),
+      text('p','위 [STEP 0]에서 사용할 AI 모델을 고른 뒤 [선택한 AI 모델로 장면·음성·본문 통합 분석 시작]을 누르면 영상 장면·내레이션과 함께 원본 게시물 제목·설명(캡션)·본문을 참고하여 요약·후킹 구간·한국어 번역·상품 검색 키워드를 추출합니다.')
     );
     $('analysis').append(placeholder);
   }
   const hasSceneAnalysis=Boolean(job?.analysis?.result);
   const hasOcr=Boolean(job?.media_ocr?.translated_text||job?.media_ocr?.raw_text||($('ocr-original-text')?.value||'').trim());
-  const hasCaption=Boolean((job?.source_text||$('source-post-text')?.value||'').trim());
+  const rawSourceTxt=(job?.source_text||$('source-post-text')?.value||'').trim();
+  const koSourceTxt=(job?.source_text_ko||job?.analysis?.result?.source_translation||$('source-post-translated-text')?.value||'').trim();
+  const hasCaption=Boolean(rawSourceTxt||koSourceTxt);
+  const langInfo=detectPostLanguageClient(rawSourceTxt);
   if($('badge-status-scene')){
     $('badge-status-scene').textContent=hasSceneAnalysis?'분석 완료':'분석 대기';
     $('badge-status-scene').className='analysis-state-badge'+(hasSceneAnalysis?' done':'');
@@ -3589,13 +3616,17 @@ function render(){
     $('badge-status-ocr').className='analysis-state-badge'+(hasOcr?' done':'');
   }
   if($('badge-status-caption')){
-    $('badge-status-caption').textContent=hasCaption?'본문 준비됨':'입력 대기';
+    $('badge-status-caption').textContent=koSourceTxt?'원문·한국어번역 준비됨':(hasCaption?'본문 준비됨':'입력 대기');
     $('badge-status-caption').className='analysis-state-badge'+(hasCaption?' done':'');
+  }
+  if($('badge-source-lang')){
+    $('badge-source-lang').textContent=langInfo.label;
+    $('badge-source-lang').className='analysis-state-badge'+(langInfo.needsTranslation?' foreign-lang':(hasCaption?' done':''));
   }
   if($('overview-step-scene'))$('overview-step-scene').classList.toggle('done',hasSceneAnalysis);
   if($('overview-scene-status')){
     const obsCount=(job?.analysis?.result?.observations||[]).length;
-    $('overview-scene-status').textContent=hasSceneAnalysis?`완료 · 주요 장면 ${obsCount}개 & 키워드 추출됨`:'실행 전 · 타임라인·내레이션·키워드 추출';
+    $('overview-scene-status').textContent=hasSceneAnalysis?`완료 · 주요 장면 ${obsCount}개 & 본문·키워드 추출됨`:'실행 전 · 줄거리·내레이션·원본 캡션·후킹 구간 추출';
   }
   if($('overview-step-ocr'))$('overview-step-ocr').classList.toggle('done',hasOcr);
   if($('overview-ocr-status')){
@@ -3603,14 +3634,131 @@ function render(){
   }
   if($('overview-step-caption'))$('overview-step-caption').classList.toggle('done',hasCaption);
   if($('overview-caption-status')){
-    $('overview-caption-status').textContent=hasCaption?`준비됨 · 원문 ${Array.from((job?.source_text||$('source-post-text')?.value||'').trim()).length}자 보관 중`:'대본·게시문 3안 리라이팅 재료';
+    if(koSourceTxt){
+      $('overview-caption-status').textContent=`준비됨 · ${langInfo.label} → 한국어 자연 번역 완료 (${Array.from(koSourceTxt).length}자)`;
+    }else if(hasCaption){
+      $('overview-caption-status').textContent=`준비됨 · ${langInfo.label} (${Array.from(rawSourceTxt).length}자 보관 중)`;
+    }else{
+      $('overview-caption-status').textContent='쓰레드·인스타·유튜브 제목·본문 확인 및 일본어·영어 자연 번역';
+    }
+  }
+}
+function detectPostLanguageClient(textStr){
+  const clean=String(textStr||'').replace(/https?:\/\/\S+/g,'').trim();
+  if(!clean)return {lang:'empty',label:'본문 없음',needsTranslation:false};
+  const jaCount=(clean.match(/[\u3040-\u30ff]/g)||[]).length;
+  const koCount=(clean.match(/[가-힣]/g)||[]).length;
+  const zhCount=(clean.match(/[\u4e00-\u9fff]/g)||[]).length;
+  const enCount=(clean.match(/[A-Za-z]/g)||[]).length;
+  if(jaCount>=2&&jaCount>=koCount){
+    return {lang:'ja',label:'일본어 원문 감지됨 (한국어 번역 추천)',needsTranslation:true};
+  }
+  if(zhCount>=4&&koCount<zhCount&&jaCount===0){
+    return {lang:'zh',label:'중국어·한자 원문 감지됨 (한국어 번역 추천)',needsTranslation:true};
+  }
+  if(enCount>=10&&koCount*2<enCount){
+    return {lang:'en',label:'영어 원문 감지됨 (한국어 번역 추천)',needsTranslation:true};
+  }
+  if(koCount>=2){
+    return {lang:'ko',label:'한국어 본문',needsTranslation:false};
+  }
+  return {lang:'other',label:'다국어·기호 원문',needsTranslation:enCount>0||jaCount>0||zhCount>0};
+}
+async function translateSourcePostTextWithFallback(rawText,tone='natural'){
+  if(!job?.id)throw new Error('먼저 원본 미디어를 불러와 주세요.');
+  const textToTranslate=String(rawText||$('source-post-text')?.value||job?.source_text||'').trim();
+  if(!textToTranslate)throw new Error('번역할 원본 게시물 제목·설명(캡션)·본문이 비어 있습니다.');
+  try{
+    const next=await api(`jobs/${job.id}/source-text-translate`,{...credentials('analysis'),text:textToTranslate,tone});
+    job=next;
+  }catch(err){
+    // Fallback for in-memory helper process started before /source-text-translate route was registered
+    const fallbackPromptText=`[원본 게시물 제목·설명·본문 번역 요청]\n${textToTranslate}`;
+    const ocrRes=await api(`jobs/${job.id}/ocr-translate`,{...credentials('analysis'),text:fallbackPromptText,tone});
+    const translated=(ocrRes?.media_ocr?.translated_text||ocrRes?.media_ocr?.korean_translation||'').trim();
+    const saved=await api(`jobs/${job.id}/repost-meta`,{source_text:textToTranslate,source_text_ko:translated});
+    saved.source_text_ko=translated;
+    job=saved;
+  }
+  if($('source-post-translated-text')){
+    $('source-post-translated-text').value=job?.source_text_ko||job?.analysis?.result?.source_translation||'';
+  }
+  render();
+  await refreshJobs();
+  return job?.source_text_ko||'';
+}
+async function fetchSourcePostCaptionWithFallback(){
+  if(!job?.id)throw new Error('먼저 미디어를 선택해 주세요.');
+  try{
+    const next=await api(`jobs/${job.id}/fetch-source-text`,{url:job.source||$('fetch-url')?.value||''});
+    job=next;
+  }catch(err){
+    const targetUrl=(job.source||$('fetch-url')?.value||'').trim();
+    if(!targetUrl||!/^https?:\/\//i.test(targetUrl))throw new Error('원본 게시물 URL 정보가 없습니다.');
+    const acquired=await api('acquire',{url:targetUrl});
+    const extracted=(acquired?.source_text||'').trim();
+    if(extracted){
+      job=await api(`jobs/${job.id}/repost-meta`,{source_text:extracted});
+    }else{
+      throw new Error('해당 링크에서 공개된 제목·설명(캡션)을 찾지 못했습니다. 직접 입력하거나 붙여넣어 주세요.');
+    }
+  }
+  if($('source-post-text'))$('source-post-text').value=job?.source_text||'';
+  render();
+  await refreshJobs();
+  const lang=detectPostLanguageClient(job?.source_text||'');
+  if(lang.needsTranslation&&!(job?.source_text_ko||'').trim()){
+    await translateSourcePostTextWithFallback(job.source_text,$('source-translate-tone')?.value||'natural');
   }
 }
 async function update(path,data){const targetId=job?.id;if(!targetId)return;const next=await api(`jobs/${targetId}/${path}`,data);if(job?.id!==targetId)return;job=next;render();await refreshJobs();}
 if($('url-fetch-form'))$('url-fetch-form').onsubmit=event=>{event.preventDefault();act('게시물에서 미디어와 본문을 가져오는 중…',async()=>{const url=$('fetch-url').value.trim();let acquired=await api('acquire',{url});job=await normalizeAcquiredComboJob(acquired,{url,cleanImageUrls:[]});if((job?.attachments||[]).length>0&&$('upload-format'))$('upload-format').value='combo';render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();},'영상·이미지와 게시물 정보를 불러왔습니다.');};
 $('upload-form').onsubmit=event=>{event.preventDefault();const file=$('video-file').files[0];if(!file){message('영상 파일을 선택하거나 URL로 불러오기를 사용하세요.',true);return;}act('영상과 음성·프레임을 추출하는 중…',async()=>{const data=new FormData();data.append('video',file);data.append('source',$('source').value);job=await api('jobs',data);render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();});};
 $('image-form').onsubmit=event=>{event.preventDefault();const file=$('image-file').files[0];if(!file){message('이미지 파일을 선택하거나 URL로 불러오기를 사용하세요.',true);return;}act('원본 이미지 불러오는 중…',async()=>{const data=new FormData();data.append('image',file);data.append('source',$('source').value);job=await api('images',data);render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();});};
-if($('btn-save-source-text'))$('btn-save-source-text').onclick=()=>act('원본 게시물 본문 저장 중…',()=>update('repost-meta',{source_text:$('source-post-text').value}),'원본 게시물 글을 저장했습니다. 이제 [2 대본·게시문]에서 한국 스타일로 번역·재작성할 수 있습니다.');
+if($('btn-save-source-text'))$('btn-save-source-text').onclick=()=>act('원본 게시물 본문 및 한국어 번역 저장 중…',async()=>{
+  const rawTxt=$('source-post-text')?.value||'';
+  const koTxt=$('source-post-translated-text')?.value||'';
+  await update('repost-meta',{source_text:rawTxt,source_text_ko:koTxt});
+  if(job)job.source_text_ko=koTxt;
+  render();
+},'원본 게시물 제목·본문과 한국어 번역문을 저장했습니다.');
+if($('btn-fetch-source-caption'))$('btn-fetch-source-caption').onclick=()=>act('원본 게시물(쓰레드·인스타·유튜브)에서 제목·설명(캡션)·본문을 불러오는 중…',async()=>{
+  await fetchSourcePostCaptionWithFallback();
+},'원본 게시물 제목·설명(캡션)·본문을 불러왔습니다.');
+if($('btn-translate-source-text'))$('btn-translate-source-text').onclick=()=>act('일본어·영어 등 원본 게시물 제목·설명·본문을 자연스러운 한국어로 번역하는 중…',async()=>{
+  const tone=$('source-translate-tone')?.value||'natural';
+  await translateSourcePostTextWithFallback($('source-post-text')?.value||job?.source_text||'',tone);
+},'원본 게시물 제목·설명(캡션)·본문을 자연스러운 한국어로 번역했습니다!');
+if($('btn-apply-translated-to-source'))$('btn-apply-translated-to-source').onclick=()=>act('한국어 번역문을 메인 본문으로 적용하는 중…',async()=>{
+  const koTxt=($('source-post-translated-text')?.value||job?.source_text_ko||'').trim();
+  if(!koTxt)throw new Error('먼저 [일본어·영어 원문 → 한국어 자연 번역]을 실행하거나 번역문을 입력해 주세요.');
+  if($('source-post-text'))$('source-post-text').value=koTxt;
+  await update('repost-meta',{source_text:koTxt,source_text_ko:koTxt});
+},'한국어 번역문을 메인 본문 및 대본 작성 재료로 적용했습니다!');
+if($('btn-send-caption-to-editor'))$('btn-send-caption-to-editor').onclick=()=>{
+  const captionTxt=($('source-post-translated-text')?.value||job?.source_text_ko||$('source-post-text')?.value||job?.source_text||'').trim();
+  const firstLine=captionTxt.split(/[\r\n]+/).map(s=>s.replace(/^\[.*?\]\s*/,'').trim()).find(Boolean)||'';
+  document.querySelector('[data-production-stage="editing"]')?.click();
+  if(firstLine){
+    addVideoTextLayer({text:firstLine.slice(0,64),y:78,size:42,preset:'reels_rounded_black',text_color:'#ffffff'});
+  }
+  syncDraggableOverlayCanvas();
+  message('원본 게시물(한국어 번역) 핵심 문구를 02-A 미디어 편집 스튜디오 자막 레이어로 보냈습니다.');
+};
+if($('btn-send-caption-to-carousel'))$('btn-send-caption-to-carousel').onclick=()=>{
+  document.querySelector('[data-production-stage="carousel"]')?.click();
+  $('btn-autofill-carousel-texts')?.click();
+  message('원본 게시물 제목·설명(한국어 번역)을 반영하여 02-B 캐러셀 대본을 구성했습니다.');
+};
+if($('source-post-text')){
+  $('source-post-text').addEventListener('input',()=>{
+    const langInfo=detectPostLanguageClient($('source-post-text').value);
+    if($('badge-source-lang')){
+      $('badge-source-lang').textContent=langInfo.label;
+      $('badge-source-lang').className='analysis-state-badge'+(langInfo.needsTranslation?' foreign-lang':(($('source-post-text').value||'').trim()?' done':''));
+    }
+  });
+}
 
 // --- Media Bundle Presets (Threads Video 1 + Image 1, etc.) ---
 if($('btn-preset-threads-1v1i'))$('btn-preset-threads-1v1i').onclick=()=>act('쓰레드 [영상 1 + 이미지 1] 조합을 구성하는 중…',async()=>{
@@ -3632,17 +3780,18 @@ if($('btn-preset-video-only'))$('btn-preset-video-only').onclick=()=>act('동반
 function extractBestHookLines(){
   const pool=[];
   const prod=($('product-name')?.value||job?.product?.name||'').trim();
-  const body=($('script')?.value||job?.draft?.body||$('source-post-text')?.value||job?.source_text||'').trim();
+  const translatedCaption=($('source-post-translated-text')?.value||job?.source_text_ko||job?.analysis?.result?.source_translation||'').trim();
+  const body=($('script')?.value||job?.draft?.body||translatedCaption||$('source-post-text')?.value||job?.source_text||'').trim();
   const summary=(job?.analysis?.result?.summary||'').trim();
   const audioSum=(job?.analysis?.result?.audio_summary||'').trim();
   const ocrTxt=(job?.media_ocr?.translated_text||job?.media_ocr?.raw_text||$('ocr-original-text')?.value||'').trim();
 
   const pushClean=raw=>{
-    const clean=String(raw||'').replace(/^(#광고|\[광고\]|\[자세한 정보.*?\])\s*/,'').replace(/https?:\/\/\S+/g,'').replace(/(?:^|\s)#[0-9A-Za-z가-힣_]+/g,'').trim();
+    const clean=String(raw||'').replace(/^(#광고|\[광고\]|\[자세한 정보.*?\]|\[제목\]|\[설명·본문\])\s*/,'').replace(/https?:\/\/\S+/g,'').replace(/(?:^|\s)#[0-9A-Za-z가-힣_]+/g,'').trim();
     if(clean.length>=4&&!pool.includes(clean))pool.push(clean.slice(0,84));
   };
 
-  for(const chunk of [body,summary,ocrTxt,audioSum]){
+  for(const chunk of [translatedCaption,body,summary,ocrTxt,audioSum]){
     if(!chunk)continue;
     for(const raw of chunk.split(/[\r\n]+|(?<=[.!?])\s+/)){
       pushClean(raw);
@@ -5407,9 +5556,27 @@ if($('btn-carousel-attach-all'))$('btn-carousel-attach-all').onclick=()=>act('�
   await update('attachments-config',{action:'preset_video_plus_images',image_count:Math.min(9,slideCount)});
   if($('upload-format'))$('upload-format').value='combo';
 },'캐러셀 카드를 멀티미디어 게시 첨부 목록에 반영했습니다!');
-$('analyze').onclick=()=>act('선택한 영상 데이터를 분석하는 중…',()=>update('analyze',credentials('analysis')));
+$('analyze').onclick=()=>act('선택한 영상의 장면·음성 대사와 원본 게시물 제목·설명(캡션)·본문을 통합 분석하는 중…',async()=>{
+  let curSourceText=($('source-post-text')?.value||job?.source_text||'').trim();
+  if(!curSourceText&&job?.source&&/^https?:\/\//i.test(job.source)){
+    try{await fetchSourcePostCaptionWithFallback();curSourceText=($('source-post-text')?.value||job?.source_text||'').trim();}catch{}
+  }
+  await update('analyze',{...credentials('analysis'),source_text:curSourceText});
+  const langInfo=detectPostLanguageClient(curSourceText);
+  const existingKo=($('source-post-translated-text')?.value||job?.source_text_ko||job?.analysis?.result?.source_translation||'').trim();
+  if(curSourceText&&langInfo.needsTranslation&&!existingKo){
+    try{await translateSourcePostTextWithFallback(curSourceText,$('source-translate-tone')?.value||'natural');}catch{}
+  }
+  render();
+},'AI 장면·음성 + 원본 게시물 제목·설명(캡션)·본문 통합 분석이 완료되었습니다!');
 $('product-form').onsubmit=event=>{event.preventDefault();const mode=$('affiliate-entry-mode')?.value||'manual';act('상품 저장 중…',()=>{if(mode==='manual'&&!$('affiliate-url').value.trim())throw Error('직접 발급한 제휴 링크를 입력하세요.');return update('product',{platform:$('platform').value,name:$('product-name').value,url:mode==='api'?$('product-url').value:'',link_entry_mode:mode,affiliate_url:$('affiliate-url').value,confirmed:$('confirmed').checked});},'상품과 제휴 링크를 저장했습니다.');};
-$('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials('writing'),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:$('source-post-text')?.value||job?.source_text||''});});
+$('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{
+  if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');
+  const rawTxt=($('source-post-text')?.value||job?.source_text||'').trim();
+  const koTxt=($('source-post-translated-text')?.value||job?.source_text_ko||job?.analysis?.result?.source_translation||'').trim();
+  const combinedSource=(koTxt&&koTxt!==rawTxt)?`${rawTxt}\n[한국어 자연 번역]\n${koTxt}`.trim():(rawTxt||koTxt);
+  return update('draft',{...credentials('writing'),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:combinedSource});
+});
 $('writing-save-final').onclick=()=>{$('prepare').click();};
 $('prepare').onclick=()=>act('본문과 첫 댓글 확정 저장 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('prepare',{body:$('script').value,script:$('script').value,disclosure:$('disclosure').value,comment:$('comment').value,selected:job?.draft?.selected||0});},'본문과 첫 댓글을 확정 저장했습니다. 이제 원하는 플랫폼(쓰레드·인스타·네이버 클립·틱톡)으로 바로 업로드할 수 있습니다.');
 for(const target of ['body','comment']) $('copy-'+target).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(target).value);}, '복사했습니다. 원하는 채널에 붙여 넣어 주세요.');

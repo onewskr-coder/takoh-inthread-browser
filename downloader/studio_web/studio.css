@@ -5501,3 +5501,76 @@ html[data-theme="dark"] .companion-chip-info small {
   color: #cbd5e1 !important;
 }
 
+/* ========================================================================= */
+/* SOURCE POST TITLE / CAPTION / BODY & NATURAL KOREAN TRANSLATION WORKBENCH */
+/* ========================================================================= */
+.source-caption-workbench-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.source-caption-translate-bar {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.source-caption-translate-bar select {
+  min-width: 260px;
+  flex: 1 1 260px;
+}
+.analysis-state-badge.foreign-lang {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+html[data-theme="dark"] .analysis-state-badge.foreign-lang {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+.analysis-post-caption-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.analysis-caption-subitem {
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+}
+.analysis-caption-subitem.translated {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.analysis-caption-subitem strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 4px;
+}
+.analysis-caption-subitem p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #0f172a;
+  white-space: pre-wrap;
+}
+html[data-theme="dark"] .analysis-caption-subitem {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] .analysis-caption-subitem.translated {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+html[data-theme="dark"] .analysis-caption-subitem strong {
+  color: #cbd5e1 !important;
+}
+html[data-theme="dark"] .analysis-caption-subitem p {
+  color: #f8fafc !important;
+}

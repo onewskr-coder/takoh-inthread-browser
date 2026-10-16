@@ -52,8 +52,8 @@
 <div class="analysis-overview-item" id="overview-step-scene">
 <span class="overview-num">항목 1</span>
 <div class="overview-text">
-<strong>AI 장면·음성 분석</strong>
-<small id="overview-scene-status">실행 전 · 줄거리·내레이션·후킹 구간 추출</small>
+<strong>AI 장면·음성 + 원본 제목·본문 분석</strong>
+<small id="overview-scene-status">실행 전 · 줄거리·내레이션·원본 캡션·후킹 구간 추출</small>
 </div>
 </div>
 <div class="analysis-overview-item" id="overview-step-ocr">
@@ -66,8 +66,8 @@
 <div class="analysis-overview-item" id="overview-step-caption">
 <span class="overview-num">항목 3</span>
 <div class="overview-text">
-<strong>원본 게시물 캡션·메모</strong>
-<small id="overview-caption-status">대본·캐러셀·자막 자동 작성 재료</small>
+<strong>원본 제목·설명(캡션)·본문 및 한국어 번역</strong>
+<small id="overview-caption-status">쓰레드·인스타·유튜브 제목·본문 확인 및 일본어·영어 자연 번역</small>
 </div>
 </div>
 </div>
@@ -79,13 +79,13 @@
 <div class="analysis-step-badge-row">
 <span class="analysis-step-pill primary">항목 1 · 핵심 추천</span>
 <span id="badge-status-scene" class="analysis-state-badge">분석 대기</span>
-<span class="analysis-when-tag">무엇을 소개하는 영상인지, 핵심 셀링포인트와 대사를 파악할 때</span>
+<span class="analysis-when-tag">영상 장면·음성 대사와 함께 쓰레드·인스타·유튜브 제목·설명(캡션)·본문까지 통합 분석할 때</span>
 </div>
-<h3>AI 장면·음성(내레이션) 분석</h3>
-<p class="hint">시간대별 핵심 장면, 음성 대본 요약, 3초 후킹 추천 구간, 상품 키워드를 자동 추출합니다.</p>
+<h3>AI 장면·음성(내레이션) + 원본 제목·본문 통합 분석</h3>
+<p class="hint">시간대별 핵심 장면, 음성 대본 요약, 원본 게시물 제목·설명(캡션)·본문 참고(일본어·영어 자동 한국어 번역 포함), 3초 후킹 추천 구간, 상품 키워드를 자동 추출합니다.</p>
 </div>
 <div class="analysis-card-cta-wrap">
-<button id="analyze" disabled>선택한 AI 모델로 장면·음성 분석 시작</button>
+<button id="analyze" disabled>선택한 AI 모델로 장면·음성·본문 통합 분석 시작</button>
 </div>
 </div>
 <div id="analysis" class="analysis-result-panel"></div>
@@ -128,19 +128,41 @@
 <div class="analysis-card-top-bar">
 <div class="analysis-card-title-wrap">
 <div class="analysis-step-badge-row">
-<span class="analysis-step-pill">항목 3 · 원본 캡션·메모</span>
+<span class="analysis-step-pill">항목 3 · 원본 제목·설명(캡션)·본문 및 한국어 번역</span>
 <span id="badge-status-caption" class="analysis-state-badge">대기</span>
-<span class="analysis-when-tag">수집한 게시물의 원문 글을 확인하거나 제품 특징을 메모할 때</span>
+<span id="badge-source-lang" class="analysis-state-badge">언어 자동 감지</span>
+<span class="analysis-when-tag">쓰레드·인스타그램·유튜브 제목·설명(캡션)·본문을 참고하거나 일본어·영어 원문을 한국어로 자연 번역할 때</span>
 </div>
-<h3>원본 게시물 본문(캡션) 확인 및 보관</h3>
-<p class="hint">저장된 글은 [02-A 텍스트 편집], [02-B 캐러셀 자동 대본], [03 게시문 3안 작성]에 자동 반영됩니다.</p>
+<h3>원본 게시물 제목 · 설명(캡션) · 본문 확인 및 한국어 자연 번역</h3>
+<p class="hint">수집한 게시물의 제목·설명(캡션)·본문과 한국어 번역문은 [AI 장면·음성 통합 분석], [02-A 영상 자막], [02-B 캐러셀 자동 대본], [03 게시문 3안 작성]에 즉시 참고 자료로 활용됩니다.</p>
 </div>
 <div class="analysis-card-cta-wrap" style="display:flex;gap:6px;flex-wrap:wrap;">
-<button id="btn-save-source-text" type="button" class="secondary btn-xs">원본 글 저장</button>
+<button id="btn-fetch-source-caption" type="button" class="secondary btn-xs">원본 링크에서 제목·본문 불러오기</button>
+<button id="btn-save-source-text" type="button" class="secondary btn-xs">원본·번역 글 저장</button>
 <button type="button" class="secondary btn-xs" data-goto-stage="writing">03 대본 3안 작성으로 →</button>
 </div>
 </div>
-<textarea id="source-post-text" rows="2" placeholder="Threads·Instagram·YouTube 등 원본 게시물에서 추출된 본문 글이 여기에 표시됩니다."></textarea>
+<div class="source-caption-workbench-grid">
+<label class="ocr-textarea-label">
+<span>원본 게시물 제목 · 설명(캡션) · 본문 (쓰레드·인스타그램·유튜브 원문 확인 및 직접 수정)</span>
+<textarea id="source-post-text" rows="3" placeholder="Threads·Instagram·YouTube 등 원본 게시물에서 추출된 제목·설명(캡션)·본문 글이 여기에 표시됩니다. 일본어·영어 원문도 그대로 붙여 넣거나 불러올 수 있습니다."></textarea>
+</label>
+<label class="ocr-textarea-label">
+<span>한국어 자연 번역 · 핵심 정리 본문 (일본어·영어 원문 자동 번역 및 대본·자막 활용본)</span>
+<textarea id="source-post-translated-text" rows="3" placeholder="원본 게시물이 일본어·영어 등 외국어일 때 [일본어·영어 원문 → 한국어 자연 번역] 또는 [AI 통합 분석]을 실행하면 자연스러운 한국어 번역본이 여기에 표시됩니다."></textarea>
+</label>
+</div>
+<div class="ocr-translate-bar source-caption-translate-bar">
+<select id="source-translate-tone" aria-label="원본 게시물 한국어 번역 톤 선택">
+<option value="natural" selected>번역 톤: 한국어 자연스러운 구어체 번역 (기본)</option>
+<option value="hook">번역 톤: 쓰레드·릴스·쇼츠 후킹형 초월번역</option>
+<option value="summary">번역 톤: 제품 특징·셀링포인트 핵심 요약 번역</option>
+</select>
+<button id="btn-translate-source-text" type="button">일본어·영어 원문 → 한국어 자연 번역</button>
+<button id="btn-apply-translated-to-source" type="button" class="secondary">번역문을 메인 본문으로 적용</button>
+<button id="btn-send-caption-to-editor" type="button" class="secondary">02-A 영상 자막으로 보내기 →</button>
+<button id="btn-send-caption-to-carousel" type="button" class="secondary">02-B 캐러셀 대본으로 보내기 →</button>
+</div>
 </div>
 </div>
 
