@@ -2185,22 +2185,49 @@ body:not(.quick-sidebar-mode)[data-active-stage="carousel"] .content-studio-cont
   gap: 6px !important;
 }
 
-/* Carousel 3-Zone Workbench (Center Large Active Card Preview + Right Tabbed Inspector) */
+/* Carousel 3-Zone Workbench (Left Video Reference | Center Large Active Card Preview | Right Tabbed Inspector) */
+body[data-active-stage="carousel"] #studio-player-column::before {
+  content: "좌측 · 원본 영상 미리보기 (시점 참고 · 캡처)";
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.wb-zone-kicker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.wb-zone-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #38bdf8;
+  border: 1px solid #1e293b;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.wb-zone-pill.wb-zone-pill-right {
+  color: #facc15;
+}
 .carousel-wb-grid,
 .carousel-3zone-grid {
   display: grid !important;
-  grid-template-columns: minmax(340px, 440px) minmax(0, 1fr) !important;
-  gap: 18px !important;
+  grid-template-columns: minmax(320px, 410px) minmax(0, 1fr) !important;
+  gap: 16px !important;
   align-items: start;
 }
-@media (max-width: 1220px) {
-  .carousel-wb-grid,
-  .carousel-3zone-grid {
-    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr) !important;
-    gap: 14px !important;
-  }
-}
-@media (max-width: 860px) {
+@media (max-width: 960px) {
   .carousel-wb-grid,
   .carousel-3zone-grid {
     grid-template-columns: 1fr !important;
@@ -2210,13 +2237,13 @@ body:not(.quick-sidebar-mode)[data-active-stage="carousel"] .content-studio-cont
 .wb-large-center-frame {
   position: relative;
   width: 100%;
-  max-width: 420px !important;
+  max-width: 410px !important;
   margin: 0 auto;
   aspect-ratio: 4 / 5;
-  max-height: 525px !important;
+  max-height: 515px !important;
   background: #0b0f17;
   border-radius: 12px;
-  border: 1px solid #cbd5e1;
+  border: 1.5px solid #cbd5e1;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
   overflow: hidden;
 }

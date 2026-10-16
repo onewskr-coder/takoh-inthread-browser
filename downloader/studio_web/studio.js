@@ -448,55 +448,54 @@ function renderCarouselPreview(){
   const storyboardDock=$('carousel-storyboard-dock');
   if(!job){wrap.hidden=true;return;}
   wrap.hidden=false;
-  if(!slides.length){
-    if(globalDrawer)globalDrawer.open=true;
-    if(storyboardDock)storyboardDock.hidden=true;
-    if(label)label.textContent='슬라이드 스토리보드 (아직 생성된 슬라이드가 없습니다)';
-    if(workbench){
-      const emptyBox=document.createElement('div');
-      emptyBox.className='carousel-empty-workbench';
-      emptyBox.append(
-        text('strong','아직 생성된 캐러셀·뉴스카드 슬라이드가 없습니다'),
-        text('p','상단에서 [이미지 1장 + 캡션(설명) 카드] 또는 [캐러셀 세트 생성]을 누르면 좌측 원본 영상 참고 · 중앙 대형 미리보기 · 우측 탭별 실시간 편집 워크벤치가 바로 열립니다.')
-      );
-      const actRow=document.createElement('div');
-      actRow.style.cssText='display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;';
-      const bSingle=text('button','1. 이미지 1장 + 캡션(설명) 카드 만들기');
-      bSingle.type='button';
-      bSingle.onclick=()=>$('btn-carousel-single-card')?.click();
-      const bAuto=text('button','2. 분석·본문 자료로 대본 자동 채우기');
-      bAuto.type='button';bAuto.className='secondary';
-      bAuto.onclick=()=>$('btn-autofill-carousel-texts')?.click();
-      const bGen=text('button','3. 다중 캐러셀 세트 즉시 생성하기');
-      bGen.type='button';bGen.className='secondary';
-      bGen.onclick=()=>{
-        if($('carousel-cover-title')&&!$('carousel-cover-title').value.trim())$('btn-autofill-carousel-texts')?.click();
-        $('btn-generate-carousel')?.click();
-      };
-      actRow.append(bSingle,bAuto,bGen);
-      emptyBox.append(actRow);
-      workbench.append(emptyBox);
-    }
-    return;
-  }
-  if(globalDrawer&&slides.length>0)globalDrawer.open=false;
-  if(storyboardDock)storyboardDock.hidden=false;
-  if(!slides.some(s=>Number(s.index)===activeCarouselSlideIndex)){
-    activeCarouselSlideIndex=Number(slides[0]?.index||1);
-  }
-  const activeSlide=slides.find(s=>Number(s.index)===activeCarouselSlideIndex)||slides[0];
-  const tplLabel=carouselTemplateNames[job.carousel.template||'editorial_dark']||'시네마 리뷰 다크';
-  const isSingleCard=(slides.length===1);
-  if(label)label.textContent=isSingleCard
-    ?`단독 카드 스토리보드 (이미지 1장 + 캡션·설명 · ${job.carousel.aspect||'4:5'} · 테마: ${tplLabel.split(' (')[0]})`
-    :`하단 슬라이드 스토리보드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`;
+  const tplLabel=carouselTemplateNames[job.carousel?.template||'editorial_dark']||'시네마 리뷰 다크';
   const base=`/studio/jobs/${job.id}/media/`;
-  const tsCache=Math.floor((job.carousel.updated_at||Date.now())*1000);
+  const tsCache=Math.floor((job.carousel?.updated_at||Date.now())*1000);
   const maxDur=Math.max(0.5,Number(job.media?.duration||5));
 
+  // If no slides are generated yet, build a live virtual slide #1 so the 3-Zone layout
+  // (Left Video Reference | Center Live Carousel Preview | Right Tabbed Editor) is ALWAYS visible!
+  const hasRealSlides=slides.length>0;
+  let effectiveSlides=slides;
+  if(!hasRealSlides){
+    const countVal=Math.max(1,Math.min(10,Number($('carousel-count')?.value||5)));
+    const story=buildEditorialStoryboardLines(countVal);
+    const coverParts=String(story.cover||'').split('|').map(p=>p.trim());
+    const initTitle=coverParts[0]||job.name||'카드 메인 헤드라인을 입력하세요';
+    const initSub=coverParts[1]||'우측 편집창에서 제목·부제목·캡션(설명)을 입력하면 중앙 미리보기에 실시간 반영됩니다';
+    const initBody=(story.bodySlides&&story.bodySlides[0])||story.cta||'';
+    const fallbackFrameFile=job.kind==='image'?'original':(job.evidence?.frames?.[0]?.file||'frame-0.jpg');
+    effectiveSlides=[{
+      index:1,
+      role:'cover',
+      timestamp:Number(job.evidence?.frames?.[0]?.timestamp||0.5),
+      title:initTitle,
+      subtitle:initSub,
+      body_text:initBody,
+      text:[initTitle,initSub,initBody].filter(Boolean).join('\n'),
+      badge:'MAIN COVER',
+      template:job.carousel?.template||$('carousel-template')?.value||'editorial_dark',
+      font_family:job.carousel?.font_family||$('carousel-font')?.value||'heavy_kr',
+      file:fallbackFrameFile,
+      _isVirtualPreview:true
+    }];
+  }
+  if(globalDrawer)globalDrawer.open=false;
+  if(storyboardDock)storyboardDock.hidden=false;
+  if(!effectiveSlides.some(s=>Number(s.index)===activeCarouselSlideIndex)){
+    activeCarouselSlideIndex=Number(effectiveSlides[0]?.index||1);
+  }
+  const activeSlide=effectiveSlides.find(s=>Number(s.index)===activeCarouselSlideIndex)||effectiveSlides[0];
+  const isSingleCard=(effectiveSlides.length===1&&Number($('carousel-count')?.value||0)===1);
+  if(label)label.textContent=!hasRealSlides
+    ?`하단 슬라이드 스토리보드 (미리보기 준비됨 · 상단 [캐러셀 세트 생성] 또는 [이미지 1장 + 캡션 카드] 클릭 시 전체 합성)`
+    :(isSingleCard
+      ?`단독 카드 스토리보드 (이미지 1장 + 캡션·설명 · ${job.carousel?.aspect||'4:5'} · 테마: ${tplLabel.split(' (')[0]})`
+      :`하단 슬라이드 스토리보드 (${effectiveSlides.length}장 · ${job.carousel?.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`);
+
   // 1. Render Bottom Horizontal Storyboard Filmstrip Deck ([1] [2] [3] [4] [+ 슬라이드 추가])
-  for(const s of slides){
-    const sRole=s.role||(s.index===1?'cover':(s.index===slides.length&&slides.length>=3?'cta':'body'));
+  for(const s of effectiveSlides){
+    const sRole=s.role||(s.index===1?'cover':(s.index===effectiveSlides.length&&effectiveSlides.length>=3?'cta':'body'));
     const isSelected=(Number(s.index)===Number(activeSlide?.index));
     const fig=document.createElement('figure');
     fig.className='carousel-storyboard-card'+(sRole==='cover'?' is-cover-slide':'')+(sRole==='cta'?' is-cta-slide':'')+(isSelected?' is-selected-slide':'');
@@ -535,24 +534,24 @@ function renderCarouselPreview(){
   }
 
   // Canva-style [+ 슬라이드 추가] card at the end of the filmstrip
-  if(slides.length<10){
+  if(effectiveSlides.length<10){
     const addCard=document.createElement('button');
     addCard.type='button';
     addCard.className='carousel-storyboard-add-card';
     addCard.title='새 본문 슬라이드 추가 (또는 이미지 파일로 새 슬라이드 추가)';
     const plusIcon=text('span','+');
     plusIcon.className='storyboard-add-plus';
-    const addTxt=text('strong','슬라이드 추가');
-    const addSub=text('small','현재 장면 / 사진 추가');
+    const addTxt=text('strong',hasRealSlides?'슬라이드 추가':'세트 즉시 생성');
+    const addSub=text('small',hasRealSlides?'현재 장면 / 사진 추가':'클릭하여 카드 합성');
     addCard.append(plusIcon,addTxt,addSub);
-    addCard.onclick=()=>$('btn-carousel-add-slide')?.click();
+    addCard.onclick=()=>hasRealSlides?$('btn-carousel-add-slide')?.click():$('btn-generate-carousel')?.click();
     grid.append(addCard);
   }
 
-  // 2. Render Center Large Live Preview + Right Tabbed Inspector
+  // 2. Render Center Large Live Preview + Right Tabbed Inspector (ALWAYS 3-ZONE!)
   if(workbench&&activeSlide){
-    const activeRole=activeSlide.role||(activeSlide.index===1?'cover':(activeSlide.index===slides.length&&slides.length>=3?'cta':'body'));
-    const activeTpl=activeSlide.template||job.carousel.template||'editorial_dark';
+    const activeRole=activeSlide.role||(activeSlide.index===1?'cover':(activeSlide.index===effectiveSlides.length&&effectiveSlides.length>=3?'cta':'body'));
+    const activeTpl=activeSlide.template||job.carousel?.template||'editorial_dark';
     const {title:initHead,subtitle:initSubtitle,bodyText:initBodyText}=splitSlideThreeTierText(activeSlide);
 
     const wbGrid=document.createElement('div');
@@ -561,6 +560,9 @@ function renderCarouselPreview(){
     // === CENTER COLUMN: LARGE LIVE CARD PREVIEW + SLIDE NAVIGATION ===
     const wbPreviewCol=document.createElement('div');
     wbPreviewCol.className='carousel-wb-preview-col';
+    const wbPreviewZoneTag=document.createElement('div');
+    wbPreviewZoneTag.className='wb-zone-kicker-bar';
+    wbPreviewZoneTag.innerHTML='<span class="wb-zone-pill">가운데 · 캐러셀 수정 미리보기</span>';
     const wbPreviewHeader=document.createElement('div');
     wbPreviewHeader.className='carousel-wb-preview-head';
     const rolePillText=isSingleCard
@@ -578,11 +580,11 @@ function renderCarouselPreview(){
     const btnPrevSlide=text('button','◀ 이전');btnPrevSlide.type='button';btnPrevSlide.className='secondary btn-xs';
     btnPrevSlide.disabled=activeSlide.index<=1;
     btnPrevSlide.onclick=()=>{activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);renderCarouselPreview();};
-    const slideIdxLabel=text('strong',`0${activeSlide.index} / 0${slides.length}`);
+    const slideIdxLabel=text('strong',`0${activeSlide.index} / 0${effectiveSlides.length}`);
     slideIdxLabel.style.cssText='font-size:12px;white-space:nowrap;';
     const btnNextSlide=text('button','다음 ▶');btnNextSlide.type='button';btnNextSlide.className='secondary btn-xs';
-    btnNextSlide.disabled=activeSlide.index>=slides.length;
-    btnNextSlide.onclick=()=>{activeCarouselSlideIndex=Math.min(slides.length,activeSlide.index+1);renderCarouselPreview();};
+    btnNextSlide.disabled=activeSlide.index>=effectiveSlides.length;
+    btnNextSlide.onclick=()=>{activeCarouselSlideIndex=Math.min(effectiveSlides.length,activeSlide.index+1);renderCarouselPreview();};
     slideNavWrap.append(liveSyncBadge,btnPrevSlide,slideIdxLabel,btnNextSlide);
     wbPreviewHeader.append(rolePill,slideNavWrap);
 
@@ -595,7 +597,7 @@ function renderCarouselPreview(){
     bigImg.alt=`선택된 슬라이드 #${activeSlide.index} 미리보기`;
     bigImg.onclick=()=>{if($('preview')&&job.kind!=='image'){$('preview').currentTime=Number(activeSlide.timestamp||0);}};
 
-    // Instant Live Text Overlay Layer (shows while user is typing before Pillow background render finishes)
+    // Instant Live Text Overlay Layer (shows while user is typing or when previewing virtual slide before generation)
     const liveOverlay=document.createElement('div');
     liveOverlay.id='wb-live-typing-overlay';
     liveOverlay.className='wb-live-typing-overlay';
@@ -624,7 +626,7 @@ function renderCarouselPreview(){
     wbPreviewFooter.className='wb-preview-quick-footer';
     const orderGroup=document.createElement('div');
     orderGroup.style.cssText='display:flex;gap:5px;flex-wrap:wrap;align-items:center;';
-    if(activeSlide.index>1){
+    if(hasRealSlides&&activeSlide.index>1){
       const bLeft=text('button','◀ 앞으로 이동');bLeft.type='button';bLeft.className='secondary btn-xs';
       bLeft.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
         const nextIdx=activeSlide.index-1;
@@ -634,7 +636,7 @@ function renderCarouselPreview(){
       });
       orderGroup.append(bLeft);
     }
-    if(activeSlide.index<slides.length){
+    if(hasRealSlides&&activeSlide.index<effectiveSlides.length){
       const bRight=text('button','뒤로 이동 ▶');bRight.type='button';bRight.className='secondary btn-xs';
       bRight.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
         const nextIdx=activeSlide.index+1;
@@ -644,13 +646,13 @@ function renderCarouselPreview(){
       });
       orderGroup.append(bRight);
     }
-    if(slides.length>1){
+    if(hasRealSlides&&effectiveSlides.length>1){
       const bDel=text('button','슬라이드 삭제');bDel.type='button';bDel.className='secondary btn-xs btn-subtle-danger';
       bDel.onclick=()=>act(`슬라이드 #${activeSlide.index} 삭제 중…`,async()=>{
-        if(slides.length===2){
+        if(effectiveSlides.length===2){
           singleCardModeOverrideJobId=job.id;
           if($('carousel-count'))$('carousel-count').value='1';
-          if(activeSlide.index===1&&slides[1]){
+          if(activeSlide.index===1&&effectiveSlides[1]){
             await update('carousel-slide-action',{action:'move',index:2,direction:-1});
           }
           enforceSingleCardModeIfActive(job);
@@ -668,6 +670,9 @@ function renderCarouselPreview(){
     bAttachCurrent.type='button';
     bAttachCurrent.className='secondary btn-xs';
     bAttachCurrent.onclick=()=>act(`슬라이드 #${activeSlide.index} 카드를 게시 첨부 목록에 추가하는 중…`,async()=>{
+      if(!job?.carousel?.slides?.length){
+        await runSilentSlideUpdate({});
+      }
       if(isSingleCard){
         await update('attachments-config',{action:'preset_video_plus_images',image_count:1});
       }else{
@@ -687,11 +692,15 @@ function renderCarouselPreview(){
     wbHint.className='hint';
     wbHint.style.margin='0';
     wbPreviewFooter.append(orderGroup,wbHint);
-    wbPreviewCol.append(wbPreviewHeader,wbStage,wbPreviewFooter);
+    wbPreviewCol.append(wbPreviewZoneTag,wbPreviewHeader,wbStage,wbPreviewFooter);
 
     // === RIGHT COLUMN: TABBED INSPECTOR (① 문구·후킹 | ② 사진·배경 | ③ 테마·글꼴·획) ===
     const wbInspectorCol=document.createElement('div');
     wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector carousel-tabbed-inspector';
+
+    const wbInspZoneTag=document.createElement('div');
+    wbInspZoneTag.className='wb-zone-kicker-bar';
+    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 캐러셀 실시간 편집</span>';
 
     const inspHead=document.createElement('div');
     inspHead.className='wb-inspector-head';
@@ -744,7 +753,7 @@ function renderCarouselPreview(){
 
     const buildSlidePayload=(extra={})=>({
       index:activeSlide.index,
-      slide_total:slides.length,
+      slide_total:effectiveSlides.length,
       timestamp:extra.timestamp!==undefined?extra.timestamp:activeSlide.timestamp,
       title:extra.title!==undefined?extra.title:(headInput?.value||'').trim(),
       subtitle:extra.subtitle!==undefined?extra.subtitle:(subtitleInput?.value||'').trim(),
@@ -764,7 +773,7 @@ function renderCarouselPreview(){
     });
 
     // Instant DOM Live Preview Overlay while typing (0ms feedback) + Debounced Silent Server Render (240ms)
-    const updateInstantTypingOverlay=()=>{
+    const updateInstantTypingOverlay=(keepStatusLabel=false)=>{
       if(!liveOverlay)return;
       const curTitle=(headInput?.value||'').trim();
       const curSub=(subtitleInput?.value||'').trim();
@@ -790,7 +799,7 @@ function renderCarouselPreview(){
       `;
       const sumCard=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-card-summary strong`);
       if(sumCard)sumCard.textContent=(curTitle||curSub||curBody||'문구 없음').slice(0,24);
-      if(liveSyncBadge){
+      if(!keepStatusLabel&&liveSyncBadge){
         liveSyncBadge.textContent='실시간 반영 중…';
         liveSyncBadge.classList.add('syncing');
       }
@@ -806,6 +815,21 @@ function renderCarouselPreview(){
       }
       carouselSilentInflight=true;
       try{
+        // If no slides exist on the server yet, initialize the carousel first so carousel-slide-update succeeds
+        if(!job?.carousel?.slides?.length){
+          const reqCount=Math.max(1,Math.min(10,Number($('carousel-count')?.value||1)));
+          if(reqCount===1)singleCardModeOverrideJobId=targetJobId;
+          const genJob=await api(`jobs/${targetJobId}/carousel-generate`,{
+            count:reqCount,
+            aspect:$('carousel-ratio')?.value||'4:5',
+            erase_mode:$('carousel-erase-mode')?.value||'cover_box',
+            template:payload.template||'editorial_dark',
+            cover_title:payload.text||payload.title||'핵심 포인트',
+            font_family:payload.font_family||'heavy_kr'
+          });
+          enforceSingleCardModeIfActive(genJob);
+          job=genJob;
+        }
         const nextJob=await api(`jobs/${targetJobId}/carousel-slide-update`,payload);
         if(job?.id!==targetJobId)return;
         enforceSingleCardModeIfActive(nextJob);
@@ -813,6 +837,7 @@ function renderCarouselPreview(){
         const updatedSlide=(job.carousel?.slides||[]).find(s=>Number(s.index)===Number(payload.index));
         if(updatedSlide){
           Object.assign(activeSlide,updatedSlide);
+          delete activeSlide._isVirtualPreview;
           const newUrl=`/studio/jobs/${job.id}/media/${updatedSlide.file}?t=${Date.now()}_${updatedSlide.sha256||''}`;
           const preloader=new Image();
           preloader.onload=()=>{
@@ -838,7 +863,7 @@ function renderCarouselPreview(){
     };
 
     const scheduleRealtimeSlideSync=(extra={},delayMs=240)=>{
-      updateInstantTypingOverlay();
+      updateInstantTypingOverlay(false);
       if(carouselRealtimeTimer)clearTimeout(carouselRealtimeTimer);
       carouselRealtimeTimer=setTimeout(()=>{
         runSilentSlideUpdate(extra);
@@ -1258,9 +1283,17 @@ function renderCarouselPreview(){
     btnApplySlide.onclick=()=>applyActiveSlideUpdate({});
     wbFooter.append(autoSyncHint,btnApplySlide);
 
-    wbInspectorCol.append(inspHead,inspTabsBar,tabTextPanel,tabPhotoPanel,tabStylePanel,legacySubHidden,wbFooter);
+    wbInspectorCol.append(wbInspZoneTag,inspHead,inspTabsBar,tabTextPanel,tabPhotoPanel,tabStylePanel,legacySubHidden,wbFooter);
     wbGrid.append(wbPreviewCol,wbInspectorCol);
     workbench.append(wbGrid);
+
+    if(activeSlide._isVirtualPreview){
+      updateInstantTypingOverlay(true);
+      if(liveSyncBadge){
+        liveSyncBadge.textContent='타이핑 시 즉시 합성';
+        liveSyncBadge.classList.remove('syncing');
+      }
+    }
   }
 }
 function renderAttachmentsPreview(){
