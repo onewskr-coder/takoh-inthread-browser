@@ -1,19 +1,27 @@
-# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-16 · Magnetic Center Snap, 01-Only URL Bar, Resizable Preview Across 01/02-A/02-B, Streamlined 02-A Inspector & 3-Zone Real-Time Tabbed 02-B Carousel Workbench)
+# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-16 · Pro Vertical Property Sheet Redesign for 02-A & 02-B, eliminating Lego-like grids in favor of full-width horizontal rows)
 
 ## 1. Scope & Completed Improvements
-1. **Magnetic Center Snapping on Video Preview (`마그넷 중앙 배치`)**:
-   - In [`downloader/studio_web/index.html`](downloader/studio_web/index.html), [`downloader/studio_web/studio.css`](downloader/studio_web/studio.css), and [`downloader/studio_web/studio.js`](downloader/studio_web/studio.js) (`bindDraggableChip`), dragging `#drag-title-box` or `#drag-subtitle-box` near horizontal center (`X = 50% ± 4.5%`) or key vertical anchors (`Y = 50% ± 3.5%`, `18% ± 2.8%`, `78% ± 2.8%`) magnetically snaps to the anchor and displays cyan/amber guide lines (`#magnetic-guide-x`, `#magnetic-guide-y`). Holding `Alt` bypasses snapping for free placement.
-2. **Restrict "Load Source by URL" (`URL로 원본 불러오기`) to `01 영상·소재 분석` Only**:
-   - Added `id="analysis-source-bar" data-stage-view="analysis"` in [`downloader/studio_web/index.html`](downloader/studio_web/index.html), updated `selectStage(name)` in [`downloader/studio_web/workspace.js`](downloader/studio_web/workspace.js), and added `body:not([data-active-stage="analysis"]) #analysis-source-bar { display: none !important; }` in [`downloader/studio_web/studio.css`](downloader/studio_web/studio.css).
-3. **Larger & Resizable Left Preview Across `01`, `02-A`, and `02-B`**:
-   - Increased default left preview width from `280px` to `430px` (`--studio-player-width: 430px`).
-   - Added preset width buttons (`작게 320px`, `표준 430px`, `크게 540px`, `최대 660px`), range slider (`#studio-preview-width-range`, `280px~680px`), and a draggable vertical splitter bar (`#studio-player-resizer`) between `.analysis-player-column` and `.analysis-ai-column`.
-4. **Streamlined `02-A 미디어(영상) 편집` (Premiere Pro / CapCut Style)**:
-   - Consolidated the right text inspector (`#capcut-text-inspector`) into 3 clean, scannable cards (`1. 문구 입력 및 사전 설정 스타일`, `2. 글꼴 · 패턴 · 정렬 · 크기/확대/불투명도` with collapsible fine spacing, `3. 색상 · 배경 박스 체크 · 2중 획`) while preserving 100% of existing capabilities.
-5. **Overhauled `02-B 캐러셀·뉴스카드 편집` (Canva / MiriCanvas Style 3-Zone Real-Time Tabbed Workbench)**:
-   - **Left Zone**: Resizable source video/media preview (`#studio-player-column`) with frame extraction and scrubber capture.
-   - **Center Zone**: Large active card preview (`#wb-active-slide-big-img` + `#wb-live-typing-overlay` inside `.wb-large-center-frame`) on top, and the horizontal slide storyboard filmstrip (`#carousel-storyboard-dock` / `#carousel-slides-preview`) directly below.
-   - **Right Zone**: Tabbed slide inspector (`① 문구 · 후킹 편집` | `② 사진 · 배경 교체` | `③ 테마 · 글꼴 · 획`) with real-time `0ms` live overlay reflection and `220ms` debounced background slide rendering (`scheduleRealtimeSlideSync`) without requiring manual button clicks.
+1. **Eliminated "Lego-like" Multi-Column Mini-Card Grids (`레고형 미니 박스 전면 제거 · 세로 적층형 풀와이드 가로 행 시트`)**:
+   - Replaced all 2-column / 3-column mini-boxes (`.capcut-sliders-grid`, `.capcut-slider-item`, `.capcut-color-stroke-grid`, `.capcut-color-card`) in [`downloader/studio_web/index.html`](downloader/studio_web/index.html), [`downloader/studio_web/studio.js`](downloader/studio_web/studio.js), and [`downloader/studio_web/studio.css`](downloader/studio_web/studio.css) with a unified professional property sheet (`.pro-prop-sheet`).
+   - Every property is now stacked **vertically (`전부 세로로 배치`)**, and each row (`.pro-prop-row`) is a clean, full-width **horizontal row (`가로로 쭉 깔끔하게`)** with a fixed left label column (`148px`) and a full-width horizontal control column (`1fr`) on the right.
+2. **`02-A 미디어(영상) 편집` Unified Vertical Property Sheet (`#capcut-text-inspector`)**:
+   - Consolidated related controls into 13 single-line horizontal rows:
+     1. `문구 입력 (상단 타이틀 / 하단 자막)` + inline bar (`+ [형광펜 박스]`, `+ *색상 강조*`, `상단 배지`, `노출 시간`)
+     2. `사전 설정 스타일` (8 compact horizontal pills on one row)
+     3. `글꼴 · 패턴 · 정렬` (Font selector + `+ 내 폰트` + `B 굵게 / I 기울임 / U 밑줄` + `좌측 / 가운데 / 우측` on a single horizontal row)
+     4. `글꼴 크기 (px)` (full-width horizontal slider + numeric input + `px`)
+     5. `확대 배율 (Scale)` (full-width horizontal slider + numeric input + `%`)
+     6. `텍스트 불투명도` (full-width horizontal slider + numeric input + `%`)
+     7. `문자간격 (자간)` (full-width horizontal slider + numeric input + `px`)
+     8. `줄간격 (행간)` (full-width horizontal slider + numeric input)
+     9. `글자 색상` (color picker + 6 circular `22x22px` quick swatches on one horizontal row)
+     10. `배경 박스` (`사용` checkbox + color picker + `농도` full-width horizontal slider + numeric input + `%` on one horizontal row)
+     11. `박스 모서리 둥글기` (full-width horizontal slider + numeric input + `px`)
+     12. `1차 안쪽 획` (color picker + full-width horizontal slider + numeric input + `px`)
+     13. `2중 바깥 획` (color picker + full-width horizontal slider + numeric input + `px`)
+   - Styled `.edit-tool-tabs` (4 tabs) and `.capcut-inspector-header` (layer switcher + quick actions) as sleek, non-wrapping single horizontal bars.
+3. **`02-B 캐러셀·뉴스카드 편집` Right-Side Tabbed Inspector Vertical Property Sheet**:
+   - Converted Tab 1 (`① 문구 · 후킹 편집`) and Tab 3 (`③ 테마 · 글꼴 · 획`) in [`downloader/studio_web/studio.js`](downloader/studio_web/studio.js) (`renderSlideWorkbench`) to use the same `.pro-prop-sheet` / `.pro-prop-row` structure so all inputs, sliders, color swatches, and stroke controls align horizontally in a vertical table.
 
 ## 2. Verification Evidence (Separated by Category)
 - **Static & Unit Tests**:
@@ -23,8 +31,8 @@
     - Core Node & Python unit tests (`5 tests`): **PASS**
 - **Real Browser / Electron UI Verification**:
   - Verified in headless Electron against `http://127.0.0.1:5006/studio`:
-    - `STAGE_01`: `{"activeStage":"analysis","sourceBarHidden":false,"defaultW":430,"largeW":540}` (`verify_01_analysis_url_and_resizable_preview.png`)
-    - `STAGE_02A`: `{"activeStage":"editing","sourceBarHidden":true,"compactCards":3,"playerWidth":430}` (`verify_02a_streamlined_inspector_and_preview.png`)
-    - `STAGE_02B`: `{"activeStage":"carousel","sourceBarHidden":true,"tabs":["① 문구 · 후킹 편집","② 사진 · 배경 교체","③ 테마 · 글꼴 · 획"],"playerWidth":430,"centerFrameWidth":420,"storyboardVisible":true}` (`verify_02b_3zone_realtime_tab1_text.png`, `verify_02b_3zone_realtime_tab3_style.png`)
+    - `02-A 미디어(영상) 편집` vertical property sheet: `verify_02a_pro_vertical_property_sheet.png`
+    - `02-B 캐러셀·뉴스카드 편집` Tab 1 (`① 문구 · 후킹 편집`) vertical property sheet: `verify_02b_pro_vertical_tab1.png`
+    - `02-B 캐러셀·뉴스카드 편집` Tab 3 (`③ 테마 · 글꼴 · 획`) vertical property sheet: `verify_02b_pro_vertical_tab3.png`
 - **Saved Media / Audio / Paid Provider / Distribution**:
   - Existing user profiles, cookies, saved references, jobs, and running helper processes on port `5006` were preserved untouched. No EXE/ZIP build was performed.

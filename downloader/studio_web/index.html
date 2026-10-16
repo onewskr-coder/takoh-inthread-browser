@@ -210,258 +210,227 @@
 </div>
 </div>
 
-<!-- BLOCK 1: 텍스트 입력 + 원클릭 프리셋 스타일 -->
-<div class="capcut-section capcut-compact-card">
-<div class="capcut-section-title-row">
-<span class="capcut-sec-label" id="inspector-active-layer-title">1. 문구 입력 및 사전 설정 스타일 — [상단 훅 타이틀]</span>
-<div class="inline-markup-toolbar">
-<button type="button" class="secondary btn-xs" id="btn-inspector-wrap-box" title="드래그한 글자를 [형광펜 박스]로 감쌉니다">+ [형광펜 박스]</button>
-<button type="button" class="secondary btn-xs" id="btn-inspector-wrap-star" title="드래그한 글자를 *포인트 색상*으로 감쌉니다">+ *색상 강조*</button>
-</div>
-</div>
-<div class="capcut-text-input-grid">
-<div class="field" style="margin:0;">
-<textarea id="inspector-text-input" rows="2" placeholder="좌측 미리보기 화면에서 텍스트를 클릭하거나 여기에 문구를 입력하세요 (줄바꿈 또는 | 구분 지원)"></textarea>
-</div>
-<div class="capcut-badge-Timing-col">
-<label id="inspector-badge-wrap" style="margin:0;font-size:11px;">상단 미니 배지
-<input id="inspector-badge-input" type="text" maxlength="28" placeholder="예: 추천 꿀템 · POINT">
-</label>
-<label id="inspector-duration-wrap" style="margin:0;font-size:11px;">노출 시간
-<select id="overlay-title-duration">
-<option value="0" selected>전체 시간 표시</option>
-<option value="2.5">시작 0~2.5초만</option>
-<option value="3.5">시작 0~3.5초만</option>
-<option value="5.0">시작 0~5.0초만</option>
-</select>
-</label>
-</div>
-</div>
-<div class="capcut-preset-strip" id="inspector-preset-strip" style="margin-top:8px;">
-<button type="button" class="capcut-preset-chip video-hook-chip active" data-inspector-preset="reels_giant_yellow_impact" data-video-hook-tpl="reels_giant_yellow_impact" data-hook-pos-y="18">
-<span class="preset-preview-badge" style="background:#0f172a;color:#ffe014;border:1.5px solid #ffe014;">노랑 임팩트</span>
-<small>초대형 옐로우</small>
-</button>
-<button type="button" class="capcut-preset-chip video-hook-chip" data-inspector-preset="reels_rounded_black" data-video-hook-tpl="reels_rounded_black" data-hook-pos-y="48">
-<span class="preset-preview-badge" style="background:#050608;color:#ffffff;border-radius:999px;border:1px solid #475569;">블랙 라운드</span>
-<small>둥근 블랙 카드</small>
-</button>
-<button type="button" class="capcut-preset-chip video-hook-chip" data-inspector-preset="reels_top_banner_pink" data-video-hook-tpl="reels_top_banner_pink" data-hook-pos-y="11">
-<span class="preset-preview-badge" style="background:#050608;color:#f5b4c8;border:1px solid #f5b4c8;">블랙+핑크띠</span>
-<small>상단 헤더바</small>
-</button>
-<button type="button" class="capcut-preset-chip video-hook-chip" data-inspector-preset="reels_3d_pop_shadow" data-video-hook-tpl="reels_3d_pop_shadow" data-hook-pos-y="26">
-<span class="preset-preview-badge" style="background:#1e293b;color:#ffffff;text-shadow:2px 2px 0 #000;">3D 팝업</span>
-<small>입체 외곽선</small>
-</button>
-<button type="button" class="capcut-preset-chip video-hook-chip" data-inspector-preset="reels_neon_green_glow" data-video-hook-tpl="reels_neon_green_glow" data-hook-pos-y="54">
-<span class="preset-preview-badge" style="background:#0f172a;color:#52ff5c;border:1px solid #52ff5c;">네온 글로우</span>
-<small>형광 그린</small>
-</button>
-<button type="button" class="capcut-preset-chip video-hook-chip" data-inspector-preset="reels_editorial_split" data-video-hook-tpl="reels_editorial_split" data-hook-pos-y="18">
-<span class="preset-preview-badge" style="background:#111827;color:#ffd01c;border:1px solid #ffd01c;">매거진 픽</span>
-<small>배지+다크박스</small>
-</button>
-<button type="button" class="capcut-preset-chip" data-inspector-preset="clean_white_card">
-<span class="preset-preview-badge" style="background:#ffffff;color:#0f172a;border:1px solid #cbd5e1;">화이트 카드</span>
-<small>흰배경+검정글씨</small>
-</button>
-<button type="button" class="capcut-preset-chip" data-inspector-preset="minimal_outline">
-<span class="preset-preview-badge" style="background:transparent;color:#ffffff;border:1px dashed #94a3b8;text-shadow:0 1px 3px #000;">투명 외곽선</span>
-<small>배경 없음+획</small>
-</button>
-</div>
+<!-- UNIFIED PROFESSIONAL PROPERTY SHEET (세로 적층형 · 가로 1줄 정돈 속성 시트) -->
+<div class="pro-prop-sheet">
+
+<!-- ROW 1: 문구 입력 -->
+<div class="pro-prop-row pro-prop-row-multiline">
+  <div class="pro-prop-label">
+    <span id="inspector-active-layer-title">문구 입력</span>
+    <small class="pro-prop-sub">클릭·타이핑 실시간 반영</small>
+  </div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-stack">
+    <textarea id="inspector-text-input" rows="2" placeholder="좌측 미리보기 화면에서 텍스트를 클릭하거나 여기에 문구를 입력하세요 (줄바꿈 또는 | 구분 지원)"></textarea>
+    <div class="pro-prop-inline-bar">
+      <div class="inline-markup-toolbar">
+        <button type="button" class="secondary btn-xs" id="btn-inspector-wrap-box" title="드래그한 글자를 [형광펜 박스]로 감쌉니다">+ [형광펜 박스]</button>
+        <button type="button" class="secondary btn-xs" id="btn-inspector-wrap-star" title="드래그한 글자를 *포인트 색상*으로 감쌉니다">+ *색상 강조*</button>
+      </div>
+      <div id="inspector-badge-wrap" class="pro-prop-inline-pair">
+        <span class="pro-inline-tag">상단 배지</span>
+        <input id="inspector-badge-input" type="text" maxlength="28" placeholder="예: 추천 · POINT" class="pro-inline-text-input">
+      </div>
+      <div id="inspector-duration-wrap" class="pro-prop-inline-pair">
+        <span class="pro-inline-tag">노출 시간</span>
+        <select id="inspector-duration-select" class="pro-inline-select">
+          <option value="0" selected>전체 시간 표시</option>
+          <option value="2.5">시작 0~2.5초만</option>
+          <option value="3.5">시작 0~3.5초만</option>
+          <option value="5.0">시작 0~5.0초만</option>
+        </select>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- BLOCK 2: 글꼴 · 패턴(굵기/기울임/밑줄) · 정렬 · 크기/확대/불투명도 + 세부 간격(접기) -->
-<div class="capcut-section capcut-compact-card">
-<div class="capcut-3col-grid">
-<div class="field" style="margin:0;">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-<label for="inspector-font-select" style="margin:0;">2. 글꼴 (25종 + 내 폰트)</label>
-<button type="button" class="secondary btn-xs btn-upload-custom-font" data-target-select="inspector-font-select">+ 내 폰트</button>
-</div>
-<select id="inspector-font-select" class="studio-font-select">
-<optgroup label="1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)">
-<option value="heavy_kr" selected>맑은 고딕 Bold (기본 훅 고딕)</option>
-<option value="black_han_sans">검은고딕 Black Han Sans (초고밀도 헤비 타이틀)</option>
-<option value="gasoek_one">가석체 Gasoek One (초극태 임팩트 블록)</option>
-<option value="do_hyeon">배민 도현체 Do Hyeon (직선 레트로 간판)</option>
-<option value="jua">배민 주아체 Jua (친근한 라운드 훅)</option>
-<option value="bagel_fat_one">베이글팻원 Bagel Fat One (트렌디 볼륨 팝)</option>
-<option value="hy_headline">HY헤드라인M (클래식 뉴스 헤드라인)</option>
-<option value="hy_gothic_extra">HY견고딕 (단단한 타이틀 고딕)</option>
-<option value="pyeongchang_peace_bold">평창평화체 Bold (와이드 모던 디스플레이)</option>
-</optgroup>
-<optgroup label="2. 모던·산세리프 본문 (깔끔한 가독성·자막)">
-<option value="sans">프리텐다드 / 본고딕 (깔끔한 산세리프)</option>
-<option value="gowun_dodum">고운돋움 Gowun Dodum (단정한 청정 고딕)</option>
-<option value="orbit">오르빗 Orbit (모던 테크·인포그래픽)</option>
-<option value="malgun_regular">맑은 고딕 Regular (슬림 본문 고딕)</option>
-<option value="gulim_clean">굴림 클린 산세리프</option>
-</optgroup>
-<optgroup label="3. 매거진·에디토리얼 명조 (감성·뉴스·저널)">
-<option value="serif">고운바탕 Bold (매거진 에디토리얼 세리프)</option>
-<option value="batang_kr">바탕체 (클래식 뉴스·교양 명조)</option>
-<option value="hy_myeongjo_extra">HY견명조 (무게감 있는 매거진 표지 명조)</option>
-<option value="hy_sin_myeongjo">HY신명조 (신문·에세이 본문 명조)</option>
-</optgroup>
-<optgroup label="4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)">
-<option value="brush_kr">나눔손글씨 펜 (자연스러운 손글씨 노트)</option>
-<option value="gungseo_kr">궁서체 (정통 붓글씨·강렬한 강조)</option>
-<option value="hy_gungseo_bold">HY궁서B (굵은 캘리그라피 붓글씨)</option>
-<option value="magic_kr">휴먼매직체 (경쾌한 마커 손글씨)</option>
-</optgroup>
-<optgroup label="5. 레트로·특수 디스플레이 (개성 연출)">
-<option value="hy_mokgak">HY목각파임B (우드블록 스탬프)</option>
-<option value="yet_hangul">휴먼옛체 (전통 고전 감성)</option>
-<option value="pyeongchang_regular">평창체 Regular (모던 라운드 산세리프)</option>
-</optgroup>
-</select>
+<!-- ROW 2: 사전 설정 스타일 (프리셋) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">사전 설정 스타일</div>
+  <div class="pro-prop-ctrl">
+    <div class="pro-preset-inline-bar" id="inspector-preset-strip">
+      <button type="button" class="pro-preset-pill video-hook-chip active" data-inspector-preset="reels_giant_yellow_impact" data-video-hook-tpl="reels_giant_yellow_impact" data-hook-pos-y="18">노랑 임팩트</button>
+      <button type="button" class="pro-preset-pill video-hook-chip" data-inspector-preset="reels_rounded_black" data-video-hook-tpl="reels_rounded_black" data-hook-pos-y="48">블랙 라운드</button>
+      <button type="button" class="pro-preset-pill video-hook-chip" data-inspector-preset="reels_top_banner_pink" data-video-hook-tpl="reels_top_banner_pink" data-hook-pos-y="11">블랙+핑크띠</button>
+      <button type="button" class="pro-preset-pill video-hook-chip" data-inspector-preset="reels_3d_pop_shadow" data-video-hook-tpl="reels_3d_pop_shadow" data-hook-pos-y="26">3D 입체 팝업</button>
+      <button type="button" class="pro-preset-pill video-hook-chip" data-inspector-preset="reels_neon_green_glow" data-video-hook-tpl="reels_neon_green_glow" data-hook-pos-y="54">네온 글로우</button>
+      <button type="button" class="pro-preset-pill video-hook-chip" data-inspector-preset="reels_editorial_split" data-video-hook-tpl="reels_editorial_split" data-hook-pos-y="18">매거진 픽</button>
+      <button type="button" class="pro-preset-pill" data-inspector-preset="clean_white_card">화이트 카드</button>
+      <button type="button" class="pro-preset-pill" data-inspector-preset="minimal_outline">투명 외곽선</button>
+    </div>
+  </div>
 </div>
 
-<div class="field" style="margin:0;">
-<label style="margin:0 0 4px;display:block;">패턴 (굵기 · 기울임 · 밑줄)</label>
-<div class="capcut-toggle-group" role="group" aria-label="텍스트 패턴">
-<button type="button" id="inspector-btn-bold" class="capcut-toggle-btn active" data-inspector-pattern="bold" title="굵게 (Bold)"><strong>B</strong> 굵게</button>
-<button type="button" id="inspector-btn-italic" class="capcut-toggle-btn" data-inspector-pattern="italic" title="폰트 기울임 (Italic)"><em style="font-style:italic;font-weight:700;">I</em> 기울임</button>
-<button type="button" id="inspector-btn-underline" class="capcut-toggle-btn" data-inspector-pattern="underline" title="밑줄 (Underline)"><span style="text-decoration:underline;font-weight:700;">U</span> 밑줄</button>
-</div>
-</div>
-
-<div class="field" style="margin:0;">
-<label style="margin:0 0 4px;display:block;">정렬 (좌 · 가운데 · 우)</label>
-<div class="capcut-toggle-group" role="group" aria-label="텍스트 정렬">
-<button type="button" class="capcut-toggle-btn" data-inspector-align="left" title="왼쪽 정렬">좌측</button>
-<button type="button" class="capcut-toggle-btn active" data-inspector-align="center" title="가운데 정렬">가운데</button>
-<button type="button" class="capcut-toggle-btn" data-inspector-align="right" title="오른쪽 정렬">우측</button>
-</div>
-</div>
-</div>
-
-<!-- 핵심 슬라이더 3개 (글꼴 크기 · 확대 배율 · 불투명도) -->
-<div class="capcut-sliders-grid" style="margin-top:8px;">
-<div class="capcut-slider-item">
-<div class="capcut-slider-head">
-<label for="inspector-font-size">글꼴 크기 (px)</label>
-<span id="inspector-font-size-val" class="capcut-val-pill">54px</span>
-</div>
-<div class="capcut-slider-ctrl">
-<input id="inspector-font-size-range" type="range" min="18" max="140" step="1" value="54">
-<input id="inspector-font-size" type="number" min="18" max="140" step="1" value="54" class="capcut-num-input">
-</div>
-</div>
-
-<div class="capcut-slider-item">
-<div class="capcut-slider-head">
-<label for="inspector-scale-pct">확대 배율 (Scale %)</label>
-<span id="inspector-scale-pct-val" class="capcut-val-pill">100%</span>
-</div>
-<div class="capcut-slider-ctrl">
-<input id="inspector-scale-pct-range" type="range" min="50" max="200" step="5" value="100">
-<input id="inspector-scale-pct" type="number" min="50" max="200" step="5" value="100" class="capcut-num-input">
-</div>
-</div>
-
-<div class="capcut-slider-item">
-<div class="capcut-slider-head">
-<label for="inspector-opacity">불투명도 (Opacity %)</label>
-<span id="inspector-opacity-val" class="capcut-val-pill">100%</span>
-</div>
-<div class="capcut-slider-ctrl">
-<input id="inspector-opacity-range" type="range" min="15" max="100" step="5" value="100">
-<input id="inspector-opacity" type="number" min="15" max="100" step="5" value="100" class="capcut-num-input">
-</div>
-</div>
-</div>
-
-<!-- 세부 간격 (문자간격 · 줄간격 · 박스 모서리 둥글기) -->
-<details class="capcut-sub-drawer" style="margin-top:8px;">
-<summary>세부 간격 · 박스 모서리 조절 (문자간격 · 줄간격 · 모서리 둥글기) ▾</summary>
-<div class="capcut-sliders-grid" style="margin-top:8px;">
-<div class="capcut-slider-item">
-<div class="capcut-slider-head">
-<label for="inspector-letter-spacing">문자간격 · 자간 (px)</label>
-<span id="inspector-letter-spacing-val" class="capcut-val-pill">0px</span>
-</div>
-<div class="capcut-slider-ctrl">
-<input id="inspector-letter-spacing-range" type="range" min="-4" max="24" step="0.5" value="0">
-<input id="inspector-letter-spacing" type="number" min="-4" max="24" step="0.5" value="0" class="capcut-num-input">
-</div>
+<!-- ROW 3: 글꼴 · 패턴 · 정렬 통합 행 -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">글꼴 · 패턴 · 정렬</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-inline">
+    <select id="inspector-font-select" class="studio-font-select pro-font-select">
+      <optgroup label="1. 훅·임팩트 타이틀 (쇼츠·릴스·카드뉴스 표지)">
+        <option value="heavy_kr" selected>맑은 고딕 Bold (기본 훅 고딕)</option>
+        <option value="black_han_sans">검은고딕 Black Han Sans (초고밀도 헤비 타이틀)</option>
+        <option value="gasoek_one">가석체 Gasoek One (초극태 임팩트 블록)</option>
+        <option value="do_hyeon">배민 도현체 Do Hyeon (직선 레트로 간판)</option>
+        <option value="jua">배민 주아체 Jua (친근한 라운드 훅)</option>
+        <option value="bagel_fat_one">베이글팻원 Bagel Fat One (트렌디 볼륨 팝)</option>
+        <option value="hy_headline">HY헤드라인M (클래식 뉴스 헤드라인)</option>
+        <option value="hy_gothic_extra">HY견고딕 (단단한 타이틀 고딕)</option>
+        <option value="pyeongchang_peace_bold">평창평화체 Bold (와이드 모던 디스플레이)</option>
+      </optgroup>
+      <optgroup label="2. 모던·산세리프 본문 (깔끔한 가독성·자막)">
+        <option value="sans">프리텐다드 / 본고딕 (깔끔한 산세리프)</option>
+        <option value="gowun_dodum">고운돋움 Gowun Dodum (단정한 청정 고딕)</option>
+        <option value="orbit">오르빗 Orbit (모던 테크·인포그래픽)</option>
+        <option value="malgun_regular">맑은 고딕 Regular (슬림 본문 고딕)</option>
+        <option value="gulim_clean">굴림 클린 산세리프</option>
+      </optgroup>
+      <optgroup label="3. 매거진·에디토리얼 명조 (감성·뉴스·저널)">
+        <option value="serif">고운바탕 Bold (매거진 에디토리얼 세리프)</option>
+        <option value="batang_kr">바탕체 (클래식 뉴스·교양 명조)</option>
+        <option value="hy_myeongjo_extra">HY견명조 (무게감 있는 매거진 표지 명조)</option>
+        <option value="hy_sin_myeongjo">HY신명조 (신문·에세이 본문 명조)</option>
+      </optgroup>
+      <optgroup label="4. 감성 손글씨·캘리그라피 (브이로그·포스트잇)">
+        <option value="brush_kr">나눔손글씨 펜 (자연스러운 손글씨 노트)</option>
+        <option value="gungseo_kr">궁서체 (정통 붓글씨·강렬한 강조)</option>
+        <option value="hy_gungseo_bold">HY궁서B (굵은 캘리그라피 붓글씨)</option>
+        <option value="magic_kr">휴먼매직체 (경쾌한 마커 손글씨)</option>
+      </optgroup>
+      <optgroup label="5. 레트로·특수 디스플레이 (개성 연출)">
+        <option value="hy_mokgak">HY목각파임B (우드블록 스탬프)</option>
+        <option value="yet_hangul">휴먼옛체 (전통 고전 감성)</option>
+        <option value="pyeongchang_regular">평창체 Regular (모던 라운드 산세리프)</option>
+      </optgroup>
+    </select>
+    <button type="button" class="secondary btn-xs btn-upload-custom-font" data-target-select="inspector-font-select">+ 내 폰트</button>
+    <span class="pro-inline-divider"></span>
+    <div class="capcut-toggle-group" role="group" aria-label="텍스트 패턴">
+      <button type="button" id="inspector-btn-bold" class="capcut-toggle-btn active" data-inspector-pattern="bold" title="굵게 (Bold)"><strong>B</strong> 굵게</button>
+      <button type="button" id="inspector-btn-italic" class="capcut-toggle-btn" data-inspector-pattern="italic" title="폰트 기울임 (Italic)"><em style="font-style:italic;font-weight:700;">I</em> 기울임</button>
+      <button type="button" id="inspector-btn-underline" class="capcut-toggle-btn" data-inspector-pattern="underline" title="밑줄 (Underline)"><span style="text-decoration:underline;font-weight:700;">U</span> 밑줄</button>
+    </div>
+    <span class="pro-inline-divider"></span>
+    <div class="capcut-toggle-group" role="group" aria-label="텍스트 정렬">
+      <button type="button" class="capcut-toggle-btn" data-inspector-align="left" title="왼쪽 정렬">좌측</button>
+      <button type="button" class="capcut-toggle-btn active" data-inspector-align="center" title="가운데 정렬">가운데</button>
+      <button type="button" class="capcut-toggle-btn" data-inspector-align="right" title="오른쪽 정렬">우측</button>
+    </div>
+  </div>
 </div>
 
-<div class="capcut-slider-item">
-<div class="capcut-slider-head">
-<label for="inspector-line-spacing">줄간격 · 행간 (배율)</label>
-<span id="inspector-line-spacing-val" class="capcut-val-pill">1.25</span>
-</div>
-<div class="capcut-slider-ctrl">
-<input id="inspector-line-spacing-range" type="range" min="0.85" max="2.20" step="0.05" value="1.25">
-<input id="inspector-line-spacing" type="number" min="0.85" max="2.20" step="0.05" value="1.25" class="capcut-num-input">
-</div>
-</div>
-
-<div class="capcut-slider-item">
-<div class="capcut-slider-head">
-<label for="inspector-box-radius">배경 박스 모서리 둥글기</label>
-<span id="inspector-box-radius-val" class="capcut-val-pill">18px</span>
-</div>
-<div class="capcut-slider-ctrl">
-<input id="inspector-box-radius-range" type="range" min="0" max="80" step="2" value="18">
-<input id="inspector-box-radius" type="number" min="0" max="80" step="2" value="18" class="capcut-num-input">
-</div>
-</div>
-</div>
-</details>
+<!-- ROW 4: 글꼴 크기 (px) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">글꼴 크기 (px)</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-font-size-range" type="range" min="18" max="140" step="1" value="54">
+    <input id="inspector-font-size" type="number" min="18" max="140" step="1" value="54" class="capcut-num-input">
+    <span id="inspector-font-size-val" class="pro-unit-tag">54px</span>
+  </div>
 </div>
 
-<!-- BLOCK 3: 색상 · 배경 박스 · 획 (1차 안쪽 테두리 + 2중 바깥 테두리) -->
-<div class="capcut-section capcut-compact-card">
-<div class="capcut-color-stroke-grid">
-<div class="capcut-color-card">
-<span class="capcut-sec-label">3. 글자 색상 & 배경 박스</span>
-<div class="capcut-color-row">
-<label for="inspector-text-color">글자색</label>
-<input id="inspector-text-color" type="color" value="#ffe014" class="stroke-color-picker">
-<div class="capcut-color-swatches" data-swatch-target="text">
-<button type="button" class="swatch-btn" data-color="#ffffff" style="background:#ffffff;" title="화이트"></button>
-<button type="button" class="swatch-btn" data-color="#ffe014" style="background:#ffe014;" title="임팩트 옐로우"></button>
-<button type="button" class="swatch-btn" data-color="#52ff5c" style="background:#52ff5c;" title="네온 그린"></button>
-<button type="button" class="swatch-btn" data-color="#ff6252" style="background:#ff6252;" title="코랄 레드"></button>
-<button type="button" class="swatch-btn" data-color="#38bdf8" style="background:#38bdf8;" title="스카이 블루"></button>
-<button type="button" class="swatch-btn" data-color="#111827" style="background:#111827;border-color:#94a3b8;" title="딥 블랙"></button>
-</div>
-</div>
-<div class="capcut-color-row" style="margin-top:6px;">
-<label class="inline-check" style="margin:0;gap:6px;font-size:12px;display:inline-flex;flex-direction:row;align-items:center;width:auto;cursor:pointer;" title="체크하면 글자 뒤에 배경 박스를 표시하고, 해제하면 투명 배경에 글자만 표시합니다">
-<input id="inspector-bg-enabled" type="checkbox" checked style="width:15px !important;height:15px !important;min-width:15px;margin:0;padding:0;accent-color:#38bdf8;flex:0 0 15px;">
-<span style="white-space:nowrap;font-weight:700;">박스 사용</span>
-</label>
-<input id="inspector-bg-color" type="color" value="#080a10" class="stroke-color-picker" title="배경 박스 색상">
-<label for="inspector-bg-opacity" style="font-size:11px;color:#94a3b8;margin:0;">농도</label>
-<input id="inspector-bg-opacity" type="range" min="15" max="100" step="5" value="90" style="width:76px;">
-<span id="inspector-bg-opacity-val" class="capcut-val-pill">90%</span>
-</div>
+<!-- ROW 5: 확대 배율 (Scale %) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">확대 배율 (Scale)</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-scale-pct-range" type="range" min="50" max="200" step="5" value="100">
+    <input id="inspector-scale-pct" type="number" min="50" max="200" step="5" value="100" class="capcut-num-input">
+    <span id="inspector-scale-pct-val" class="pro-unit-tag">100%</span>
+  </div>
 </div>
 
-<div class="capcut-color-card">
-<span class="capcut-sec-label">4. 획 · 2중 테두리 (안쪽 획 + 바깥 획)</span>
-<div class="capcut-color-row">
-<label for="inspector-stroke-width">1차 안쪽 획</label>
-<input id="inspector-stroke-width-range" type="range" min="0" max="24" step="1" value="4" style="flex:1;">
-<input id="inspector-stroke-width" type="number" min="0" max="24" step="1" value="4" class="capcut-num-input">
-<span class="px-unit-label">px</span>
-<input id="inspector-stroke-color" type="color" value="#000000" class="stroke-color-picker" title="1차 안쪽 테두리 색상">
+<!-- ROW 6: 불투명도 (Opacity %) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">텍스트 불투명도</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-opacity-range" type="range" min="15" max="100" step="5" value="100">
+    <input id="inspector-opacity" type="number" min="15" max="100" step="5" value="100" class="capcut-num-input">
+    <span id="inspector-opacity-val" class="pro-unit-tag">100%</span>
+  </div>
 </div>
-<div class="capcut-color-row" style="margin-top:6px;">
-<label for="inspector-double-stroke-width">2중 바깥 획</label>
-<input id="inspector-double-stroke-width-range" type="range" min="0" max="24" step="1" value="0" style="flex:1;">
-<input id="inspector-double-stroke-width" type="number" min="0" max="24" step="1" value="0" class="capcut-num-input">
-<span class="px-unit-label">px</span>
-<input id="inspector-double-stroke-color" type="color" value="#facc15" class="stroke-color-picker" title="2중 바깥 테두리 색상">
+
+<!-- ROW 7: 문자간격 (자간 px) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">문자간격 (자간)</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-letter-spacing-range" type="range" min="-4" max="24" step="0.5" value="0">
+    <input id="inspector-letter-spacing" type="number" min="-4" max="24" step="0.5" value="0" class="capcut-num-input">
+    <span id="inspector-letter-spacing-val" class="pro-unit-tag">0px</span>
+  </div>
 </div>
+
+<!-- ROW 8: 줄간격 (행간 배율) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">줄간격 (행간)</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-line-spacing-range" type="range" min="0.85" max="2.20" step="0.05" value="1.25">
+    <input id="inspector-line-spacing" type="number" min="0.85" max="2.20" step="0.05" value="1.25" class="capcut-num-input">
+    <span id="inspector-line-spacing-val" class="pro-unit-tag">1.25</span>
+  </div>
 </div>
+
+<!-- ROW 9: 글자 색상 -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">글자 색상</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-inline">
+    <input id="inspector-text-color" type="color" value="#ffe014" class="stroke-color-picker">
+    <div class="capcut-color-swatches" data-swatch-target="text">
+      <button type="button" class="swatch-btn" data-color="#ffffff" style="background:#ffffff;" title="화이트"></button>
+      <button type="button" class="swatch-btn" data-color="#ffe014" style="background:#ffe014;" title="임팩트 옐로우"></button>
+      <button type="button" class="swatch-btn" data-color="#52ff5c" style="background:#52ff5c;" title="네온 그린"></button>
+      <button type="button" class="swatch-btn" data-color="#ff6252" style="background:#ff6252;" title="코랄 레드"></button>
+      <button type="button" class="swatch-btn" data-color="#38bdf8" style="background:#38bdf8;" title="스카이 블루"></button>
+      <button type="button" class="swatch-btn" data-color="#111827" style="background:#111827;border-color:#94a3b8;" title="딥 블랙"></button>
+    </div>
+  </div>
 </div>
+
+<!-- ROW 10: 배경 박스 (사용 체크 + 색상 + 불투명도 농도 슬라이더) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">배경 박스</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <label class="pro-inline-check" title="체크하면 글자 뒤에 배경 박스를 표시하고, 해제하면 투명 배경에 글자만 표시합니다">
+      <input id="inspector-bg-enabled" type="checkbox" checked>
+      <span>사용</span>
+    </label>
+    <input id="inspector-bg-color" type="color" value="#080a10" class="stroke-color-picker" title="배경 박스 색상">
+    <span class="pro-inline-tag">농도</span>
+    <input id="inspector-bg-opacity-range" type="range" min="15" max="100" step="5" value="90">
+    <input id="inspector-bg-opacity" type="number" min="15" max="100" step="5" value="90" class="capcut-num-input">
+    <span id="inspector-bg-opacity-val" class="pro-unit-tag">90%</span>
+  </div>
+</div>
+
+<!-- ROW 11: 박스 모서리 둥글기 -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">박스 모서리 둥글기</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-box-radius-range" type="range" min="0" max="80" step="2" value="18">
+    <input id="inspector-box-radius" type="number" min="0" max="80" step="2" value="18" class="capcut-num-input">
+    <span id="inspector-box-radius-val" class="pro-unit-tag">18px</span>
+  </div>
+</div>
+
+<!-- ROW 11: 1차 안쪽 획 (테두리) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">1차 안쪽 획</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-stroke-color" type="color" value="#000000" class="stroke-color-picker" title="1차 안쪽 테두리 색상">
+    <input id="inspector-stroke-width-range" type="range" min="0" max="24" step="1" value="4">
+    <input id="inspector-stroke-width" type="number" min="0" max="24" step="1" value="4" class="capcut-num-input">
+    <span class="pro-unit-tag">px</span>
+  </div>
+</div>
+
+<!-- ROW 12: 2중 바깥 획 (테두리) -->
+<div class="pro-prop-row">
+  <div class="pro-prop-label">2중 바깥 획</div>
+  <div class="pro-prop-ctrl pro-prop-ctrl-slider">
+    <input id="inspector-double-stroke-color" type="color" value="#facc15" class="stroke-color-picker" title="2중 바깥 테두리 색상">
+    <input id="inspector-double-stroke-width-range" type="range" min="0" max="24" step="1" value="0">
+    <input id="inspector-double-stroke-width" type="number" min="0" max="24" step="1" value="0" class="capcut-num-input">
+    <span class="pro-unit-tag">px</span>
+  </div>
+</div>
+
 </div>
 
 <!-- Backing Store DOM Elements for Title & Subtitle Layers (preserves 100% compatibility with all existing functions) -->
@@ -628,6 +597,7 @@
 <div class="hook-editor-footer">
 <span class="hint" style="margin:0;">원본 영상·이미지는 보존되며 설정한 글꼴·패턴·색상·자간/행간·정렬·확대·불투명도·2중 획이 그대로 합성됩니다.</span>
 <button id="btn-apply-media-text-edit" type="button" class="primary">타이틀 · 한글 자막 영상/이미지에 합성 적용</button>
+</div>
 </div>
 </div>
 
@@ -861,7 +831,6 @@
 <div class="hook-editor-footer">
 <span class="hint" style="margin:0;">편집본은 새 작업으로 생성됩니다.</span>
 <button id="create-hook-edit" type="button">후킹 편집본 만들기</button>
-</div>
 </div>
 </div>
 </div>

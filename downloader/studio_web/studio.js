@@ -798,31 +798,46 @@ function renderCarouselPreview(){
     };
 
     // =========================================================================
-    // TAB 1 PANEL: ① 문구 · 후킹 편집 (후킹 공식 + 제목 + 부제목 + 본문 + 배지)
+    // TAB 1 PANEL: ① 문구 · 후킹 편집 (후킹 공식 + 제목 + 부제목 + 본문 + 배지) — 세로 적층형 · 가로 1줄 정돈 속성 시트
     // =========================================================================
     const tabTextPanel=document.createElement('div');
     tabTextPanel.className='wb-tab-panel';
     tabPanels.text=tabTextPanel;
 
-    const hookFormulaBox=document.createElement('div');
-    hookFormulaBox.className='wb-structured-section wb-cover-hook-box';
-    const hookHead=document.createElement('div');
-    hookHead.className='wb-section-head';
-    hookHead.append(
-      text('strong',activeSlide.index===1?'첫 장(표지) 90% 바이럴 후킹 공식 (클릭 즉시 변환)':'슬라이드 후킹 공식 변환 (클릭 즉시 반영)'),
-      text('span','원클릭 실시간 적용')
-    );
+    const textSheet=document.createElement('div');
+    textSheet.className='pro-prop-sheet';
+
+    const makeTextPropRow=(titleStr,subStr='',multiline=false)=>{
+      const row=document.createElement('div');
+      row.className='pro-prop-row'+(multiline?' pro-prop-row-multiline':'');
+      const lbl=document.createElement('div');
+      lbl.className='pro-prop-label';
+      lbl.append(text('span',titleStr));
+      if(subStr){
+        const sm=text('small',subStr);
+        sm.className='pro-prop-sub';
+        lbl.append(sm);
+      }
+      const ctrl=document.createElement('div');
+      ctrl.className='pro-prop-ctrl'+(multiline?' pro-prop-ctrl-stack':' pro-prop-ctrl-inline');
+      row.append(lbl,ctrl);
+      return {row,ctrl};
+    };
+
+    // Row 1: 바이럴 후킹 공식 (클릭 즉시 변환)
+    const {row:rHook,ctrl:cHook}=makeTextPropRow(activeSlide.index===1?'첫 장 90% 후킹 공식':'슬라이드 후킹 공식','클릭 즉시 실시간 변환');
     const hookChipsRow=document.createElement('div');
-    hookChipsRow.className='cover-hook-formula-chips';
+    hookChipsRow.className='pro-preset-inline-bar';
     const curFormula=$('carousel-cover-hook-formula')?.value||'number';
     for(const [fKey,fMeta] of Object.entries(coverHookFormulaMeta)){
       const chip=document.createElement('button');
       chip.type='button';
-      chip.className='cover-hook-chip'+(fKey===curFormula?' active':'');
-      chip.append(text('strong',fMeta.name),text('small',fMeta.desc));
+      chip.className='pro-preset-pill'+(fKey===curFormula?' active':'');
+      chip.title=fMeta.desc;
+      chip.textContent=fMeta.name;
       chip.onclick=()=>{
         if($('carousel-cover-hook-formula'))$('carousel-cover-hook-formula').value=fKey;
-        hookChipsRow.querySelectorAll('.cover-hook-chip').forEach(c=>c.classList.toggle('active',c===chip));
+        hookChipsRow.querySelectorAll('.pro-preset-pill').forEach(c=>c.classList.toggle('active',c===chip));
         const prod=($('product-name')?.value||job?.product?.name||'').trim();
         const lines=extractBestHookLines();
         const seedTopic=(headInput?.value||'').trim()||lines[0]||'핵심 포인트';
@@ -844,24 +859,22 @@ function renderCarouselPreview(){
       };
       hookChipsRow.append(chip);
     }
-    hookFormulaBox.append(hookHead,hookChipsRow);
+    cHook.append(hookChipsRow);
 
-    // Title Input
-    const titleSection=document.createElement('div');
-    titleSection.className='wb-structured-section wb-text-tier-box';
-    const headTopBar=document.createElement('div');
-    headTopBar.className='wb-section-head';
-    const headLabelEl=text('strong',activeRole==='cover'?'1. 제목 (첫장 핵심 후킹 대제목)':(activeRole==='cta'?'1. 제목 (마지막장 핵심 결론)':'1. 제목 (슬라이드 메인 헤드라인)'));
-    const syntaxBtns=document.createElement('div');
-    syntaxBtns.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
-    const btnHlBox=text('button','+ [박스 강조]');btnHlBox.type='button';btnHlBox.className='secondary btn-xs';
-    const btnHlAcc=text('button','+ *색상 강조*');btnHlAcc.type='button';btnHlAcc.className='secondary btn-xs';
+    // Row 2: 1. 제목 (핵심 헤드라인 + 박스/색상 강조 1줄)
+    const {row:rHead,ctrl:cHead}=makeTextPropRow(
+      activeRole==='cover'?'1. 제목 (표지 훅)':(activeRole==='cta'?'1. 제목 (결론 요약)':'1. 제목 (헤드라인)'),
+      '타이핑 실시간 반영'
+    );
     headInput=document.createElement('input');
     headInput.type='text';
     headInput.id='wb-active-head-input';
+    headInput.style.cssText='flex:1;min-width:180px;margin:0;';
     headInput.value=initHead;
-    headInput.placeholder='예: [잘 터지는] *캐러셀* 제작하기 (입력 즉시 미리보기에 반영됩니다)';
+    headInput.placeholder='예: [잘 터지는] *캐러셀* 제작하기 (입력 즉시 미리보기 반영)';
     headInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
+    const btnHlBox=text('button','+ [박스 강조]');btnHlBox.type='button';btnHlBox.className='secondary btn-xs';
+    const btnHlAcc=text('button','+ *색상 강조*');btnHlAcc.type='button';btnHlAcc.className='secondary btn-xs';
     btnHlBox.onclick=()=>{
       const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
       const sel=headInput.value.slice(st,en)||'핵심키워드';
@@ -876,41 +889,30 @@ function renderCarouselPreview(){
       headInput.focus();
       scheduleRealtimeSlideSync({},100);
     };
-    syntaxBtns.append(btnHlBox,btnHlAcc);
-    headTopBar.append(headLabelEl,syntaxBtns);
-    titleSection.append(headTopBar,headInput);
+    cHead.append(headInput,btnHlBox,btnHlAcc);
 
-    // Subtitle Input
-    const subtitleSection=document.createElement('div');
-    subtitleSection.className='wb-structured-section wb-text-tier-box';
-    const subTopBar=document.createElement('div');
-    subTopBar.className='wb-section-head';
-    subTopBar.append(
-      text('strong','2. 부제목 (제목 아래 보조 카피 · 훅 설명)'),
-      text('span','입력 즉시 실시간 반영')
-    );
+    // Row 3: 2. 부제목 (보조 카피 1줄)
+    const {row:rSub,ctrl:cSub}=makeTextPropRow('2. 부제목 (보조 카피)','제목 아래 설명');
     subtitleInput=document.createElement('input');
     subtitleInput.type='text';
     subtitleInput.id='wb-active-subtitle-input';
+    subtitleInput.style.cssText='flex:1;width:100%;margin:0;';
     subtitleInput.value=initSubtitle;
     subtitleInput.placeholder=activeRole==='cover'?'예: 잘 되는 캐러셀에는 공식이 있습니다!':'예: 실사용에서 가장 먼저 체감된 핵심 차이점';
     subtitleInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
-    subtitleSection.append(subTopBar,subtitleInput);
+    cSub.append(subtitleInput);
 
-    // Body Text + Badge Input
-    const bodyTextSection=document.createElement('div');
-    bodyTextSection.className='wb-structured-section wb-text-tier-box';
-    const bodyTopBar=document.createElement('div');
-    bodyTopBar.className='wb-section-head';
-    bodyTopBar.append(text('strong','3. 본문 텍스트 및 상단 배지'));
-    const bodyBtnGroup=document.createElement('div');
-    bodyBtnGroup.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
+    // Row 4: 3. 본문 텍스트 (체크포인트)
+    const {row:rBody,ctrl:cBody}=makeTextPropRow('3. 본문 텍스트','추가 설명 · 체크포인트',true);
     bodyTextarea=document.createElement('textarea');
     bodyTextarea.id='wb-active-body-input';
     bodyTextarea.rows=2;
+    bodyTextarea.style.margin='0';
     bodyTextarea.value=initBodyText;
     bodyTextarea.placeholder='슬라이드에 추가로 넣을 본문 텍스트나 체크포인트를 입력하세요';
     bodyTextarea.addEventListener('input',()=>scheduleRealtimeSlideSync({},240));
+    const bodyBar=document.createElement('div');
+    bodyBar.className='pro-prop-inline-bar';
     const btnAddBullet=text('button','+ 체크포인트 줄 추가');
     btnAddBullet.type='button';
     btnAddBullet.className='secondary btn-xs';
@@ -926,23 +928,21 @@ function renderCarouselPreview(){
     btnClearBody.type='button';
     btnClearBody.className='secondary btn-xs';
     btnClearBody.onclick=()=>{bodyTextarea.value='';bodyTextarea.focus();scheduleRealtimeSlideSync({},100);};
-    bodyBtnGroup.append(btnAddBullet,btnClearBody);
-    bodyTopBar.append(bodyBtnGroup);
+    bodyBar.append(btnAddBullet,btnClearBody);
+    cBody.append(bodyTextarea,bodyBar);
 
-    const badgeRow=document.createElement('div');
-    badgeRow.style.cssText='display:flex;align-items:center;gap:8px;margin-top:6px;';
-    const badgeLbl=text('span','상단 배지(Kicker):');
-    badgeLbl.style.cssText='font-size:11.5px;font-weight:700;color:#475569;white-space:nowrap;';
+    // Row 5: 4. 상단 배지 (Kicker)
+    const {row:rBadge,ctrl:cBadge}=makeTextPropRow('4. 상단 배지 (Kicker)','카드 상단 라벨');
     badgeInput=document.createElement('input');
     badgeInput.type='text';
     badgeInput.id='wb-active-badge-input';
-    badgeInput.style.cssText='flex:1;margin:0;';
+    badgeInput.style.cssText='flex:1;width:100%;margin:0;';
     badgeInput.value=activeSlide.badge||(activeRole==='cover'?'MAIN COVER':(activeRole==='cta'?'SUMMARY · CTA':`POINT 0${Math.max(1,activeSlide.index-1)}`));
     badgeInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
-    badgeRow.append(badgeLbl,badgeInput);
+    cBadge.append(badgeInput);
 
-    bodyTextSection.append(bodyTopBar,bodyTextarea,badgeRow);
-    tabTextPanel.append(hookFormulaBox,titleSection,subtitleSection,bodyTextSection);
+    textSheet.append(rHook,rHead,rSub,rBody,rBadge);
+    tabTextPanel.append(textSheet);
 
     // Keep legacy #wb-active-sub-input hidden alias synced
     const legacySubHidden=document.createElement('textarea');
@@ -1038,22 +1038,35 @@ function renderCarouselPreview(){
     tabPhotoPanel.prepend(photoBox);
 
     // =========================================================================
-    // TAB 3 PANEL: ③ 테마 · 글꼴 · 획 (역할 선택 · 8종 테마 · 25종 글꼴 · 2중 획)
+    // TAB 3 PANEL: ③ 테마 · 글꼴 · 획 (역할 선택 · 8종 테마 · 25종 글꼴 · 2중 획) — 세로 적층형 · 가로 1줄 정돈 속성 시트
     // =========================================================================
     const tabStylePanel=document.createElement('div');
     tabStylePanel.className='wb-tab-panel';
     tabPanels.style=tabStylePanel;
 
-    const styleBox=document.createElement('div');
-    styleBox.className='wb-structured-section';
+    const styleSheet=document.createElement('div');
+    styleSheet.className='pro-prop-sheet';
 
-    // Quick Role Preset Buttons
+    const makePropRow=(labelText)=>{
+      const row=document.createElement('div');
+      row.className='pro-prop-row';
+      const lbl=document.createElement('div');
+      lbl.className='pro-prop-label';
+      lbl.textContent=labelText;
+      const ctrl=document.createElement('div');
+      ctrl.className='pro-prop-ctrl pro-prop-ctrl-inline';
+      row.append(lbl,ctrl);
+      return {row,ctrl};
+    };
+
+    // Row 1: 슬라이드 역할 (빠른 버튼 + 셀렉트 통합 1줄)
+    const {row:rRole,ctrl:cRole}=makePropRow('슬라이드 역할');
     const roleQuickBar=document.createElement('div');
-    roleQuickBar.className='wb-role-quick-bar';
-    for(const [rKey,rShort] of [['cover','표지(Cover) 레이아웃'],['body','본문(Body) 레이아웃'],['cta','요약(CTA) 레이아웃']]){
+    roleQuickBar.className='capcut-toggle-group';
+    for(const [rKey,rShort] of [['cover','표지 (Cover)'],['body','본문 (Body)'],['cta','요약 (CTA)']]){
       const rBtn=text('button',rShort);
       rBtn.type='button';
-      rBtn.className='secondary btn-xs'+(rKey===activeRole?' active':'');
+      rBtn.className='capcut-toggle-btn'+(rKey===activeRole?' active':'');
       rBtn.onclick=()=>{
         roleSelect.value=rKey;
         roleQuickBar.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===rBtn));
@@ -1061,28 +1074,27 @@ function renderCarouselPreview(){
       };
       roleQuickBar.append(rBtn);
     }
-
-    const roleThemeRow=document.createElement('div');
-    roleThemeRow.className='columns';
-    roleThemeRow.style.marginTop='8px';
-    const roleLabelEl=text('label','슬라이드 역할 (표지 / 본문 / 요약)');
     roleSelect=document.createElement('select');
     roleSelect.id='wb-active-role-select';
+    roleSelect.className='pro-inline-select';
+    roleSelect.style.cssText='flex:1;min-width:160px;';
     for(const [rKey,rName] of Object.entries(carouselRoleLabels)){
       const opt=text('option',rName);opt.value=rKey;if(rKey===activeRole)opt.selected=true;
       roleSelect.append(opt);
     }
-    roleLabelEl.append(roleSelect);
+    cRole.append(roleQuickBar,roleSelect);
 
-    const tplLabelEl=text('label','슬라이드 레이아웃 테마 (8종 고유 연출)');
+    // Row 2: 레이아웃 테마 (8종 고유 연출 1줄)
+    const {row:rTheme,ctrl:cTheme}=makePropRow('레이아웃 테마 (8종)');
     tplSelect=document.createElement('select');
     tplSelect.id='wb-active-tpl-select';
+    tplSelect.className='pro-font-select';
+    tplSelect.style.cssText='flex:1;width:100%;';
     for(const [tKey,tName] of Object.entries(carouselTemplateNames)){
       const opt=text('option',tName);opt.value=tKey;if(tKey===activeTpl)opt.selected=true;
       tplSelect.append(opt);
     }
-    tplLabelEl.append(tplSelect);
-    roleThemeRow.append(roleLabelEl,tplLabelEl);
+    cTheme.append(tplSelect);
 
     // Per-slide Font + 1st & 2nd Double-Stroke Controls
     const activeFontKey=activeSlide.font_family||job.carousel.font_family||$('carousel-font')?.value||'heavy_kr';
@@ -1091,21 +1103,12 @@ function renderCarouselPreview(){
     const activeDStrokeW=Number(activeSlide.double_stroke_width??job.carousel.double_stroke_width??$('carousel-double-stroke-width')?.value??0);
     const activeDStrokeC=activeSlide.double_stroke_color||job.carousel.double_stroke_color||$('carousel-double-stroke-color')?.value||'#facc15';
 
-    const fontStrokeRow=document.createElement('div');
-    fontStrokeRow.className='columns typography-fx-grid';
-    fontStrokeRow.style.marginTop='8px';
-    const fontLabelWrap=document.createElement('label');
-    const fontHeadSpan=document.createElement('span');
-    fontHeadSpan.className='font-label-head';
-    fontHeadSpan.append(text('span','슬라이드 글꼴 (25종 + 내 폰트)'));
-    const btnWbUploadFont=text('button','+ 내 폰트');
-    btnWbUploadFont.type='button';
-    btnWbUploadFont.className='secondary btn-xs btn-upload-custom-font';
-    btnWbUploadFont.onclick=()=>triggerCustomFontUpload('wb-active-font-select');
-    fontHeadSpan.append(btnWbUploadFont);
+    // Row 3: 슬라이드 글꼴 (25종 + 내 폰트 1줄)
+    const {row:rFont,ctrl:cFont}=makePropRow('슬라이드 글꼴');
     fontSelectEl=document.createElement('select');
     fontSelectEl.id='wb-active-font-select';
-    fontSelectEl.className='studio-font-select';
+    fontSelectEl.className='studio-font-select pro-font-select';
+    fontSelectEl.style.cssText='flex:1;';
     if($('carousel-font')){
       fontSelectEl.innerHTML=$('carousel-font').innerHTML;
     }
@@ -1119,35 +1122,46 @@ function renderCarouselPreview(){
       if(bodyTextarea)bodyTextarea.style.fontFamily=fCss;
     };
     applyWbFontPreview(fontSelectEl.value);
-    fontLabelWrap.append(fontHeadSpan,fontSelectEl);
+    const btnWbUploadFont=text('button','+ 내 폰트 추가');
+    btnWbUploadFont.type='button';
+    btnWbUploadFont.className='secondary btn-xs btn-upload-custom-font';
+    btnWbUploadFont.onclick=()=>triggerCustomFontUpload('wb-active-font-select');
+    cFont.append(fontSelectEl,btnWbUploadFont);
 
-    const s1Label=text('label','1차 안쪽 테두리 (px·색상)');
-    const s1Row=document.createElement('div');s1Row.className='stroke-control-row';
-    const s1Range=document.createElement('input');s1Range.type='range';s1Range.className='px-size-range-slider';s1Range.min='0';s1Range.max='24';s1Range.step='1';s1Range.value=String(activeStrokeW);
-    s1Num=document.createElement('input');s1Num.type='number';s1Num.id='wb-active-stroke-width';s1Num.min='0';s1Num.max='24';s1Num.step='1';s1Num.value=String(activeStrokeW);
+    // Row 4: 1차 안쪽 테두리 (색상 + 가로 슬라이더 + 수치 1줄)
+    const {row:rS1,ctrl:cS1}=makePropRow('1차 안쪽 획 (테두리)');
+    cS1.className='pro-prop-ctrl pro-prop-ctrl-slider';
     s1Color=document.createElement('input');s1Color.type='color';s1Color.id='wb-active-stroke-color';s1Color.className='stroke-color-picker';s1Color.value=activeStrokeC;
-    s1Range.oninput=()=>{s1Num.value=s1Range.value;scheduleRealtimeSlideSync({},160);};
-    s1Num.oninput=()=>{s1Range.value=s1Num.value;scheduleRealtimeSlideSync({},160);};
+    const s1Range=document.createElement('input');s1Range.type='range';s1Range.min='0';s1Range.max='24';s1Range.step='1';s1Range.value=String(activeStrokeW);
+    s1Num=document.createElement('input');s1Num.type='number';s1Num.id='wb-active-stroke-width';s1Num.className='capcut-num-input';s1Num.min='0';s1Num.max='24';s1Num.step='1';s1Num.value=String(activeStrokeW);
+    const s1Tag=text('span',`${activeStrokeW}px`);s1Tag.className='pro-unit-tag';
+    s1Range.oninput=()=>{s1Num.value=s1Range.value;s1Tag.textContent=`${s1Range.value}px`;scheduleRealtimeSlideSync({},160);};
+    s1Num.oninput=()=>{s1Range.value=s1Num.value;s1Tag.textContent=`${s1Num.value}px`;scheduleRealtimeSlideSync({},160);};
     s1Color.oninput=()=>scheduleRealtimeSlideSync({},160);
-    s1Row.append(s1Range,s1Num,text('span','px'),s1Color);
-    s1Label.append(s1Row);
+    cS1.append(s1Color,s1Range,s1Num,s1Tag);
 
-    const s2Label=text('label','2중 바깥 테두리 (px·색상)');
-    const s2Row=document.createElement('div');s2Row.className='stroke-control-row';
-    const s2Range=document.createElement('input');s2Range.type='range';s2Range.className='px-size-range-slider';s2Range.min='0';s2Range.max='24';s2Range.step='1';s2Range.value=String(activeDStrokeW);
-    s2Num=document.createElement('input');s2Num.type='number';s2Num.id='wb-active-double-stroke-width';s2Num.min='0';s2Num.max='24';s2Num.step='1';s2Num.value=String(activeDStrokeW);
+    // Row 5: 2중 바깥 테두리 (색상 + 가로 슬라이더 + 수치 1줄)
+    const {row:rS2,ctrl:cS2}=makePropRow('2중 바깥 획 (테두리)');
+    cS2.className='pro-prop-ctrl pro-prop-ctrl-slider';
     s2Color=document.createElement('input');s2Color.type='color';s2Color.id='wb-active-double-stroke-color';s2Color.className='stroke-color-picker';s2Color.value=activeDStrokeC;
-    s2Range.oninput=()=>{s2Num.value=s2Range.value;scheduleRealtimeSlideSync({},160);};
-    s2Num.oninput=()=>{s2Range.value=s2Num.value;scheduleRealtimeSlideSync({},160);};
+    const s2Range=document.createElement('input');s2Range.type='range';s2Range.min='0';s2Range.max='24';s2Range.step='1';s2Range.value=String(activeDStrokeW);
+    s2Num=document.createElement('input');s2Num.type='number';s2Num.id='wb-active-double-stroke-width';s2Num.className='capcut-num-input';s2Num.min='0';s2Num.max='24';s2Num.step='1';s2Num.value=String(activeDStrokeW);
+    const s2Tag=text('span',`${activeDStrokeW}px`);s2Tag.className='pro-unit-tag';
+    s2Range.oninput=()=>{s2Num.value=s2Range.value;s2Tag.textContent=`${s2Range.value}px`;scheduleRealtimeSlideSync({},160);};
+    s2Num.oninput=()=>{s2Range.value=s2Num.value;s2Tag.textContent=`${s2Num.value}px`;scheduleRealtimeSlideSync({},160);};
     s2Color.oninput=()=>scheduleRealtimeSlideSync({},160);
-    s2Row.append(s2Range,s2Num,text('span','px'),s2Color);
-    s2Label.append(s2Row);
+    cS2.append(s2Color,s2Range,s2Num,s2Tag);
 
-    fontStrokeRow.append(fontLabelWrap,s1Label,s2Label);
-    styleBox.append(roleQuickBar,roleThemeRow,fontStrokeRow);
-    tabStylePanel.append(styleBox);
+    styleSheet.append(rRole,rTheme,rFont,rS1,rS2);
+    tabStylePanel.append(styleSheet);
 
-    roleSelect.onchange=()=>applyActiveSlideUpdate({role:roleSelect.value});
+    roleSelect.onchange=()=>{
+      roleQuickBar.querySelectorAll('button').forEach((b,idx)=>{
+        const k=['cover','body','cta'][idx];
+        b.classList.toggle('active',k===roleSelect.value);
+      });
+      applyActiveSlideUpdate({role:roleSelect.value});
+    };
     tplSelect.onchange=()=>applyActiveSlideUpdate({template:tplSelect.value});
     fontSelectEl.onchange=()=>{
       applyWbFontPreview(fontSelectEl.value);
@@ -1450,11 +1464,17 @@ function syncCapcutInspectorFromBacking(layer){
   if($('inspector-active-layer-badge')){
     $('inspector-active-layer-badge').textContent=isTitle?'현재 편집 중: 상단 후킹 타이틀':'현재 편집 중: 하단 한글 자막';
   }
+  if($('inspector-active-layer-title')){
+    $('inspector-active-layer-title').textContent=isTitle?'문구 입력 (상단 타이틀)':'문구 입력 (하단 자막)';
+  }
   if($('inspector-text-label')){
     $('inspector-text-label').textContent=isTitle?'① 텍스트 내용 수정 — 상단 후킹 타이틀 (`|` 또는 줄바꿈으로 2줄 구성)':'① 텍스트 내용 수정 — 하단·중앙 한글 자막 (줄바꿈 지원)';
   }
   if($('inspector-badge-wrap')){
     $('inspector-badge-wrap').style.display=isTitle?'':'none';
+  }
+  if($('inspector-duration-wrap')){
+    $('inspector-duration-wrap').style.display=isTitle?'':'none';
   }
   const setValIfNotFocused=(id,val)=>{
     const el=$(id);
@@ -3579,36 +3599,40 @@ if($('inspector-duration-select'))$('inspector-duration-select').addEventListene
   if($('overlay-title-duration'))$('overlay-title-duration').value=e.target.value;
   saveActiveJobLocalDraft();
 });
-if($('btn-inspector-insert-box'))$('btn-inspector-insert-box').addEventListener('click',()=>{
-  const el=$('inspector-text-input');
-  if(!el)return;
-  pushEditorUndoSnapshot();
-  const start=el.selectionStart??el.value.length;
-  const end=el.selectionEnd??el.value.length;
-  const selected=el.value.slice(start,end)||'핵심강조';
-  el.value=el.value.slice(0,start)+`[${selected}]`+el.value.slice(end);
-  const isTitle=(activeTextLayer==='title');
-  const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
-  if(target)target.value=el.value;
-  el.focus();
-  syncDraggableOverlayCanvas();
-  saveActiveJobLocalDraft();
-});
-if($('btn-inspector-insert-star'))$('btn-inspector-insert-star').addEventListener('click',()=>{
-  const el=$('inspector-text-input');
-  if(!el)return;
-  pushEditorUndoSnapshot();
-  const start=el.selectionStart??el.value.length;
-  const end=el.selectionEnd??el.value.length;
-  const selected=el.value.slice(start,end)||'포인트';
-  el.value=el.value.slice(0,start)+`*${selected}*`+el.value.slice(end);
-  const isTitle=(activeTextLayer==='title');
-  const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
-  if(target)target.value=el.value;
-  el.focus();
-  syncDraggableOverlayCanvas();
-  saveActiveJobLocalDraft();
-});
+for(const boxBtnId of ['btn-inspector-insert-box','btn-inspector-wrap-box']){
+  if($(boxBtnId))$(boxBtnId).addEventListener('click',()=>{
+    const el=$('inspector-text-input');
+    if(!el)return;
+    pushEditorUndoSnapshot();
+    const start=el.selectionStart??el.value.length;
+    const end=el.selectionEnd??el.value.length;
+    const selected=el.value.slice(start,end)||'핵심강조';
+    el.value=el.value.slice(0,start)+`[${selected}]`+el.value.slice(end);
+    const isTitle=(activeTextLayer==='title');
+    const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
+    if(target)target.value=el.value;
+    el.focus();
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+}
+for(const starBtnId of ['btn-inspector-insert-star','btn-inspector-wrap-star']){
+  if($(starBtnId))$(starBtnId).addEventListener('click',()=>{
+    const el=$('inspector-text-input');
+    if(!el)return;
+    pushEditorUndoSnapshot();
+    const start=el.selectionStart??el.value.length;
+    const end=el.selectionEnd??el.value.length;
+    const selected=el.value.slice(start,end)||'포인트';
+    el.value=el.value.slice(0,start)+`*${selected}*`+el.value.slice(end);
+    const isTitle=(activeTextLayer==='title');
+    const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
+    if(target)target.value=el.value;
+    el.focus();
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+}
 if($('btn-inspector-autofill'))$('btn-inspector-autofill').addEventListener('click',()=>{
   if(activeTextLayer==='title'){
     $('btn-fill-hook-title')?.click();
