@@ -1,13 +1,26 @@
-const assert=require('node:assert/strict'),navigation=require('./navigation.cjs'),fs=require('node:fs'),path=require('node:path');
+const assert=require('node:assert/strict'),navigation=require('./navigation.cjs'),native=require('./native-media.cjs'),fs=require('node:fs'),path=require('node:path');
 assert.equal(navigation.siteKey('https://m.naver.com/'),'naver_clip');
 assert.equal(navigation.siteKey('https://m.naver.com/shorts/?seedMediaId=abc&serviceType=CLIP'),'naver_clip');
 assert.equal(navigation.siteKey('https://clip.naver.com/@creator'),'naver_clip');
+assert.equal(navigation.siteKey('https://smartstore.naver.com/demo/products/12345'),'smartstore');
+assert.equal(navigation.siteKey('https://shopping.naver.com/window-products/12345'),'smartstore');
+assert.equal(navigation.siteKey('https://brand.naver.com/demo/products/12345'),'smartstore');
+assert.equal(navigation.siteKey('https://www.coupang.com/vp/products/12345'),'coupang');
 assert.equal(navigation.siteKey('https://clipcreators.naver.com/web/dashboard'),'naver_creator');
 assert.equal(navigation.siteKey('https://clipcreators.naver.com.evil.test/'),'browser');
 assert.equal(navigation.uploadSiteKey('naver_clip'),'naver_creator');
 assert.equal(navigation.uploadSiteKey('instagram_carousel'),'instagram');
 assert.equal(navigation.uploadSiteKey('threads'),'threads');
+assert.equal(native.trusted('https://m.naver.com/shorts/?mediaId=123'),true);
+assert.equal(native.trusted('https://smartstore.naver.com/demo/products/123'),true);
+assert.equal(native.trusted('https://www.coupang.com/vp/products/123'),true);
+assert(native.injection('naver_clip').includes('Naver Universal Video Module'));
+assert(native.injection('smartstore').includes('Naver Universal Video Module'));
+assert(native.injection('coupang').includes('Coupang Module'));
 const source=fs.readFileSync(path.join(__dirname,'main.cjs'),'utf8'),html=fs.readFileSync(path.join(__dirname,'toolbar.html'),'utf8');
 assert(source.includes("naver_clip:'https://m.naver.com/'"));assert(source.includes("naver_creator:'https://clipcreators.naver.com/web'"));
+assert(source.includes("smartstore:'https://shopping.naver.com/'"));assert(source.includes("coupang:'https://www.coupang.com/'"));
 assert(html.includes('data-site="naver_clip"'));assert(html.includes('data-site="naver_creator"'));
-console.log('PASS: Clip discovery and creator tabs separated; uploads use creator; profile/viewer stays discovery');
+assert(html.includes('data-site="smartstore"'));assert(html.includes('data-site="coupang"'));
+console.log('PASS: Clip discovery, SmartStore, Coupang, and creator tabs separated; native injection verified');
+

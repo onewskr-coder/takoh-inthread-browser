@@ -711,6 +711,10 @@ def download_zip_endpoint():
                 }
                 if 'threads.net' in clean_url or 'threads' in zip_name.lower():
                     headers['Referer'] = 'https://www.threads.net/'
+                elif 'coupang' in clean_url or 'coupang' in zip_name.lower():
+                    headers['Referer'] = 'https://www.coupang.com/'
+                elif 'naver' in clean_url or 'pstatic.net' in clean_url or 'naver' in zip_name.lower():
+                    headers['Referer'] = 'https://m.naver.com/'
 
                 resp = http_requests.get(clean_url, timeout=20, headers=headers)
                 if resp.status_code in (200, 206) and len(resp.content) > 100:

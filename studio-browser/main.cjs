@@ -26,11 +26,20 @@ const {lockProfile}=require('./profile-lock.cjs');
 const profileGuard=ownsApp?lockProfile(profilePath):{acquired:false,release(){}};
 app.on('will-quit',()=>profileGuard.release());
 if(!ownsApp||!profileGuard.acquired){console.error('QUIT REASON:',{ownsApp,acquired:profileGuard.acquired});app.quit();}else{app.on('second-instance',()=>{if(win){win.show();win.focus();}});}
-const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://m.naver.com/',naver_creator:'https://clipcreators.naver.com/web',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
+const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://m.naver.com/',naver_creator:'https://clipcreators.naver.com/web',smartstore:'https://shopping.naver.com/',coupang:'https://www.coupang.com/',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
 let win,toolbar,active,currentWork='';const views=new Map();const recentDownloads=new Map();
 function trackSiteDownloads(contents){
   if(contents.session.__takohDownloadsTracked)return;
   contents.session.__takohDownloadsTracked=true;
+  contents.session.webRequest.onBeforeSendHeaders({urls:['https://*.coupangcdn.com/*','https://*.pstatic.net/*','https://*.naver.net/*','https://*.rmcnmv.naver.com/*']},(details,callback)=>{
+    const headers={...details.requestHeaders};
+    if(/coupangcdn\.com/i.test(details.url)&&!headers.Referer&&!headers.referer){
+      headers.Referer='https://www.coupang.com/';
+    }else if(/(pstatic\.net|naver\.net|rmcnmv\.naver\.com)/i.test(details.url)&&!headers.Referer&&!headers.referer){
+      headers.Referer='https://m.naver.com/';
+    }
+    callback({requestHeaders:headers});
+  });
   contents.session.on('will-download',(_event,item,webContents)=>{
     const id=Date.now()+Math.floor(Math.random()*1000);
     const source=webContents&&!webContents.isDestroyed()?webContents.getURL():'';
@@ -94,7 +103,7 @@ async function recoverStudioPage() {
 }
 const explainGoogleLogin=require('./google-login.cjs').createGoogleLoginNotice({dialog,shell});
 function configurePopups(contents,key){
-  if(key==='naver_clip'||key==='naver_creator')require('./naver-navigation.cjs').installNaverNavigation(contents);
+  if(key==='naver_clip'||key==='naver_creator'||key==='smartstore')require('./naver-navigation.cjs').installNaverNavigation(contents);
   const blockedGoogle=url=>{try{return new URL(url).hostname==='accounts.google.com';}catch{return false;}};
   const explainGoogle=()=>explainGoogleLogin(key);
   contents.setWindowOpenHandler(({url})=>{
@@ -119,7 +128,9 @@ function getOrCreateView(key){
     view.webContents.on('render-process-gone',(_event,details)=>{restartNotice='페이지 표시 중단 · '+details.reason+' · 새로고침으로 다시 열 수 있습니다.';console.error('Renderer stopped:',key,details.reason,details.exitCode);});
     view.webContents.on('unresponsive',()=>{restartNotice='페이지 응답 대기 중 · 작성 내용 보존을 위해 자동 새로고침하지 않습니다.';});
     view.webContents.on('responsive',()=>{restartNotice='';});
-    view.webContents.on('dom-ready',async()=>{try{if(native.trusted(view.webContents.getURL())){await helperReady;await view.webContents.insertCSS(fs.readFileSync(path.join(__dirname,'..','downloader','content.css'),'utf8'));const currentPlatform=navigation.platform(view.webContents.getURL());if(currentPlatform)await view.webContents.executeJavaScript(native.injection(currentPlatform));}}catch(error){console.error('Site integration:',error.message);}});
+    const injectCurrentSite=async()=>{try{const curUrl=view.webContents.getURL();if(native.trusted(curUrl)){await helperReady;await view.webContents.insertCSS(fs.readFileSync(path.join(__dirname,'..','downloader','content.css'),'utf8'));const currentPlatform=navigation.platform(curUrl);if(currentPlatform)await view.webContents.executeJavaScript(native.injection(currentPlatform));}}catch(error){console.error('Site integration:',error.message);}};
+    view.webContents.on('dom-ready',injectCurrentSite);
+    view.webContents.on('did-navigate-in-page',injectCurrentSite);
     configurePopups(view.webContents,key);
     view.webContents.on('will-navigate',(event,url)=>{try{const u=new URL(url);if(!['https:','http:'].includes(u.protocol)||u.protocol==='http:'&&u.hostname!=='127.0.0.1')event.preventDefault();}catch{event.preventDefault();}});
     view.initialLoad=view.webContents.loadURL(sites[key]);
@@ -229,7 +240,11 @@ ipcMain.handle('native-media',async(event,message)=>{
           instagram:'instagram',
           naver_clip:'naver_creator',
           naver_creator:'naver_creator',
+          naver_explore:'naver_clip',
+          smartstore:'smartstore',
+          coupang:'coupang',
           tiktok:'tiktok',
+          pinterest:'pinterest',
         }[rawPlat]||'threads';
         select(siteKey);
         const targetUrl=String(message.url||message.packet?.url||'').trim();
@@ -330,7 +345,7 @@ win.on('closed',()=>{for(const view of views.values())if(!view.webContents.isDes
 select('threads');
 if(!app.isPackaged){
   devWatcher=watchDevelopment({root:__dirname,report:message=>{restartNotice=message;console.error(message);},busy:async()=>{if(uploadManager?.isBusy())return true;for(const view of views.values()){if(view.webContents.isDestroyed())continue;if(/(?:two_step_verification|auth_platform|challenge|accounts\/login|accounts\.meta\.com|accounts\.google\.com)/i.test(view.webContents.getURL()))return true;try{if(await view.webContents.executeJavaScript(`!!Array.from(document.querySelectorAll('[contenteditable="true"],textarea,input[type="password"]')).find(el=>el.getBoundingClientRect().width>0&&(el.value||el.innerText||'').trim().length>0)`))return true;}catch{return true;}}return false;},restart:async()=>{restartNotice='변경 적용 중 · 앱 자동 재실행';await persistence.flush();app.relaunch();app.quit();}});
-  const mediaFiles=['content-core.js','content-studio.js','content-meta-main.js','content-threads.js','content-instagram.js','content-pinterest.js','content.css'].map(f=>path.join(__dirname,'..','downloader',f));
+  const mediaFiles=['content-core.js','content-studio.js','content-meta-main.js','content-threads.js','content-instagram.js','content-pinterest.js','content-coupang.js','content-naver-clip.js','content.css'].map(f=>path.join(__dirname,'..','downloader',f));
   const mediaSnap=()=>mediaFiles.map(f=>{try{const s=fs.statSync(f);return `${s.mtimeMs}:${s.size}`;}catch{return '';}}).join('|');
   let lastMediaSnap=mediaSnap();
   setInterval(()=>{

@@ -526,7 +526,7 @@
       box-shadow: 0 4px 12px rgba(0,115,230,0.3) !important;
       z-index: 99 !important;
     `;
-    btn.innerHTML = `<span>🛍️ 갤러리 미디어 선택 저장</span>`;
+    btn.innerHTML = `<span>갤러리 미디어 선택 저장</span>`;
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openCoupangSelectiveModal();
@@ -564,7 +564,7 @@
         gap: 8px !important;
         box-shadow: 0 2px 6px rgba(0,0,0,0.05) !important;
       `;
-      noticeBox.innerHTML = `<span>💡 동영상은 썸네일을 클릭하여 재생한 뒤, 영상 화면 위 다운로드 버튼을 통해 고화질 저장하실 수 있습니다.</span>`;
+      noticeBox.innerHTML = `<span>동영상은 썸네일을 클릭하여 재생한 뒤, 영상 화면 위 다운로드 버튼을 통해 고화질 저장하실 수 있습니다.</span>`;
       videoHeading.after(noticeBox);
     }
   }
@@ -603,7 +603,7 @@
         font-weight: bold !important;
         cursor: pointer !important;
       `;
-      selectAllBtn.textContent = '✅ 전체 선택';
+      selectAllBtn.textContent = '전체 선택';
       selectAllBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         galleryContainer.querySelectorAll('.takoh-gallery-item-chk').forEach(chk => {
@@ -623,7 +623,7 @@
         font-weight: bold !important;
         cursor: pointer !important;
       `;
-      deselectAllBtn.textContent = '❌ 전체 해제';
+      deselectAllBtn.textContent = '전체 해제';
       deselectAllBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         galleryContainer.querySelectorAll('.takoh-gallery-item-chk').forEach(chk => {
@@ -649,7 +649,7 @@
         box-shadow: 0 4px 14px rgba(0, 115, 230, 0.4) !important;
         transition: transform 0.2s ease !important;
       `;
-      downloadZipBtn.innerHTML = `<span>📦 선택한 미디어 ZIP 저장</span>`;
+      downloadZipBtn.innerHTML = `<span>선택한 미디어 ZIP 저장</span>`;
 
       downloadZipBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -692,14 +692,14 @@
         }
 
         if (hasHlsVideo) {
-          showToast('cp-video-notice', '🎬 동영상 수집 안내', '동영상은 재생 버튼을 눌러 재생한 후 플레이어의 다운로드 버튼으로 고화질 저장하실 수 있습니다.', 'info');
+          showToast('cp-video-notice', '동영상 수집 안내', '동영상은 재생 버튼을 눌러 재생한 후 플레이어의 다운로드 버튼으로 고화질 저장하실 수 있습니다.', 'info');
         }
 
         const prodMeta = getProductMetadata(galleryContainer);
         if (window.TAKCore && window.TAKCore.triggerZipDownload) {
           window.TAKCore.triggerZipDownload(mediaUrls, prodMeta, 'coupang');
         } else {
-          showToast('cp-zip-start', '선택 저장 시작 🚀', `총 ${mediaUrls.length}개의 미디어를 다운로드합니다.`, 'success');
+          showToast('cp-zip-start', '선택 저장 시작', `총 ${mediaUrls.length}개의 미디어를 다운로드합니다.`, 'success');
           mediaUrls.forEach((u, idx) => {
             setTimeout(() => {
               triggerDownload(u, u.includes('.mp4') ? 'video' : 'image', prodMeta, 'coupang');
@@ -724,7 +724,7 @@
       const zipBtn = galleryContainer.querySelector('#takoh-native-gallery-zip-btn span');
       if (zipBtn) {
         const count = galleryContainer.querySelectorAll('.takoh-gallery-item-chk:checked').length;
-        zipBtn.textContent = `📦 선택한 미디어 (${count}개) ZIP 저장`;
+        zipBtn.textContent = `선택한 미디어 (${count}개) ZIP 저장`;
       }
     }
 

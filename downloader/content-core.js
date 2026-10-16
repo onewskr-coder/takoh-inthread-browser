@@ -562,21 +562,30 @@ console.log("[TAKOH Downloader] Core Engine initialized on:", window.location.hr
     const zipFilename = `takoh_${platform}_${safeUser}_${safeId}_${timestamp}_carousel.zip`;
 
     const toastId = Date.now().toString();
-    showToast(toastId, 'ZIP 압축 생성 중 📦', `총 ${urlList.length}개 미디어를 하나의 ZIP 파일로 압축 중입니다...`, 'info');
+    showToast(toastId, 'ZIP 압축 생성 중', `총 ${urlList.length}개 미디어를 하나의 ZIP 파일로 압축 중입니다...`, 'info');
 
-    const helperApiUrl = 'http://127.0.0.1:5005/download_zip';
+    const helperApiUrls = ['http://127.0.0.1:5006/download_zip', 'http://127.0.0.1:5005/download_zip'];
 
     try {
-      const response = await fetch(helperApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          urls: urlList,
-          filename: zipFilename
-        })
-      });
+      let response = null;
+      for (const apiUrl of helperApiUrls) {
+        try {
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              urls: urlList,
+              filename: zipFilename
+            })
+          });
+          if (res.ok) {
+            response = res;
+            break;
+          }
+        } catch (_e) {}
+      }
 
-      if (response.ok) {
+      if (response && response.ok) {
         const blob = await response.blob();
         if (blob.size > 100) {
           const zipBlobUrl = URL.createObjectURL(blob);
@@ -590,7 +599,7 @@ console.log("[TAKOH Downloader] Core Engine initialized on:", window.location.hr
             platform: platform
           }, (res) => {
             if (res && res.success) {
-              showToast(toastId, 'ZIP 다운로드 완료 🎉', `${zipFilename} 파일이 성공적으로 저장되었습니다!`, 'success');
+              showToast(toastId, 'ZIP 다운로드 완료', `${zipFilename} 파일이 성공적으로 저장되었습니다!`, 'success');
             } else {
               fallbackZipDownload(urlList, zipFilename, meta, platform, toastId);
             }

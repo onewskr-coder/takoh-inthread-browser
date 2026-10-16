@@ -464,7 +464,9 @@
         targetBox.style.position = 'relative';
       }
 
-      // Create video player overlay button
+      // Create video player overlay container + button so [다운로드] [수집] [바로 제작] sit side-by-side
+      const btnWrap = document.createElement('div');
+      btnWrap.className = 'threads-download-btn-container';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'takoh-video-overlay-btn';
@@ -476,9 +478,7 @@
       `;
 
       Object.assign(btn.style, {
-        position: 'absolute',
-        top: '12px',
-        right: '12px',
+        position: 'relative',
         zIndex: '2147483647',
         display: 'inline-flex',
         alignItems: 'center',
@@ -486,9 +486,7 @@
         padding: '6px 14px',
         borderRadius: '20px',
         border: '1px solid rgba(255, 255, 255, 0.3)',
-        background: 'rgba(0, 0, 0, 0.8)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        background: 'rgba(0, 0, 0, 0.85)',
         color: '#ffffff',
         fontSize: '12px',
         fontWeight: '700',
@@ -502,12 +500,10 @@
       btn.addEventListener('mouseenter', () => {
         btn.style.background = '#10b981';
         btn.style.color = '#000000';
-        btn.style.transform = 'scale(1.05)';
       });
       btn.addEventListener('mouseleave', () => {
-        btn.style.background = 'rgba(0, 0, 0, 0.8)';
+        btn.style.background = 'rgba(0, 0, 0, 0.85)';
         btn.style.color = '#ffffff';
-        btn.style.transform = 'scale(1)';
       });
 
       // Suppress event propagation to parent player listeners without blocking button click
@@ -525,8 +521,9 @@
         await handleDownloadClickForContainer(targetBox);
       }, true);
 
-      targetBox.appendChild(btn);
-      window.TAKCore.anchorMediaControls?.(btn, v);
+      btnWrap.appendChild(btn);
+      targetBox.appendChild(btnWrap);
+      window.TAKCore.anchorMediaControls?.(btnWrap, v);
     });
   }
 

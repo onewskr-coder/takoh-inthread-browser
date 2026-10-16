@@ -6203,6 +6203,36 @@ async function refreshUploadQueue(){
   }
 }
 $('upload-queue-refresh').onclick=()=>act('휴먼터치 업로드·예약 상태 확인 중…',refreshUploadQueue,'업로드 상태를 확인했습니다.');
+document.addEventListener('click',e=>{
+  const btn=e.target?.closest?.('[data-open-browser-platform]');
+  if(!btn)return;
+  const plat=btn.getAttribute('data-open-browser-platform')||'threads';
+  const fallbackUrls={
+    coupang:'https://www.coupang.com/',
+    smartstore:'https://shopping.naver.com/',
+    naver_explore:'https://m.naver.com/',
+    naver_clip:'https://clipcreators.naver.com/web',
+    threads:'https://www.threads.com/',
+    instagram:'https://www.instagram.com/',
+    tiktok:'https://www.tiktok.com/'
+  };
+  const labelMap={
+    coupang:'쿠팡 리뷰',
+    smartstore:'네이버 스마트스토어',
+    naver_explore:'네이버 클립',
+    naver_clip:'네이버 클립 업로드',
+    threads:'Threads',
+    instagram:'Instagram',
+    tiktok:'TikTok'
+  };
+  act((labelMap[plat]||plat)+' 화면으로 이동 중…',async()=>{
+    try{
+      await uploadBridge('open-platform',{platform:plat,url:fallbackUrls[plat]||''});
+    }catch{
+      window.open(fallbackUrls[plat]||'https://www.threads.com/','_blank','noopener');
+    }
+  },(labelMap[plat]||plat)+' 화면을 열었습니다. 영상이나 리뷰 이미지 위의 [다운로드], [수집], [바로 제작] 버튼을 사용하세요.');
+});
 
 const apiClearPayloads={
   gemini_api:{gemini_api_key:'',clear_gemini_api_key:true},

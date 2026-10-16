@@ -203,13 +203,19 @@ def safe_fetch_stream(url, max_bytes=300 * 1024 * 1024, timeout=30):
     current_url = url
     for _ in range(5):
         check_safe_url(current_url)
+        req_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        lower_url = current_url.lower()
+        if 'coupangcdn.com' in lower_url or 'coupang.com' in lower_url:
+            req_headers['Referer'] = 'https://www.coupang.com/'
+        elif 'naver.com' in lower_url or 'naver.net' in lower_url or 'pstatic.net' in lower_url:
+            req_headers['Referer'] = 'https://m.naver.com/'
         try:
             resp = requests.get(
                 current_url,
                 stream=True,
                 allow_redirects=False,
                 timeout=timeout,
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+                headers=req_headers
             )
         except requests.RequestException as e:
             raise StudioError(f'원격 미디어 연결 실패: {str(e)[:100]}', 502)
@@ -4384,6 +4390,58 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     target_kind = 'video'
                 elif req_image_urls:
                     media_url = req_image_urls[0]
+
+        if not media_url:
+            if target_kind == 'image' and req_image_urls:
+                media_url = req_image_urls[0]
+            elif req_video_urls:
+                media_url = req_video_urls[0]
+                target_kind = 'video'
+            elif req_image_urls and target_kind != 'video':
+                media_url = req_image_urls[0]
+
+        is_naver_source = bool(re.search(r'(?:naver\.com)/', source_url, re.I))
+        if is_naver_source and not media_url and target_kind != 'image':
+            try:
+                parsed_nv = urlparse(source_url)
+                qs_nv = urllib.parse.parse_qs(parsed_nv.query)
+                seed_id = (qs_nv.get('mediaId') or qs_nv.get('seedMediaId') or [''])[0]
+                if not seed_id:
+                    m_clip = re.search(r'/(?:clip|shorts)/([A-Za-z0-9_-]+)', parsed_nv.path)
+                    if m_clip:
+                        seed_id = m_clip.group(1)
+                if seed_id and re.fullmatch(r'[A-Za-z0-9_-]{4,64}', seed_id):
+                    ch_url = f'https://creatorhub-api.naver.com/api/v5.0/clipviewer/card?userInteraction=true&seedType=SPECIFIC&serviceType=CLIP&seedMediaId={seed_id}'
+                    ch_resp = requests.get(ch_url, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://m.naver.com/'}, timeout=10)
+                    if ch_resp.ok:
+                        ch_text = ch_resp.text
+                        vid_val = seed_id
+                        inkey_val = ''
+                        m_pc = re.search(r'PlayCount\.json\?([^"\'\\]+)', ch_text)
+                        if m_pc:
+                            pc_qs = urllib.parse.parse_qs(m_pc.group(1).replace('\\u0026', '&'))
+                            vid_val = (pc_qs.get('vid') or [vid_val])[0]
+                            inkey_val = (pc_qs.get('key') or [''])[0]
+                        if not inkey_val:
+                            m_key = re.search(r'key=([a-zA-Z0-9=]{20,})', ch_text)
+                            if m_key:
+                                inkey_val = m_key.group(1)
+                        if vid_val and inkey_val:
+                            rmc_url = f'https://apis.naver.com/rmcnmv/rmcnmv/vod/play/v2.0/{vid_val}?key={inkey_val}'
+                            rmc_resp = requests.get(rmc_url, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://m.naver.com/'}, timeout=10)
+                            if rmc_resp.ok:
+                                v_list = ((rmc_resp.json().get('videos') or {}).get('list') or [])
+                                if v_list:
+                                    best_v = max(v_list, key=lambda item: int(((item.get('encodingOption') or {}).get('width')) or 0))
+                                    cand_src = str(best_v.get('source') or '').strip()
+                                    if cand_src.startswith('https://'):
+                                        check_safe_url(cand_src)
+                                        media_url = cand_src
+                                        target_kind = 'video'
+                                        if cand_src not in req_video_urls:
+                                            req_video_urls.insert(0, cand_src)
+            except Exception:
+                pass
 
         extra_media_urls = req_video_urls + req_image_urls
 

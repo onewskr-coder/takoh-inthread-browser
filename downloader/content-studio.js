@@ -226,7 +226,7 @@
       rawText = (clone.innerText || '').trim();
     }
 
-    if (!permalink || !/(^|\.)(threads\.com|threads\.net|instagram\.com|pinterest\.com)$/i.test((() => { try { return new URL(permalink).hostname; } catch { return ''; } })())) {
+    if (!permalink || !/(^|\.)(threads\.com|threads\.net|instagram\.com|pinterest\.com|pinterest\.co\.kr|naver\.com|coupang\.com|tiktok\.com|facebook\.com|youtube\.com|youtu\.be|twitter\.com|x\.com|reddit\.com)$/i.test((() => { try { return new URL(permalink).hostname; } catch { return ''; } })())) {
       const userLink = scope?.querySelector?.('a[href^="/@"]');
       const uHref = userLink ? https(userLink.href) : null;
       permalink = cleanPostUrls[0] || uHref || https(location.href) || [...videoSet][0] || [...imageSet][0] || [...coverFrameUrls][0] || 'https://www.threads.com/';
@@ -250,6 +250,68 @@
     };
   }
 
+  function convertCoupangPosterOrUrlToMp4(urlStr) {
+    if (!urlStr || typeof urlStr !== 'string') return null;
+    let cleanUrl = urlStr.startsWith('//') ? ('https:' + urlStr) : urlStr;
+    if (cleanUrl.includes('video.coupangcdn.com')) {
+      if (cleanUrl.includes('/transcode/')) return cleanUrl.split('/transcode/')[0] + '/transcode/playlist.m3u8';
+      return cleanUrl;
+    }
+    cleanUrl = cleanUrl.replace(/https?:\/\/thumbnail([0-9]*)\.coupangcdn\.com\/thumbnails\/remote\/[^\/]+\//i, 'https://image$1.coupangcdn.com/');
+    cleanUrl = cleanUrl.replace(/\/thumbnails\/remote\/[^\/]+\//i, '/');
+    const match = cleanUrl.match(/(https?:\/\/[^\s"'<>]+\/review-attachment\/videos\/)(?:hls|thumbnails|poster|preview|images)\/([a-zA-Z0-9_-]+)/i) ||
+                  cleanUrl.match(/(https?:\/\/[^\s"'<>]+\/review-attachment\/videos\/)([a-zA-Z0-9_-]+)/i);
+    if (match && match[2] && !['original', 'hls', 'thumbnails'].includes(match[2])) {
+      return `${match[1]}original/${match[2]}.mp4`;
+    }
+    return null;
+  }
+
+  async function resolveNaverOrCoupangVideoUrl(videoEl, boundary) {
+    const host = location.hostname;
+    if (/(^|\.)coupang\.com$/i.test(host)) {
+      const poster = videoEl?.poster || videoEl?.getAttribute?.('poster') || boundary?.querySelector?.('img')?.src || '';
+      const fromPoster = convertCoupangPosterOrUrlToMp4(poster);
+      if (fromPoster && fromPoster.startsWith('https://')) return fromPoster;
+      try {
+        const entries = performance.getEntriesByType('resource').map(e => e.name);
+        const mp4 = entries.filter(u => u.includes('.mp4') && (u.includes('coupang') || u.includes('cdn'))).pop();
+        if (mp4 && mp4.startsWith('https://')) return mp4;
+        const m3u8 = entries.filter(u => u.includes('.m3u8') && (u.includes('coupang') || u.includes('cdn'))).pop();
+        if (m3u8 && m3u8.startsWith('https://')) {
+          const converted = convertCoupangPosterOrUrlToMp4(m3u8);
+          return converted || m3u8;
+        }
+      } catch {}
+    }
+    if (/(^|\.)naver\.com$/i.test(host)) {
+      try {
+        const entries = performance.getEntriesByType('resource');
+        const mp4Urls = entries.map(e => e.name).filter(u => u.startsWith('https://') && (u.includes('.mp4') || u.includes('rmcnmv') || u.includes('vod')) && !/\.(gif|jpg|png|webp|ts)(\?|$)/i.test(u) && !u.includes('PlayCount.json'));
+        if (mp4Urls.length > 0) return mp4Urls[mp4Urls.length - 1];
+        for (const e of entries) {
+          if (e.name.includes('PlayCount.json') || e.name.includes('rmcnmv')) {
+            const uObj = new URL(e.name);
+            const vid = uObj.searchParams.get('vid') || '';
+            const key = uObj.searchParams.get('key') || '';
+            if (vid && key) {
+              const r = await fetch(`https://apis.naver.com/rmcnmv/rmcnmv/vod/play/v2.0/${vid}?key=${key}`);
+              if (r.ok) {
+                const data = await r.json();
+                const list = data?.videos?.list;
+                if (Array.isArray(list) && list.length > 0) {
+                  const best = list.reduce((a, b) => (((b.encodingOption?.width) || 0) > ((a.encodingOption?.width) || 0) ? b : a));
+                  if (best?.source && best.source.startsWith('https://')) return best.source;
+                }
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+    return null;
+  }
+
   async function enrichReferenceWithMainWorldVideos(target, refData) {
     if (!refData) return refData;
     const boundary = findPostBoundary(target) || target;
@@ -262,6 +324,14 @@
       if (direct) {
         videoSet.add(direct);
         continue;
+      }
+      const platformResolved = await resolveNaverOrCoupangVideoUrl(v, boundary);
+      if (platformResolved) {
+        const cleanPlat = https(platformResolved);
+        if (cleanPlat) {
+          videoSet.add(cleanPlat);
+          continue;
+        }
       }
       const bridged = await queryVideoUrlViaMainBridge(v);
       const cleanBridged = bridged ? https(bridged) : null;
@@ -323,17 +393,18 @@
   function attach(controls,media,fixed=false) {
     if(controls.closest?.('[data-takoh-pinterest-toolbar]'))return;
     // On Threads, individual media controls only show the [저장] button;
-    // [📌 수집] and [⚡ 바로 제작] are placed ONCE per post via attachPostToolbar!
+    // [수집] and [바로 제작] are placed ONCE per post via attachPostToolbar!
     if (controls.classList.contains('takoh-threads-media-controls') && !controls.classList.contains('takoh-threads-modal-controls')) {
       return;
     }
-    if(controls.classList.contains('takoh-collect-reference')||controls.querySelector('.takoh-collect-reference')||(controls.tagName==='BUTTON'&&controls.dataset.takohStudioAttached))return;
+    if(controls.classList.contains('takoh-collect-reference')||controls.classList.contains('takoh-create-direct')||controls.querySelector('.takoh-collect-reference')||(controls.tagName==='BUTTON'&&controls.dataset.takohStudioAttached))return;
     controls.dataset.takohStudioAttached='true';
     const {button, directBtn} = createStudioActionButtons(() => controls.__takohPost || controls.__takohMedia || media);
     if(controls.tagName==='BUTTON'){
       controls.parentElement.appendChild(button);
       controls.parentElement.appendChild(directBtn);
       window.TAKCore.anchorMediaControls(button,media,fixed);
+      window.TAKCore.anchorMediaControls(directBtn,media,fixed);
     }else{
       controls.appendChild(button);
       controls.appendChild(directBtn);
