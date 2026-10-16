@@ -5821,7 +5821,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 original = read(job_id)
             data = request.get_json() or {}
             try:
-                count = max(2, min(10, int(data.get('count', 5))))
+                count = max(1, min(10, int(data.get('count', 5))))
             except (TypeError, ValueError):
                 count = 5
             hook_formula = str(data.get('hook_formula') or '').strip().lower()
@@ -5894,7 +5894,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             data = request.get_json() or {}
             try:
                 count = int(data.get('count', 5))
-                count = max(2, min(10, count))
+                count = max(1, min(10, count))
             except (TypeError, ValueError):
                 count = 5
             aspect = str(data.get('aspect', '4:5')).strip()
@@ -6258,7 +6258,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             out_name = target_slide.get('file') or f'carousel-{slide_idx}.jpg'
             out_path = directory(job_id) / out_name
             eff_template = '' if template == 'custom' else template
-            total_slides = len(slides)
+            total_slides = max(1, int(data.get('slide_total') or len(slides)))
             req_role = str(data.get('role') or target_slide.get('role') or '').strip().lower()
             if req_role not in ('cover', 'body', 'cta'):
                 req_role = 'cover' if slide_idx == 1 else ('cta' if slide_idx == total_slides and total_slides >= 3 else 'body')
@@ -6382,8 +6382,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     return jsonify(original)
                 slides[pos], slides[target_pos] = slides[target_pos], slides[pos]
             elif action == 'delete':
-                if len(slides) <= 2:
-                    raise StudioError('캐러셀은 최소 2장 이상의 슬라이드가 필요합니다.', 422)
+                if len(slides) <= 1:
+                    raise StudioError('최소 1장 이상의 카드가 필요합니다.', 422)
                 idx = int(data.get('index', 1))
                 slides = [s for s in slides if int(s.get('index', 0)) != idx]
             elif action == 'add':

@@ -302,8 +302,8 @@ const coverHookFormulaMeta={
 };
 function formatCoverHookByFormula(formulaKey,rawTopic,rawSub,prodName,slideCount){
   const f=(formulaKey||'number').trim();
-  const countNum=Math.max(2,Math.min(10,Number(slideCount||$('carousel-count')?.value||5)));
-  const pointCount=Math.max(2,countNum-1);
+  const countNum=Math.max(1,Math.min(10,Number(slideCount||$('carousel-count')?.value||5)));
+  const pointCount=Math.max(2,countNum>1?countNum-1:3);
   let baseTopic=String(rawTopic||'').replace(/\|.*$/,'').replace(/\[|\]|\*/g,'').trim();
   // Strip previously applied formula wrappers if user switches between chips
   baseTopic=baseTopic
@@ -325,7 +325,7 @@ function formatCoverHookByFormula(formulaKey,rawTopic,rawSub,prodName,slideCount
   if(f==='question'){
     title=detail&&detail!==kw?`혹시 [${kw}] *${detail}* 아직도 그대로 쓰세요?`:`혹시 [${kw}] 아직도 *그대로* 쓰세요?`;
     if(!subtitle||/공식이 있습니다|체크 포인트|가이드/.test(subtitle)){
-      subtitle='90%가 무심코 지나치는 결정적 차이, 슬라이드를 넘겨 확인하세요!';
+      subtitle=countNum===1?'90%가 무심코 지나치는 결정적 차이와 핵심 포인트를 한 장에 정리했습니다.':'90%가 무심코 지나치는 결정적 차이, 슬라이드를 넘겨 확인하세요!';
     }
   }else if(f==='number'){
     title=`90%가 놓치는 [${kw}] *핵심 공식 ${pointCount}가지*`;
@@ -425,6 +425,16 @@ function splitSlideThreeTierText(slideObj){
 let activeCarouselInspectorTab='text'; // 'text' | 'photo' | 'style'
 let carouselRealtimeTimer=null;
 let carouselSilentInflight=false;
+let singleCardModeOverrideJobId=null;
+
+function enforceSingleCardModeIfActive(targetJob){
+  if(!targetJob||!targetJob.carousel)return;
+  const wantSingle=(singleCardModeOverrideJobId===targetJob.id)||(Number($('carousel-count')?.value||0)===1&&Number(targetJob.carousel.count||0)<=2);
+  if(wantSingle&&Array.isArray(targetJob.carousel.slides)&&targetJob.carousel.slides.length>1){
+    targetJob.carousel.slides=targetJob.carousel.slides.slice(0,1);
+    targetJob.carousel.count=1;
+  }
+}
 
 function renderCarouselPreview(){
   renderCarouselIntelBar();
@@ -432,6 +442,7 @@ function renderCarouselPreview(){
   if(!wrap||!grid)return;
   grid.replaceChildren();
   if(workbench)workbench.replaceChildren();
+  enforceSingleCardModeIfActive(job);
   const slides=job?.carousel?.slides||[];
   const globalDrawer=$('carousel-global-plan-drawer');
   const storyboardDock=$('carousel-storyboard-dock');
@@ -445,21 +456,24 @@ function renderCarouselPreview(){
       const emptyBox=document.createElement('div');
       emptyBox.className='carousel-empty-workbench';
       emptyBox.append(
-        text('strong','아직 생성된 캐러셀 슬라이드가 없습니다'),
-        text('p','상단 [캐러셀 세트 생성]을 누르면 좌측 원본 영상 참고 · 중앙 대형 미리보기 및 하단 스토리보드 · 우측 탭별 실시간 편집 워크벤치가 바로 열립니다.')
+        text('strong','아직 생성된 캐러셀·뉴스카드 슬라이드가 없습니다'),
+        text('p','상단에서 [이미지 1장 + 캡션(설명) 카드] 또는 [캐러셀 세트 생성]을 누르면 좌측 원본 영상 참고 · 중앙 대형 미리보기 · 우측 탭별 실시간 편집 워크벤치가 바로 열립니다.')
       );
       const actRow=document.createElement('div');
       actRow.style.cssText='display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;';
-      const bAuto=text('button','1. 분석·본문 자료로 대본 자동 채우기');
+      const bSingle=text('button','1. 이미지 1장 + 캡션(설명) 카드 만들기');
+      bSingle.type='button';
+      bSingle.onclick=()=>$('btn-carousel-single-card')?.click();
+      const bAuto=text('button','2. 분석·본문 자료로 대본 자동 채우기');
       bAuto.type='button';bAuto.className='secondary';
       bAuto.onclick=()=>$('btn-autofill-carousel-texts')?.click();
-      const bGen=text('button','2. 캐러셀 세트 즉시 생성하기');
-      bGen.type='button';
+      const bGen=text('button','3. 다중 캐러셀 세트 즉시 생성하기');
+      bGen.type='button';bGen.className='secondary';
       bGen.onclick=()=>{
         if($('carousel-cover-title')&&!$('carousel-cover-title').value.trim())$('btn-autofill-carousel-texts')?.click();
         $('btn-generate-carousel')?.click();
       };
-      actRow.append(bAuto,bGen);
+      actRow.append(bSingle,bAuto,bGen);
       emptyBox.append(actRow);
       workbench.append(emptyBox);
     }
@@ -472,7 +486,10 @@ function renderCarouselPreview(){
   }
   const activeSlide=slides.find(s=>Number(s.index)===activeCarouselSlideIndex)||slides[0];
   const tplLabel=carouselTemplateNames[job.carousel.template||'editorial_dark']||'시네마 리뷰 다크';
-  if(label)label.textContent=`하단 슬라이드 스토리보드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`;
+  const isSingleCard=(slides.length===1);
+  if(label)label.textContent=isSingleCard
+    ?`단독 카드 스토리보드 (이미지 1장 + 캡션·설명 · ${job.carousel.aspect||'4:5'} · 테마: ${tplLabel.split(' (')[0]})`
+    :`하단 슬라이드 스토리보드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`;
   const base=`/studio/jobs/${job.id}/media/`;
   const tsCache=Math.floor((job.carousel.updated_at||Date.now())*1000);
   const maxDur=Math.max(0.5,Number(job.media?.duration||5));
@@ -491,7 +508,7 @@ function renderCarouselPreview(){
 
     const headRow=document.createElement('div');
     headRow.className='storyboard-card-head';
-    const roleShort=sRole==='cover'?'표지(90%훅)':(sRole==='cta'?'마지막장':'본문');
+    const roleShort=isSingleCard?'단독 카드(1장+캡션)':(sRole==='cover'?'표지(90%훅)':(sRole==='cta'?'마지막장':'본문'));
     const roleBadgeEl=text('span',`0${s.index} ${roleShort}`);
     roleBadgeEl.className=`storyboard-role-badge role-badge-${sRole}`;
     const sourceTag=s.custom_image?'내 사진':`${Number(s.timestamp||0).toFixed(1)}s`;
@@ -510,7 +527,7 @@ function renderCarouselPreview(){
     const tier=splitSlideThreeTierText(s);
     const captionSummary=document.createElement('div');
     captionSummary.className='storyboard-card-summary';
-    const sumHead=text('strong',(tier.title||'문구 없음').slice(0,24));
+    const sumHead=text('strong',(tier.title||tier.subtitle||tier.bodyText||'문구 없음').slice(0,24));
     captionSummary.append(sumHead);
 
     fig.append(headRow,thumbWrap,captionSummary);
@@ -546,7 +563,10 @@ function renderCarouselPreview(){
     wbPreviewCol.className='carousel-wb-preview-col';
     const wbPreviewHeader=document.createElement('div');
     wbPreviewHeader.className='carousel-wb-preview-head';
-    const rolePill=text('span',activeRole==='cover'?'01 첫장 표지 (90% 후킹)':(activeRole==='cta'?`0${activeSlide.index} 마지막장 요약·CTA`:`0${activeSlide.index} 본문 슬라이드`));
+    const rolePillText=isSingleCard
+      ?'01 단독 카드 (이미지 1장 + 캡션·설명)'
+      :(activeRole==='cover'?'01 첫장 표지 (90% 후킹)':(activeRole==='cta'?`0${activeSlide.index} 마지막장 요약·CTA`:`0${activeSlide.index} 본문 슬라이드`));
+    const rolePill=text('span',rolePillText);
     rolePill.className=`wb-role-pill role-${activeRole}`;
 
     const liveSyncBadge=text('span','실시간 자동 반영');
@@ -624,15 +644,45 @@ function renderCarouselPreview(){
       });
       orderGroup.append(bRight);
     }
-    if(slides.length>2){
+    if(slides.length>1){
       const bDel=text('button','슬라이드 삭제');bDel.type='button';bDel.className='secondary btn-xs btn-subtle-danger';
       bDel.onclick=()=>act(`슬라이드 #${activeSlide.index} 삭제 중…`,async()=>{
+        if(slides.length===2){
+          singleCardModeOverrideJobId=job.id;
+          if($('carousel-count'))$('carousel-count').value='1';
+          if(activeSlide.index===1&&slides[1]){
+            await update('carousel-slide-action',{action:'move',index:2,direction:-1});
+          }
+          enforceSingleCardModeIfActive(job);
+          activeCarouselSlideIndex=1;
+          renderCarouselPreview();
+          return;
+        }
         await update('carousel-slide-action',{action:'delete',index:activeSlide.index});
         activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);
         renderCarouselPreview();
       });
       orderGroup.append(bDel);
     }
+    const bAttachCurrent=text('button',isSingleCard?'이 카드 1장을 게시 첨부로 반영':`이 카드(#${activeSlide.index})만 동반 첨부 추가`);
+    bAttachCurrent.type='button';
+    bAttachCurrent.className='secondary btn-xs';
+    bAttachCurrent.onclick=()=>act(`슬라이드 #${activeSlide.index} 카드를 게시 첨부 목록에 추가하는 중…`,async()=>{
+      if(isSingleCard){
+        await update('attachments-config',{action:'preset_video_plus_images',image_count:1});
+      }else{
+        const tier=splitSlideThreeTierText(activeSlide);
+        const capLabel=tier.title||tier.subtitle||`캐러셀 카드 #${activeSlide.index}`;
+        await update('attachments-config',{
+          action:'add_frame',
+          file:activeSlide.file||`carousel-${activeSlide.index}.jpg`,
+          label:`캐러셀 #${activeSlide.index}: ${capLabel.slice(0,26)}`
+        });
+      }
+      if($('upload-format'))$('upload-format').value='combo';
+    },isSingleCard?'이미지 1장 + 캡션 카드를 게시 첨부 묶음에 반영했습니다!':`슬라이드 #${activeSlide.index} 카드를 게시 첨부 목록에 추가했습니다!`);
+    orderGroup.append(bAttachCurrent);
+
     const wbHint=text('span','팁: 카드 위에서 바로 Ctrl+V 또는 이미지 드래그 시 사진 즉시 교체');
     wbHint.className='hint';
     wbHint.style.margin='0';
@@ -647,7 +697,7 @@ function renderCarouselPreview(){
     inspHead.className='wb-inspector-head';
     const photoStatusText=activeSlide.custom_image?'내 사진 적용됨':(job.kind==='image'?'원본 이미지':`영상 ${Number(activeSlide.timestamp||0).toFixed(1)}초`);
     inspHead.append(
-      text('h4',`슬라이드 #${activeSlide.index} 실시간 수정 (${activeRole==='cover'?'첫장 표지':activeRole==='cta'?'마지막장 요약':'본문 카드'})`),
+      text('h4',isSingleCard?'이미지 1장 + 캡션(설명) 단독 카드 실시간 편집':`슬라이드 #${activeSlide.index} 실시간 수정 (${activeRole==='cover'?'첫장 표지':activeRole==='cta'?'마지막장 요약':'본문 카드'})`),
       text('span',photoStatusText)
     );
 
@@ -656,7 +706,7 @@ function renderCarouselPreview(){
     inspTabsBar.className='wb-inspector-tabs';
     inspTabsBar.setAttribute('role','tablist');
     const tabDefs=[
-      {id:'text',label:'① 문구 · 후킹 편집'},
+      {id:'text',label:'① 문구 · 캡션(설명)'},
       {id:'photo',label:'② 사진 · 배경 교체'},
       {id:'style',label:'③ 테마 · 글꼴 · 획'}
     ];
@@ -694,6 +744,7 @@ function renderCarouselPreview(){
 
     const buildSlidePayload=(extra={})=>({
       index:activeSlide.index,
+      slide_total:slides.length,
       timestamp:extra.timestamp!==undefined?extra.timestamp:activeSlide.timestamp,
       title:extra.title!==undefined?extra.title:(headInput?.value||'').trim(),
       subtitle:extra.subtitle!==undefined?extra.subtitle:(subtitleInput?.value||'').trim(),
@@ -738,7 +789,7 @@ function renderCarouselPreview(){
         </div>
       `;
       const sumCard=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-card-summary strong`);
-      if(sumCard)sumCard.textContent=(curTitle||'문구 없음').slice(0,24);
+      if(sumCard)sumCard.textContent=(curTitle||curSub||curBody||'문구 없음').slice(0,24);
       if(liveSyncBadge){
         liveSyncBadge.textContent='실시간 반영 중…';
         liveSyncBadge.classList.add('syncing');
@@ -757,6 +808,7 @@ function renderCarouselPreview(){
       try{
         const nextJob=await api(`jobs/${targetJobId}/carousel-slide-update`,payload);
         if(job?.id!==targetJobId)return;
+        enforceSingleCardModeIfActive(nextJob);
         job=nextJob;
         const updatedSlide=(job.carousel?.slides||[]).find(s=>Number(s.index)===Number(payload.index));
         if(updatedSlide){
@@ -799,7 +851,7 @@ function renderCarouselPreview(){
     };
 
     // =========================================================================
-    // TAB 1 PANEL: ① 문구 · 후킹 편집 (후킹 공식 + 제목 + 부제목 + 본문 + 배지) — 세로 적층형 · 가로 1줄 정돈 속성 시트
+    // TAB 1 PANEL: ① 문구 · 캡션(설명) 편집 (후킹 공식 + 제목 + 부제목 + 캡션/상세 설명 + 배지)
     // =========================================================================
     const tabTextPanel=document.createElement('div');
     tabTextPanel.className='wb-tab-panel';
@@ -864,7 +916,7 @@ function renderCarouselPreview(){
 
     // Row 2: 1. 제목 (핵심 헤드라인 + 박스/색상 강조 1줄)
     const {row:rHead,ctrl:cHead}=makeTextPropRow(
-      activeRole==='cover'?'1. 제목 (표지 훅)':(activeRole==='cta'?'1. 제목 (결론 요약)':'1. 제목 (헤드라인)'),
+      isSingleCard?'1. 카드 메인 제목':(activeRole==='cover'?'1. 제목 (표지 훅)':(activeRole==='cta'?'1. 제목 (결론 요약)':'1. 제목 (헤드라인)')),
       '타이핑 실시간 반영'
     );
     headInput=document.createElement('input');
@@ -872,7 +924,7 @@ function renderCarouselPreview(){
     headInput.id='wb-active-head-input';
     headInput.style.cssText='flex:1;min-width:180px;margin:0;';
     headInput.value=initHead;
-    headInput.placeholder='예: [잘 터지는] *캐러셀* 제작하기 (입력 즉시 미리보기 반영)';
+    headInput.placeholder='예: [잘 터지는] *핵심 포인트* 한눈에 정리 (입력 즉시 미리보기 반영)';
     headInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
     const btnHlBox=text('button','+ [박스 강조]');btnHlBox.type='button';btnHlBox.className='secondary btn-xs';
     const btnHlAcc=text('button','+ *색상 강조*');btnHlAcc.type='button';btnHlAcc.className='secondary btn-xs';
@@ -893,28 +945,39 @@ function renderCarouselPreview(){
     cHead.append(headInput,btnHlBox,btnHlAcc);
 
     // Row 3: 2. 부제목 (보조 카피 1줄)
-    const {row:rSub,ctrl:cSub}=makeTextPropRow('2. 부제목 (보조 카피)','제목 아래 설명');
+    const {row:rSub,ctrl:cSub}=makeTextPropRow('2. 부제목 (보조 카피)','제목 아래 한 줄 요약');
     subtitleInput=document.createElement('input');
     subtitleInput.type='text';
     subtitleInput.id='wb-active-subtitle-input';
     subtitleInput.style.cssText='flex:1;width:100%;margin:0;';
     subtitleInput.value=initSubtitle;
-    subtitleInput.placeholder=activeRole==='cover'?'예: 잘 되는 캐러셀에는 공식이 있습니다!':'예: 실사용에서 가장 먼저 체감된 핵심 차이점';
+    subtitleInput.placeholder=isSingleCard?'예: 실사용에서 가장 먼저 체감된 핵심 한 줄 요약':'예: 잘 되는 캐러셀에는 공식이 있습니다!';
     subtitleInput.addEventListener('input',()=>scheduleRealtimeSlideSync({},220));
     cSub.append(subtitleInput);
 
-    // Row 4: 3. 본문 텍스트 (체크포인트)
-    const {row:rBody,ctrl:cBody}=makeTextPropRow('3. 본문 텍스트','추가 설명 · 체크포인트',true);
+    // Row 4: 3. 캡션 · 상세 설명 (본문 텍스트 / 체크포인트)
+    const {row:rBody,ctrl:cBody}=makeTextPropRow('3. 캡션 · 설명 (본문)','카드 하단 상세 설명 · 캡션 문구',true);
     bodyTextarea=document.createElement('textarea');
     bodyTextarea.id='wb-active-body-input';
-    bodyTextarea.rows=2;
+    bodyTextarea.rows=3;
     bodyTextarea.style.margin='0';
     bodyTextarea.value=initBodyText;
-    bodyTextarea.placeholder='슬라이드에 추가로 넣을 본문 텍스트나 체크포인트를 입력하세요';
+    bodyTextarea.placeholder='이미지 카드에 함께 들어갈 캡션(상세 설명 · 핵심 요약 · 체크포인트)을 자유롭게 입력하세요';
     bodyTextarea.addEventListener('input',()=>scheduleRealtimeSlideSync({},240));
     const bodyBar=document.createElement('div');
     bodyBar.className='pro-prop-inline-bar';
-    const btnAddBullet=text('button','+ 체크포인트 줄 추가');
+    const btnFillCaptionFromAnalysis=text('button','AI 분석·본문에서 캡션 자동 채우기');
+    btnFillCaptionFromAnalysis.type='button';
+    btnFillCaptionFromAnalysis.className='secondary btn-xs';
+    btnFillCaptionFromAnalysis.onclick=()=>{
+      const lines=extractBestHookLines();
+      const capLines=lines.slice(1,4).length?lines.slice(1,4):lines.slice(0,2);
+      const formattedCap=capLines.map(ln=>ln.startsWith('·')?ln:`· ${ln}`).join('\n');
+      bodyTextarea.value=formattedCap||'· 실사용에서 확인된 핵심 특징과 추천 포인트를 정리했습니다.';
+      bodyTextarea.focus();
+      scheduleRealtimeSlideSync({},100);
+    };
+    const btnAddBullet=text('button','+ 캡션 설명 줄 추가');
     btnAddBullet.type='button';
     btnAddBullet.className='secondary btn-xs';
     btnAddBullet.onclick=()=>{
@@ -925,11 +988,21 @@ function renderCarouselPreview(){
       bodyTextarea.focus();
       scheduleRealtimeSlideSync({},100);
     };
-    const btnClearBody=text('button','본문 비우기');
+    const btnSyncCaptionToScript=text('button','캡션을 게시글 본문(Step 3)에도 반영');
+    btnSyncCaptionToScript.type='button';
+    btnSyncCaptionToScript.className='secondary btn-xs';
+    btnSyncCaptionToScript.onclick=()=>{
+      const composed=[headInput?.value,subtitleInput?.value,bodyTextarea?.value].map(v=>String(v||'').replace(/[\[\]\*]/g,'').trim()).filter(Boolean).join('\n\n');
+      if(!composed){message('먼저 제목이나 캡션(설명)을 입력해 주세요.',true);return;}
+      if($('script')){$('script').value=composed.slice(0,500);writingCounts();}
+      if($('body')){$('body').value=composed.slice(0,500);writingCounts();}
+      message('현재 카드의 제목 + 캡션(설명)을 Step 3 게시 본문 입력란에도 반영했습니다!');
+    };
+    const btnClearBody=text('button','캡션 비우기');
     btnClearBody.type='button';
     btnClearBody.className='secondary btn-xs';
     btnClearBody.onclick=()=>{bodyTextarea.value='';bodyTextarea.focus();scheduleRealtimeSlideSync({},100);};
-    bodyBar.append(btnAddBullet,btnClearBody);
+    bodyBar.append(btnFillCaptionFromAnalysis,btnAddBullet,btnSyncCaptionToScript,btnClearBody);
     cBody.append(bodyTextarea,bodyBar);
 
     // Row 5: 4. 상단 배지 (Kicker)
@@ -2574,6 +2647,7 @@ function render(){
   if($('overlay-sub-box-w'))$('overlay-sub-box-w').value=job?.text_edit?.overlay_box_w??'';
   if($('overlay-sub-box-h'))$('overlay-sub-box-h').value=job?.text_edit?.overlay_box_h??'';
   if(job?.carousel){
+    enforceSingleCardModeIfActive(job);
     if($('carousel-erase-mode'))$('carousel-erase-mode').value=job.carousel.erase_mode==='keep'?'none':(job.carousel.erase_mode||'cover_box');
     if($('carousel-ratio')&&job.carousel.aspect)$('carousel-ratio').value=job.carousel.aspect;
     if($('carousel-count')&&job.carousel.count)$('carousel-count').value=String(job.carousel.count);
@@ -3153,7 +3227,7 @@ function extractBestHookLines(){
   return pool;
 }
 function buildEditorialStoryboardLines(count){
-  const total=Math.max(2,Math.min(10,Number(count||5)));
+  const total=Math.max(1,Math.min(10,Number(count||5)));
   const lines=extractBestHookLines();
   const prod=($('product-name')?.value||job?.product?.name||'').trim();
   const summary=(job?.analysis?.result?.summary||'').trim();
@@ -3175,6 +3249,17 @@ function buildEditorialStoryboardLines(count){
   const hookFormula=($('carousel-cover-hook-formula')?.value||job?.carousel?.hook_formula||'number').trim();
   const formattedCover=formatCoverHookByFormula(hookFormula,firstRaw,lines.length>1?secondRaw:'잘 되는 캐러셀에는 공식이 있습니다!',prod,total);
   const coverOut=formattedCover.combined;
+
+  if(total===1){
+    const captionLines=lines.slice(1,4).length?lines.slice(1,4):(summary?[summary.slice(0,90)]:['실사용에서 검증된 핵심 특징과 포인트를 한 장에 정리했습니다.']);
+    const singleCaption=captionLines.join(' · ');
+    return {
+      cover:coverOut,
+      bodySlides:[],
+      cta:singleCaption,
+      body:[]
+    };
+  }
 
   const bodyFallbacks=[
     ['첫눈에 체감되는 [핵심 차별점]','기존 방식과 비교했을 때 가장 먼저 느껴지는 변화'],
@@ -3215,15 +3300,23 @@ function buildEditorialStoryboardLines(count){
   };
 }
 function updateCarouselStorySlotLabels(countVal){
-  const total=Math.max(2,Math.min(10,Number(countVal||$('carousel-count')?.value||5)));
+  const total=Math.max(1,Math.min(10,Number(countVal||$('carousel-count')?.value||5)));
   const bodyLbl=$('carousel-body-slot-label');
   const ctaLbl=$('carousel-cta-slot-label');
   const bodyBox=$('carousel-body-texts')?.closest('.carousel-story-slot');
-  if(total<=2){
+  const ctaBox=$('carousel-cta-text')?.closest('.carousel-story-slot');
+  if(total===1){
     if(bodyBox)bodyBox.hidden=true;
+    if(ctaBox)ctaBox.hidden=false;
+    if(ctaLbl)ctaLbl.textContent='01 카드 캡션 · 상세 설명 (본문 문구)';
+    if($('carousel-cta-text'))$('carousel-cta-text').placeholder='예: 이미지 1장 카드 하단에 함께 들어갈 캡션(상세 설명 · 핵심 요약)을 입력하세요';
+  }else if(total===2){
+    if(bodyBox)bodyBox.hidden=true;
+    if(ctaBox)ctaBox.hidden=false;
     if(ctaLbl)ctaLbl.textContent='02 마지막장 (CTA · 핵심 요약·결론)';
   }else{
     if(bodyBox)bodyBox.hidden=false;
+    if(ctaBox)ctaBox.hidden=false;
     const endBodyIdx=total-1;
     if(bodyLbl){
       bodyLbl.textContent=endBodyIdx===2?'02 본문 (Body · 핵심 포인트 1장)':`02~0${endBodyIdx} 본문 (Body · 핵심 포인트 ${endBodyIdx-1}장)`;
@@ -3237,8 +3330,8 @@ function updateCarouselStorySlotLabels(countVal){
 function syncCombinedCarouselCustomTexts(){
   const bodyRaw=($('carousel-body-texts')?.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const ctaRaw=($('carousel-cta-text')?.value||'').trim();
-  const total=Math.max(2,Math.min(10,Number($('carousel-count')?.value||5)));
-  const combined=total<=2?(ctaRaw?[ctaRaw]:bodyRaw):[...bodyRaw,...(ctaRaw?[ctaRaw]:[])];
+  const total=Math.max(1,Math.min(10,Number($('carousel-count')?.value||5)));
+  const combined=total===1?[]:total===2?(ctaRaw?[ctaRaw]:bodyRaw):[...bodyRaw,...(ctaRaw?[ctaRaw]:[])];
   if($('carousel-custom-texts')){
     $('carousel-custom-texts').value=combined.join('\n');
   }
@@ -3246,7 +3339,7 @@ function syncCombinedCarouselCustomTexts(){
 }
 function applyCarouselStoryPlanToInputs(story,statusLabel='영상 분석 내용 자동 반영됨'){
   if(!story)return;
-  const count=Math.max(2,Math.min(10,Number($('carousel-count')?.value||5)));
+  const count=Math.max(1,Math.min(10,Number($('carousel-count')?.value||5)));
   updateCarouselStorySlotLabels(count);
   if($('carousel-cover-title')&&story.cover!==undefined){
     $('carousel-cover-title').value=story.cover;
@@ -3266,7 +3359,7 @@ function applyCarouselStoryPlanToInputs(story,statusLabel='영상 분석 내용 
 }
 let lastAutoPopulatedCarouselSignature='';
 function ensureCarouselStoryAutoPopulated(force=false){
-  const count=Math.max(2,Math.min(10,Number($('carousel-count')?.value||5)));
+  const count=Math.max(1,Math.min(10,Number($('carousel-count')?.value||5)));
   updateCarouselStorySlotLabels(count);
   if(!job)return;
   const hasExistingSlides=Array.isArray(job.carousel?.slides)&&job.carousel.slides.length>0;
@@ -3277,11 +3370,18 @@ function ensureCarouselStoryAutoPopulated(force=false){
     const lastSlide=slides.length>=2?slides[slides.length-1]:null;
     if($('carousel-cover-title')&&coverStr)$('carousel-cover-title').value=coverStr;
     if($('carousel-body-texts'))$('carousel-body-texts').value=middleSlides.map(s=>(s.text||'').replace(/\n/g,' | ')).filter(Boolean).join('\n');
-    if($('carousel-cta-text')&&lastSlide)$('carousel-cta-text').value=(lastSlide.text||'').replace(/\n/g,' | ');
+    if($('carousel-cta-text')){
+      if(slides.length===1){
+        const tier=splitSlideThreeTierText(slides[0]);
+        if(tier.bodyText)$('carousel-cta-text').value=tier.bodyText.replace(/\n/g,' · ');
+      }else if(lastSlide){
+        $('carousel-cta-text').value=(lastSlide.text||'').replace(/\n/g,' | ');
+      }
+    }
     syncCombinedCarouselCustomTexts();
     const badge=$('carousel-story-auto-status');
     if(badge){
-      badge.textContent=`현재 슬라이드(${slides.length}장) 대본 연동됨`;
+      badge.textContent=slides.length===1?'현재 단독 카드(1장 + 캡션) 연동됨':`현재 슬라이드(${slides.length}장) 대본 연동됨`;
       badge.className='analysis-state-badge done';
     }
     return;
@@ -3301,7 +3401,7 @@ function ensureCarouselStoryAutoPopulated(force=false){
   }
   const analysisSig=`${job.id}:${count}:${job.analysis?.result?.summary||''}:${(job.analysis?.result?.observations||[]).length}:${job.media_ocr?.translated_text||''}:${job.source_text||''}:${job.product?.name||''}`;
   const coverEmpty=!($('carousel-cover-title')?.value||'').trim();
-  const bodyEmpty=!($('carousel-body-texts')?.value||'').trim();
+  const bodyEmpty=count>=3&&!($('carousel-body-texts')?.value||'').trim();
   const ctaEmpty=!($('carousel-cta-text')?.value||'').trim();
   if(force||coverEmpty||bodyEmpty||ctaEmpty||lastAutoPopulatedCarouselSignature!==analysisSig){
     lastAutoPopulatedCarouselSignature=analysisSig;
@@ -4636,9 +4736,17 @@ document.querySelectorAll('[data-cover-hook-formula]').forEach(chip=>{
 if($('carousel-count')){
   $('carousel-count').addEventListener('change',()=>{
     const count=Number($('carousel-count')?.value||5);
+    if(count===1&&job?.id){
+      singleCardModeOverrideJobId=job.id;
+      enforceSingleCardModeIfActive(job);
+      activeCarouselSlideIndex=1;
+      renderCarouselPreview();
+    }else if(count>1&&singleCardModeOverrideJobId){
+      singleCardModeOverrideJobId=null;
+    }
     updateCarouselStorySlotLabels(count);
     const story=buildEditorialStoryboardLines(count);
-    applyCarouselStoryPlanToInputs(story,`✓ ${count}장 구조(표지·본문·마지막장) 자동 반영됨`);
+    applyCarouselStoryPlanToInputs(story,count===1?'✓ 이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨':`✓ ${count}장 구조(표지·본문·마지막장) 자동 반영됨`);
   });
 }
 if($('carousel-body-texts')){
@@ -4650,11 +4758,11 @@ if($('carousel-cta-text')){
 if($('btn-autofill-carousel-texts'))$('btn-autofill-carousel-texts').onclick=()=>{
   const count=Number($('carousel-count')?.value||5);
   const story=buildEditorialStoryboardLines(count);
-  applyCarouselStoryPlanToInputs(story,'✓ 영상 소재 분석 + 첫장 90% 후킹 자동 반영됨');
+  applyCarouselStoryPlanToInputs(story,count===1?'✓ 이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨':'✓ 영상 소재 분석 + 첫장 90% 후킹 자동 반영됨');
   if($('carousel-erase-mode')&&$('carousel-erase-mode').value==='none'){
     $('carousel-erase-mode').value='cover_box';
   }
-  message(`영상 소재 분석 내용과 첫 장 90% 후킹 공식을 토대로 1번 표지(Cover), 본문(Body), 마지막장 요약(CTA) ${count}장 대본을 자동 완성했습니다!`);
+  message(count===1?'영상 소재 분석 내용을 토대로 이미지 1장 + 캡션(설명) 단독 카드 문구를 자동 완성했습니다!':`영상 소재 분석 내용과 첫 장 90% 후킹 공식을 토대로 1번 표지(Cover), 본문(Body), 마지막장 요약(CTA) ${count}장 대본을 자동 완성했습니다!`);
 };
 if($('btn-ai-compose-carousel-story'))$('btn-ai-compose-carousel-story').onclick=()=>act('선택한 AI 모델로 영상 분석 내용과 첫장 90% 후킹 공식을 바탕으로 표지·본문·마지막장 대본을 구성하는 중…',async()=>{
   if(!job)throw new Error('먼저 영상·소재를 불러와 주세요.');
@@ -4691,20 +4799,42 @@ if($('carousel-erase-mode')){
     }
   });
 }
-if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('매거진 디자인 테마와 첫장 90% 후킹 표지·본문·마지막장 대본을 적용해 캐러셀 카드뉴스를 생성하는 중…',async()=>{
+if($('btn-carousel-single-card'))$('btn-carousel-single-card').onclick=()=>{
+  if($('carousel-count'))$('carousel-count').value='1';
+  if(job?.id){
+    singleCardModeOverrideJobId=job.id;
+    enforceSingleCardModeIfActive(job);
+    activeCarouselSlideIndex=1;
+    renderCarouselPreview();
+  }
+  updateCarouselStorySlotLabels(1);
+  const story=buildEditorialStoryboardLines(1);
+  applyCarouselStoryPlanToInputs(story,'✓ 이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨');
+  if(!busy){
+    $('btn-generate-carousel')?.click();
+  }else{
+    message('이미지 1장 + 캡션(설명) 단독 카드 모드로 전환했습니다.');
+  }
+};
+if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('매거진 디자인 테마와 제목·캡션(설명) 대본을 적용해 카드 이미지를 생성하는 중…',async()=>{
   if(!($('carousel-cover-title')?.value||'').trim()||(!($('carousel-body-texts')?.value||'').trim()&&!($('carousel-cta-text')?.value||'').trim())){
     ensureCarouselStoryAutoPopulated(true);
   }
   syncCombinedCarouselCustomTexts();
   const normalizeTwoTier=str=>String(str||'').split('|').map(p=>p.trim()).filter(Boolean).join('\n');
-  const count=Number($('carousel-count')?.value||5);
+  const count=Math.max(1,Math.min(10,Number($('carousel-count')?.value||5)));
   const hookFormula=$('carousel-cover-hook-formula')?.value||'number';
   const bodyLinesRaw=($('carousel-body-texts')?.value||'').split(/\r?\n/).map(s=>normalizeTwoTier(s)).filter(Boolean);
   const ctaLineRaw=normalizeTwoTier($('carousel-cta-text')?.value||'');
   let customLines=[];
-  if(count<=2){
+  if(count===1){
+    singleCardModeOverrideJobId=job?.id||null;
+    customLines=[];
+  }else if(count===2){
+    singleCardModeOverrideJobId=null;
     customLines=ctaLineRaw?[ctaLineRaw]:bodyLinesRaw.slice(0,1);
   }else{
+    singleCardModeOverrideJobId=null;
     const targetBodyCount=count-2;
     const fallbackStory=buildEditorialStoryboardLines(count);
     const paddedBody=[...bodyLinesRaw];
@@ -4719,7 +4849,9 @@ if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('매거
   if($('carousel-custom-texts')){
     $('carousel-custom-texts').value=customLines.map(s=>s.replace(/\n/g,' | ')).join('\n');
   }
-  const coverTitle=normalizeTwoTier($('carousel-cover-title')?.value||'');
+  const rawCoverTitle=normalizeTwoTier($('carousel-cover-title')?.value||'');
+  const singleCardBodyCaption=count===1?String($('carousel-cta-text')?.value||'').trim():'';
+  const coverTitle=(count===1&&singleCardBodyCaption)?[rawCoverTitle,singleCardBodyCaption].filter(Boolean).join('\n'):rawCoverTitle;
   const eraseMode=$('carousel-erase-mode')?.value||'cover_box';
   const template=$('carousel-template')?.value||'editorial_dark';
   const carouselFont=$('carousel-font')?.value||'heavy_kr';
@@ -4749,9 +4881,33 @@ if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('매거
     auto_caption:(eraseMode==='none'&&!coverTitle&&!customLines.length)?false:Boolean($('carousel-auto-caption')?.checked??true),
     slide_texts:customLines
   });
-  if($('upload-platform'))$('upload-platform').value='instagram_carousel';
-  if($('upload-format'))$('upload-format').value='carousel';
-},'매거진 에디토리얼 캐러셀 세트를 생성했습니다! 하단 워크벤치에서 사진 수정(이미지 추가·Ctrl+V 붙여넣기)·제목·부제목·본문 텍스트 추가를 자유롭게 편집하세요.');
+  if(count===1&&job?.carousel?.slides?.length>1){
+    // Compatibility when running helper server on port 5006 was started before count=1 backend update
+    const s1=job.carousel.slides[0];
+    const tier=splitSlideThreeTierText({text:coverTitle});
+    const curVideoTs=(typeof $('preview')?.currentTime==='number'&&Number.isFinite($('preview').currentTime)&&$('preview').currentTime>0)?$('preview').currentTime:s1.timestamp;
+    await update('carousel-slide-update',{
+      index:1,
+      slide_total:1,
+      timestamp:curVideoTs,
+      title:tier.title,
+      subtitle:tier.subtitle,
+      body_text:tier.bodyText||singleCardBodyCaption,
+      text:coverTitle,
+      role:'cover',
+      template
+    });
+    enforceSingleCardModeIfActive(job);
+    activeCarouselSlideIndex=1;
+    renderCarouselPreview();
+  }
+  if(count===1){
+    if($('upload-format'))$('upload-format').value='combo';
+  }else{
+    if($('upload-platform'))$('upload-platform').value='instagram_carousel';
+    if($('upload-format'))$('upload-format').value='carousel';
+  }
+},'카드 생성을 완료했습니다! 워크벤치 우측 [① 문구 · 캡션(설명)] 탭에서 제목·부제목·캡션(상세 설명)과 사진을 실시간 편집하세요.');
 if($('btn-carousel-upload-photo'))$('btn-carousel-upload-photo').onclick=()=>{
   pendingCarouselPhotoMode='replace';
   $('carousel-slide-photo-input')?.click();
@@ -4799,6 +4955,7 @@ window.addEventListener('paste',async e=>{
   }
 });
 if($('btn-carousel-add-slide'))$('btn-carousel-add-slide').onclick=()=>act('현재 재생 화면으로 새 슬라이드를 추가하는 중…',async()=>{
+  singleCardModeOverrideJobId=null;
   const cur=$('preview')?.currentTime;
   const ts=(typeof cur==='number'&&Number.isFinite(cur))?cur:null;
   await update('carousel-slide-action',{
@@ -4808,12 +4965,16 @@ if($('btn-carousel-add-slide'))$('btn-carousel-add-slide').onclick=()=>act('현�
     subtitle:'이 장면에서 주목해야 할 핵심 디테일',
     body_text:''
   });
+  if($('carousel-count')&&job?.carousel?.slides?.length){
+    $('carousel-count').value=String(Math.min(10,job.carousel.slides.length));
+  }
 },'새 슬라이드를 추가하고 슬라이드 번호를 갱신했습니다!');
 if($('btn-carousel-attach-all'))$('btn-carousel-attach-all').onclick=()=>act('캐러셀 슬라이드를 게시 첨부 묶음으로 구성하는 중…',async()=>{
+  enforceSingleCardModeIfActive(job);
   const slideCount=(job?.carousel?.slides||[]).length||1;
   await update('attachments-config',{action:'preset_video_plus_images',image_count:Math.min(9,slideCount)});
   if($('upload-format'))$('upload-format').value='combo';
-},'캐러셀 슬라이드를 멀티미디어 게시 첨부 목록에 반영했습니다!');
+},'캐러셀 카드를 멀티미디어 게시 첨부 목록에 반영했습니다!');
 $('analyze').onclick=()=>act('선택한 영상 데이터를 분석하는 중…',()=>update('analyze',credentials('analysis')));
 $('product-form').onsubmit=event=>{event.preventDefault();const mode=$('affiliate-entry-mode')?.value||'manual';act('상품 저장 중…',()=>{if(mode==='manual'&&!$('affiliate-url').value.trim())throw Error('직접 발급한 제휴 링크를 입력하세요.');return update('product',{platform:$('platform').value,name:$('product-name').value,url:mode==='api'?$('product-url').value:'',link_entry_mode:mode,affiliate_url:$('affiliate-url').value,confirmed:$('confirmed').checked});},'상품과 제휴 링크를 저장했습니다.');};
 $('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials('writing'),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:$('source-post-text')?.value||job?.source_text||''});});
