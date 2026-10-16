@@ -4102,6 +4102,36 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             file = FileStorage(stream=stream, filename=path.name)
             return (upload_image if kind == 'image' else upload)(file, str(data.get('source', ''))[:2048])
 
+    def _is_threads_video_cover_frame(url_str):
+        if not url_str:
+            return False
+        s = str(url_str)
+        if re.search(r'/t51\.71878-15/', s, re.I):
+            return True
+        m = re.search(r'[?&]efg=([^&#"\']+)', s, re.I)
+        if m:
+            try:
+                import base64
+                from urllib.parse import unquote
+                b64 = unquote(m.group(1)).replace('-', '+').replace('_', '/')
+                b64 += '=' * ((4 - len(b64) % 4) % 4)
+                decoded = base64.b64decode(b64).decode('utf-8', 'ignore')
+                if re.search(r'video_default_cover_frame|vts_vod_urlgen', decoded, re.I):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _canonical_media_asset_key(url_str):
+        if not url_str:
+            return ''
+        try:
+            p = urlparse(str(url_str)).path
+            fname = Path(p).name
+            return fname or p
+        except Exception:
+            return str(url_str).split('?')[0]
+
     def _scrape_threads_post_metadata(url_str):
         """Extract original post text and media URLs from a Threads post or share URL."""
         info = {'text': '', 'video_urls': [], 'image_urls': [], 'final_url': url_str}
@@ -4125,7 +4155,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                                 if v and v not in info['video_urls']:
                                     info['video_urls'].append(v)
                             for im in (ref.get('imageUrls') or []):
-                                if im and im not in info['image_urls']:
+                                if im and not _is_threads_video_cover_frame(im) and im not in info['image_urls']:
                                     info['image_urls'].append(im)
                     except Exception:
                         pass
@@ -4168,7 +4198,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             vu = html_lib.unescape(vm.group(1)).strip()
                             if vu.startswith('http') and vu not in info['video_urls']:
                                 info['video_urls'].append(vu)
-                        # 3. Extract post image URLs inside media containers (excluding avatar in EmbedHeader)
+                        # 3. Extract post image URLs inside media containers (excluding avatar in EmbedHeader and video cover frames)
                         embed_body = re.sub(r'<div[^>]*class=["\'][^"\']*EmbedHeader[^"\']*["\'][\s\S]*?</div>\s*</div>', '', embed_html, flags=re.I)
                         for media_block in re.finditer(r'<div[^>]*class=["\'][^"\']*(?:SingleMediaContainer|MediaScrollImageContainer|MediaContainer)[^"\']*["\'][^>]*>([\s\S]*?)</div>', embed_body, re.I):
                             block_html = media_block.group(1)
@@ -4176,7 +4206,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                                 continue
                             for img_m in re.finditer(r'<img[^>]+src=["\']([^"\']+)["\']', block_html, re.I):
                                 iu = html_lib.unescape(img_m.group(1)).strip()
-                                if iu.startswith('http') and not re.search(r'threads-logo|static\.cdninstagram\.com/rsrc|s150x150|p150x150', iu, re.I) and iu not in info['image_urls']:
+                                if iu.startswith('http') and not re.search(r'threads-logo|static\.cdninstagram\.com/rsrc|s150x150|p150x150', iu, re.I) and not _is_threads_video_cover_frame(iu) and iu not in info['image_urls']:
                                     info['image_urls'].append(iu)
                 except Exception:
                     pass
@@ -4202,7 +4232,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if not info['video_urls'] and not info['image_urls']:
                 for im in re.finditer(r'<meta[^>]+property=["\']og:image(?::secure_url|:url)?["\'][^>]+content=["\']([^"\']+)["\']', page, re.I):
                     iu = html_lib.unescape(im.group(1)).strip()
-                    if iu.startswith('http') and not re.search(r'threads-logo|static\.cdninstagram\.com/rsrc|s150x150', iu, re.I) and iu not in info['image_urls']:
+                    if iu.startswith('http') and not re.search(r'threads-logo|static\.cdninstagram\.com/rsrc|s150x150', iu, re.I) and not _is_threads_video_cover_frame(iu) and iu not in info['image_urls']:
                         info['image_urls'].append(iu)
         except Exception:
             pass
@@ -4224,7 +4254,25 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if source_text and not job.get('source_text'):
                 job['source_text'] = str(source_text).strip()[:3000]
                 changed = True
-            urls = [u for u in (extra_media_urls or []) if u and u != primary_used_url and u != job.get('media_url')]
+            primary_keys = {
+                _canonical_media_asset_key(primary_used_url),
+                _canonical_media_asset_key(job.get('media_url')),
+                str(job.get('name') or '').strip(),
+            } - {''}
+            seen_keys = set(primary_keys)
+            urls = []
+            # Prefer higher-resolution URLs (without s320x320) when deduplicating by canonical asset filename
+            raw_candidates = [u for u in (extra_media_urls or []) if u and u != primary_used_url and u != job.get('media_url')]
+            sorted_candidates = sorted(raw_candidates, key=lambda u: 1 if re.search(r's320x320|s150x150|p150x150', str(u), re.I) else 0)
+            for u in sorted_candidates:
+                if job.get('kind') != 'image' and _is_threads_video_cover_frame(u):
+                    continue
+                k = _canonical_media_asset_key(u)
+                if k and k in seen_keys:
+                    continue
+                if k:
+                    seen_keys.add(k)
+                urls.append(u)
             if urls and not job.get('attachments'):
                 attachments = []
                 failed_attachments = []
@@ -4269,7 +4317,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             failed_attachments.append(f'첨부 {idx}: 파일 크기 제한 초과 또는 빈 파일')
                     except Exception as exc:
                         failed_attachments.append(f'첨부 {idx}: {str(exc)[:120]}')
-                if failed_attachments or len(attachments) != len(target_urls):
+                if failed_attachments and not attachments:
                     raise StudioError(
                         f'캐러셀/다중 미디어 중 일부 파일을 확보하지 못했습니다 ({len(attachments)}/{len(target_urls)} 성공: {", ".join(failed_attachments[:2])}).',
                         422,
@@ -4287,9 +4335,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         post_url = str(data.get('url', '')).strip()
         media_url = str(data.get('media_url', '')).strip() if data.get('media_url') else None
         target_kind = str(data.get('kind', 'auto')).strip()
+        explicit_media_choice = bool(data.get('explicit_media_choice'))
         source_text = str(data.get('source_text', '')).strip()
         req_video_urls = [str(u).strip() for u in (data.get('video_urls') or []) if str(u).strip()]
-        req_image_urls = [str(u).strip() for u in (data.get('image_urls') or []) if str(u).strip()]
+        req_image_urls = [str(u).strip() for u in (data.get('image_urls') or []) if str(u).strip() and not _is_threads_video_cover_frame(u)]
 
         if not post_url and not media_url:
             raise StudioError('게시물 또는 미디어 주소를 입력해 주세요.')
@@ -4320,13 +4369,19 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 if vu not in req_video_urls:
                     req_video_urls.append(vu)
             for iu in scraped.get('image_urls') or []:
-                if iu not in req_image_urls:
+                if iu and not _is_threads_video_cover_frame(iu) and iu not in req_image_urls:
                     req_image_urls.append(iu)
-            if not media_url:
+            # If the Threads post contains a video (e.g., Video 1 + Image 1 combo) and the user did NOT explicitly pick an image from a selector,
+            # ALWAYS promote the video to primary media and keep the companion image(s) in attachments!
+            if req_video_urls and not explicit_media_choice:
+                media_url = req_video_urls[0]
+                target_kind = 'video'
+            elif not media_url:
                 if target_kind == 'image' and req_image_urls:
                     media_url = req_image_urls[0]
                 elif req_video_urls:
                     media_url = req_video_urls[0]
+                    target_kind = 'video'
                 elif req_image_urls:
                     media_url = req_image_urls[0]
 

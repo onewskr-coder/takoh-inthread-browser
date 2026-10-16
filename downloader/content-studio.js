@@ -19,6 +19,84 @@
     }
     return boundary;
   }
+  function isVideoCoverFrameImageUrl(urlStr) {
+    if (!urlStr) return false;
+    if (/\/t51\.71878-15\//i.test(urlStr)) return true;
+    try {
+      const m = urlStr.match(/[?&]efg=([^&#"']+)/i);
+      if (m && m[1]) {
+        const decoded = atob(decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/'));
+        if (/video_default_cover_frame|vts_vod_urlgen/i.test(decoded)) return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  function findVideoUrlFromReactFiberLocal(element) {
+    if (!element) return null;
+    const keys = Object.keys(element);
+    const fiberKey = keys.find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+    if (!fiberKey) return null;
+    let currentFiber = element[fiberKey];
+    const searchObj = (obj, depth = 0) => {
+      if (!obj || depth > 8) return null;
+      if (Array.isArray(obj) && obj.length > 5) return null;
+      for (const key in obj) {
+        try {
+          const val = obj[key];
+          if (typeof val === 'string' && val.startsWith('http') && (val.includes('cdninstagram') || val.includes('fbcdn'))) {
+            const isVideoKey = /video|playable|stream|source|hd|sd|src/i.test(key);
+            const isVideoUrl = val.includes('.mp4') || val.includes('/v/') || val.includes('/o1/v/') || isVideoKey;
+            const isImage = val.includes('.jpg') || val.includes('.webp') || val.includes('.png') || val.includes('_n.jpg');
+            const isHls = val.includes('.m3u8') || val.includes('.mpd') || val.includes('/hls-') || val.includes('m3u8') || val.includes('.m3u');
+            if (isVideoUrl && !isImage && !isHls) return val;
+          }
+          if (typeof val === 'object' && val !== null) {
+            if (key.startsWith('__') || key === 'current' || key === 'stateNode' || key === 'return' || val.nodeType) continue;
+            if (Array.isArray(val) && val.length > 5) continue;
+            const res = searchObj(val, depth + 1);
+            if (res) return res;
+          }
+        } catch {}
+      }
+      return null;
+    };
+    let levels = 0;
+    while (currentFiber && levels < 10) {
+      levels++;
+      for (const propName of ['memoizedProps', 'pendingProps', 'memoizedState']) {
+        if (currentFiber[propName]) {
+          const u = searchObj(currentFiber[propName]);
+          if (u) return u;
+        }
+      }
+      currentFiber = currentFiber.return;
+    }
+    return null;
+  }
+
+  function queryVideoUrlViaMainBridge(videoEl) {
+    if (!videoEl) return Promise.resolve(null);
+    const requestId = 'ref_' + Math.random().toString(36).substring(2, 9);
+    videoEl.setAttribute('data-takoh-target', requestId);
+    return new Promise(resolve => {
+      const onResponse = e => {
+        if (e.detail && e.detail.targetId === requestId) {
+          document.removeEventListener('TAKOH_RESPONSE_URL', onResponse);
+          videoEl.removeAttribute('data-takoh-target');
+          resolve(e.detail.videoUrl || null);
+        }
+      };
+      document.addEventListener('TAKOH_RESPONSE_URL', onResponse);
+      document.dispatchEvent(new CustomEvent('TAKOH_REQUEST_URL', { detail: { targetId: requestId } }));
+      setTimeout(() => {
+        document.removeEventListener('TAKOH_RESPONSE_URL', onResponse);
+        videoEl.removeAttribute('data-takoh-target');
+        resolve(null);
+      }, 650);
+    });
+  }
+
   function reference(target) {
     if (!target) return null;
     const isMedia = target.tagName === 'VIDEO' || target.tagName === 'IMG';
@@ -53,19 +131,30 @@
     const videoSet = new Set();
     if (media?.tagName === 'VIDEO' && source) videoSet.add(source);
     const imageSet = new Set();
-    if (media?.tagName === 'IMG' && source) imageSet.add(source);
+    const coverFrameUrls = new Set();
+    if (media?.tagName === 'IMG' && source) {
+      if (isVideoCoverFrameImageUrl(source)) coverFrameUrls.add(source);
+      else imageSet.add(source);
+    }
     let extraPoster = posterUrl;
     let firstVideoEl = media?.tagName === 'VIDEO' ? media : null;
     let firstImgEl = media?.tagName === 'IMG' ? media : null;
     const scope = boundary || target;
+    const videoElementsInPost = [];
     if (scope && scope.querySelectorAll) {
       for (const v of scope.querySelectorAll('video')) {
         if (!firstVideoEl) firstVideoEl = v;
-        const vUrl = https(v.currentSrc || v.src || v.querySelector('source')?.src || '');
+        videoElementsInPost.push(v);
+        let vUrl = https(v.currentSrc || v.src || v.querySelector('source')?.src || '');
+        if (!vUrl) {
+          const fiberUrl = findVideoUrlFromReactFiberLocal(v);
+          if (fiberUrl) vUrl = https(fiberUrl);
+        }
         if (vUrl) videoSet.add(vUrl);
-        if (!extraPoster) {
-          const vp = https(v.poster || v.getAttribute('poster') || '');
-          if (vp) extraPoster = vp;
+        const vp = https(v.poster || v.getAttribute('poster') || '');
+        if (vp) {
+          coverFrameUrls.add(vp);
+          if (!extraPoster) extraPoster = vp;
         }
       }
       for (const img of scope.querySelectorAll('img')) {
@@ -82,9 +171,30 @@
         if (img.closest('header, [data-testid*="avatar" i]')) continue;
         const a = img.closest('a[href]');
         if (a && /^\/@[^/]+\/?$/.test(new URL(a.href, location.href).pathname)) continue;
+        if (isVideoCoverFrameImageUrl(iUrl)) {
+          coverFrameUrls.add(iUrl);
+          if (!extraPoster) extraPoster = iUrl;
+          continue;
+        }
+        if (videoElementsInPost.length > 0 && r.width > 0 && r.height > 0) {
+          const overlapsVideo = videoElementsInPost.some(v => {
+            const vr = v.getBoundingClientRect?.() || { width: 0, height: 0, left: 0, top: 0 };
+            return vr.width > 0 && vr.height > 0 && Math.abs(r.left - vr.left) < 4 && Math.abs(r.top - vr.top) < 4 && Math.abs(r.width - vr.width) < 4;
+          });
+          if (overlapsVideo) {
+            coverFrameUrls.add(iUrl);
+            if (!extraPoster) extraPoster = iUrl;
+            continue;
+          }
+        }
         if (!firstImgEl) firstImgEl = img;
         imageSet.add(iUrl);
       }
+    }
+
+    // Remove any cover frames that were accidentally added
+    for (const cf of coverFrameUrls) {
+      imageSet.delete(cf);
     }
 
     let thumbnailDataUrl = '';
@@ -119,12 +229,13 @@
     if (!permalink || !/(^|\.)(threads\.com|threads\.net|instagram\.com|pinterest\.com)$/i.test((() => { try { return new URL(permalink).hostname; } catch { return ''; } })())) {
       const userLink = scope?.querySelector?.('a[href^="/@"]');
       const uHref = userLink ? https(userLink.href) : null;
-      permalink = cleanPostUrls[0] || uHref || https(location.href) || [...videoSet][0] || [...imageSet][0] || 'https://www.threads.com/';
+      permalink = cleanPostUrls[0] || uHref || https(location.href) || [...videoSet][0] || [...imageSet][0] || [...coverFrameUrls][0] || 'https://www.threads.com/';
     }
 
-    const mediaKind = videoSet.size > 0 ? 'video' : (imageSet.size > 0 ? 'image' : 'text');
-    const resolvedPoster = extraPoster || [...imageSet][0] || '';
-    const resolvedThumb = thumbnailUrl || extraPoster || [...imageSet][0] || '';
+    const hasVideoPresence = videoSet.size > 0 || videoElementsInPost.length > 0 || coverFrameUrls.size > 0;
+    const mediaKind = hasVideoPresence ? 'video' : (imageSet.size > 0 ? 'image' : 'text');
+    const resolvedPoster = extraPoster || [...coverFrameUrls][0] || [...imageSet][0] || '';
+    const resolvedThumb = thumbnailUrl || extraPoster || [...coverFrameUrls][0] || [...imageSet][0] || '';
     return {
       id: permalink,
       permalink,
@@ -138,20 +249,44 @@
       thumbnailDataUrl
     };
   }
+
+  async function enrichReferenceWithMainWorldVideos(target, refData) {
+    if (!refData) return refData;
+    const boundary = findPostBoundary(target) || target;
+    const videos = boundary?.querySelectorAll ? Array.from(boundary.querySelectorAll('video')) : (target?.tagName === 'VIDEO' ? [target] : []);
+    if (!videos.length) return refData;
+    refData.mediaKind = 'video';
+    const videoSet = new Set(refData.videoUrls || []);
+    for (const v of videos) {
+      const direct = https(v.currentSrc || v.src || v.querySelector('source')?.src || '');
+      if (direct) {
+        videoSet.add(direct);
+        continue;
+      }
+      const bridged = await queryVideoUrlViaMainBridge(v);
+      const cleanBridged = bridged ? https(bridged) : null;
+      if (cleanBridged) videoSet.add(cleanBridged);
+    }
+    refData.videoUrls = [...videoSet];
+    return refData;
+  }
+
   function stopEvents(el){
     for(const type of ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'])el.addEventListener(type,e=>e.stopPropagation(),true);
   }
   function createStudioActionButtons(getTargetFn) {
     const button=document.createElement('button');button.type='button';
-    button.className='takoh-collect-reference';button.textContent='📌 수집';button.title='이 게시물을 인스레드 치트키 보관함에 추가';
+    button.className='takoh-collect-reference';button.textContent='수집';button.title='이 게시물을 인스레드 치트키 보관함에 추가';
     button.style.cssText='pointer-events:auto;padding:5px 10px;border:1px solid rgba(139,92,246,0.45);border-radius:8px;background:rgba(91,72,220,0.9);color:white;cursor:pointer;font-size:12px;font-weight:600;z-index:2147483647;';
     stopEvents(button);
-    button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    button.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
       const failed=()=>window.TAKCore.showToast('studio-'+Date.now(),'수집 연결 끊김','확장이 갱신되었습니다. 이 콘텐츠 페이지를 새로고침한 뒤 다시 수집하세요.','error');
       try{
       const runtime=typeof chrome==='undefined'?null:chrome.runtime;
       if(!runtime?.id||typeof runtime.sendMessage!=='function'){failed();return;}
-      runtime.sendMessage({action:'studioSaveReference',reference:reference(getTargetFn())},response=>{
+      const targetEl=getTargetFn();
+      const refData=await enrichReferenceWithMainWorldVideos(targetEl, reference(targetEl));
+      runtime.sendMessage({action:'studioSaveReference',reference:refData},response=>{
         try{
         const error=runtime.lastError;
         window.TAKCore.showToast('studio-'+Date.now(),error||!response?.success?'수집 실패':'보관함에 추가됨',error?.message||response?.error||'보관함에 저장되었습니다.',error||!response?.success?'error':'success');
@@ -161,16 +296,17 @@
     },true);
 
     const directBtn=document.createElement('button');directBtn.type='button';
-    directBtn.className='takoh-create-direct';directBtn.textContent='⚡ 바로 제작';directBtn.title='콘텐츠 제작 탭으로 이동해 이 게시물을 바로 편집·번역하고 업로드';
+    directBtn.className='takoh-create-direct';directBtn.textContent='바로 제작';directBtn.title='콘텐츠 제작 탭으로 이동해 이 게시물을 바로 편집·번역하고 업로드';
     directBtn.style.cssText='pointer-events:auto;padding:5px 11px;border:1px solid rgba(45,212,191,0.6);border-radius:8px;background:linear-gradient(135deg,#0f766e,#2563eb);color:white;cursor:pointer;font-size:12px;font-weight:700;z-index:2147483647;margin-left:4px;';
     stopEvents(directBtn);
-    directBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    directBtn.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
       const failed=()=>window.TAKCore.showToast('studio-direct-'+Date.now(),'제작 연결 실패','도우미 연결을 확인하고 다시 시도해 주세요.','error');
       try{
       const runtime=typeof chrome==='undefined'?null:chrome.runtime;
       if(!runtime?.id||typeof runtime.sendMessage!=='function'){failed();return;}
-      const refData=reference(getTargetFn());
-      window.TAKCore.showToast('studio-direct-'+Date.now(),'✦ 콘텐츠 제작 탭으로 이동','원본 본문과 미디어를 콘텐츠 제작 화면으로 불러옵니다.','info');
+      const targetEl=getTargetFn();
+      const refData=await enrichReferenceWithMainWorldVideos(targetEl, reference(targetEl));
+      window.TAKCore.showToast('studio-direct-'+Date.now(),'콘텐츠 제작 탭으로 이동','원본 본문과 미디어를 콘텐츠 제작 화면으로 불러옵니다.','info');
       runtime.sendMessage({action:'studioCreateDirect',reference:refData},response=>{
         try{
         const error=runtime.lastError;

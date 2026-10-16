@@ -213,7 +213,9 @@ if($('dashboard-url-form'))$('dashboard-url-form').onsubmit=event=>{
   const url=($('dashboard-fetch-url')?.value||'').trim();
   if(!url){message('불러올 게시물 URL을 입력해 주세요.',true);return;}
   act('게시물에서 미디어와 본문을 가져와 제작 프로젝트를 생성하는 중…',async()=>{
-    job=await api('acquire',{url});
+    let acquired=await api('acquire',{url});
+    job=await normalizeAcquiredComboJob(acquired,{url,cleanImageUrls:[]});
+    if((job?.attachments||[]).length>0&&$('upload-format'))$('upload-format').value='combo';
     if($('dashboard-fetch-url'))$('dashboard-fetch-url').value='';
     render();await refreshJobs();
     document.querySelector('[data-workspace="create"]')?.click();
@@ -1435,7 +1437,262 @@ function renderCarouselPreview(){
     workbench.append(wbGrid);
   }
 }
+function isThreadsVideoCoverFrameUrl(urlStr){
+  if(!urlStr||typeof urlStr!=='string')return false;
+  if(urlStr.includes('/t51.71878-15/'))return true;
+  if(/video_default_cover_frame|vts_vod_urlgen/i.test(urlStr))return true;
+  try{
+    const m=urlStr.match(/[?&]efg=([^&]+)/);
+    if(m&&m[1]){
+      const dec=atob(decodeURIComponent(m[1]).replace(/-/g,'+').replace(/_/g,'/'));
+      if(/video_default_cover_frame|vts_vod_urlgen/i.test(dec))return true;
+    }
+  }catch{}
+  return false;
+}
+
+function canonicalMediaAssetFilename(urlStr){
+  if(!urlStr||typeof urlStr!=='string')return '';
+  try{
+    const parsed=new URL(urlStr);
+    const segs=parsed.pathname.split('/').filter(Boolean);
+    return segs[segs.length-1]||urlStr;
+  }catch{
+    const raw=urlStr.split('?')[0];
+    const segs=raw.split('/').filter(Boolean);
+    return segs[segs.length-1]||urlStr;
+  }
+}
+
+function cleanAndDeduplicateCompanionImageUrls(imageUrls,ref=null){
+  const rawList=Array.isArray(imageUrls)?imageUrls:[];
+  const filtered=rawList.filter(u=>{
+    if(!u||typeof u!=='string')return false;
+    if(/(?:ytimg\.com|ggpht\.com)/i.test(u))return false;
+    if(isThreadsVideoCoverFrameUrl(u))return false;
+    if(ref&&(ref.mediaKind==='video'||(ref.videoUrls&&ref.videoUrls.length>0))&&(u===ref.thumbnailUrl||u===ref.poster))return false;
+    return true;
+  });
+  const byKey=new Map();
+  for(const u of filtered){
+    const key=canonicalMediaAssetFilename(u)||u;
+    const prev=byKey.get(key);
+    if(!prev){
+      byKey.set(key,u);
+    }else if(/_s\d+x\d+|[?&]stp=[^&]*s\d+x\d+/i.test(prev)&&!/_s\d+x\d+|[?&]stp=[^&]*s\d+x\d+/i.test(u)){
+      byKey.set(key,u);
+    }
+  }
+  return [...byKey.values()];
+}
+
+async function normalizeAcquiredComboJob(acquiredJob,context={}){
+  if(!acquiredJob||!acquiredJob.id)return acquiredJob;
+  let currentJob=acquiredJob;
+  const sourceUrl=context.url||currentJob.source||'';
+  const isThreadsUrl=/(?:threads\.com|threads\.net)\//i.test(sourceUrl);
+  const explicitChoice=Boolean(context.explicitMediaChoice);
+
+  // 1) If a Threads post with Video + Image was previously cached as an image job with a video attachment,
+  // automatically re-acquire with kind='video' so the video becomes 1st-priority primary media and the image becomes 2nd-priority companion attachment!
+  if(!explicitChoice&&currentJob.kind==='image'){
+    const videoAtt=(currentJob.attachments||[]).find(a=>a&&a.kind==='video');
+    if(videoAtt||isThreadsUrl){
+      try{
+        const retryPayload={
+          url:sourceUrl,
+          kind:'video',
+          source_text:context.sourceText||currentJob.source_text||'',
+          image_urls:cleanAndDeduplicateCompanionImageUrls(context.cleanImageUrls||[])
+        };
+        if(videoAtt?.source_url){
+          retryPayload.media_url=videoAtt.source_url;
+          retryPayload.video_urls=[videoAtt.source_url];
+        }
+        const promoted=await api('acquire',retryPayload);
+        if(promoted&&promoted.id&&promoted.kind!=='image'){
+          currentJob=promoted;
+        }
+      }catch{}
+    }
+  }
+
+  // 2) Clean up any video cover frame or duplicate resolution attachments on the job
+  const atts=Array.isArray(currentJob.attachments)?currentJob.attachments:[];
+  if(atts.length>0){
+    const seenAssetKeys=new Map();
+    atts.forEach((att,idx)=>{
+      if(!att)return;
+      const src=att.source_url||'';
+      if(att.kind==='image'&&isThreadsVideoCoverFrameUrl(src)){
+        return;
+      }
+      const key=att.name||canonicalMediaAssetFilename(src)||att.file||`idx_${idx}`;
+      const prevIdx=seenAssetKeys.get(key);
+      if(prevIdx===undefined){
+        seenAssetKeys.set(key,idx);
+      }else{
+        const prevSrc=atts[prevIdx]?.source_url||'';
+        if(/_s\d+x\d+|[?&]stp=[^&]*s\d+x\d+/i.test(prevSrc)&&!/_s\d+x\d+|[?&]stp=[^&]*s\d+x\d+/i.test(src)){
+          seenAssetKeys.set(key,idx);
+        }
+      }
+    });
+    const keepIndices=new Set(seenAssetKeys.values());
+    const removeIndices=[];
+    for(let i=atts.length-1;i>=0;i--){
+      const src=atts[i]?.source_url||'';
+      if((atts[i]?.kind==='image'&&isThreadsVideoCoverFrameUrl(src))||!keepIndices.has(i)){
+        removeIndices.push(i);
+      }
+    }
+    for(const rmIdx of removeIndices){
+      try{
+        currentJob=await api(`jobs/${currentJob.id}/attachments-config`,{action:'remove',index:rmIdx});
+      }catch{}
+    }
+  }
+  return currentJob;
+}
+
+function renderPlayerCompanionMediaBar(){
+  const bar=$('player-companion-media-bar');
+  if(!bar)return;
+  bar.replaceChildren();
+  const atts=(job?.attachments||[]).filter(a=>a&&!isThreadsVideoCoverFrameUrl(a.source_url||''));
+  if(!job||!atts.length){
+    bar.hidden=true;
+    return;
+  }
+  bar.hidden=false;
+  const base=`/studio/jobs/${job.id}/media/`;
+  const ts=Math.floor((job.text_edit?.updated_at||Date.now())*1000);
+  const isPrimaryImage=job.kind==='image';
+  const imgAttCount=atts.filter(a=>a.kind==='image').length;
+  const vidAttCount=atts.filter(a=>a.kind==='video').length;
+
+  const head=document.createElement('div');
+  head.className='companion-media-bar-head';
+  const titleWrap=document.createElement('div');
+  titleWrap.className='companion-media-title-wrap';
+  const badge=text('span',isPrimaryImage?`복합 미디어 (메인 이미지 + 추가 ${atts.length}개)`:`복합 게시물 완료 (메인 영상 1 + 동반 이미지 ${imgAttCount||atts.length} · 총 ${atts.length+1}개)`);
+  badge.className='companion-combo-pill';
+  const sub=text('span','쓰레드 게시 시 영상과 동반 이미지가 함께 업로드됩니다');
+  sub.className='companion-combo-sub';
+  titleWrap.append(badge,sub);
+
+  const headActions=document.createElement('div');
+  headActions.className='companion-media-head-actions';
+  const btnOpenBundle=text('button','묶음 순서·구성 편집');
+  btnOpenBundle.type='button';
+  btnOpenBundle.className='secondary btn-xs';
+  btnOpenBundle.onclick=()=>{
+    document.querySelector('[data-workspace="create"]')?.click();
+    document.querySelector('[data-production-stage="editing"]')?.click();
+    selectEditTab('bundle');
+  };
+  headActions.append(btnOpenBundle);
+  head.append(titleWrap,headActions);
+
+  const strip=document.createElement('div');
+  strip.className='companion-media-strip';
+
+  // Card 1: Primary Media (Video)
+  const primaryChip=document.createElement('div');
+  primaryChip.className='companion-media-chip active-primary';
+  const pThumb=document.createElement('img');
+  const firstFrame=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
+  pThumb.src=`${base}${firstFrame}?t=${ts}`;
+  pThumb.alt='1순위 메인 미디어';
+  const pInfo=document.createElement('div');
+  pInfo.className='companion-chip-info';
+  pInfo.append(
+    text('strong',isPrimaryImage?'1순위 · 메인 이미지':`1순위 · 메인 영상 (${Number(job.media?.duration||0).toFixed(1)}초)`),
+    text('small','현재 좌측 플레이어에서 재생·편집 중')
+  );
+  primaryChip.append(pThumb,pInfo);
+  primaryChip.onclick=()=>{
+    if(!isPrimaryImage&&$('preview')){
+      $('preview').hidden=false;
+      if($('image-preview'))$('image-preview').hidden=true;
+      $('preview').play().catch(()=>{});
+    }
+  };
+  strip.append(primaryChip);
+
+  // Companion Media Cards (2nd, 3rd...)
+  atts.forEach((att,idx)=>{
+    const chip=document.createElement('div');
+    chip.className='companion-media-chip companion-item';
+    if(att.kind==='image'){
+      const img=document.createElement('img');
+      img.src=`${base}${att.file}?t=${ts}`;
+      img.alt=`${idx+2}순위 동반 이미지`;
+      chip.append(img);
+    }else{
+      const vBadge=text('span','VIDEO');
+      vBadge.className='companion-chip-vbadge';
+      chip.append(vBadge);
+    }
+    const info=document.createElement('div');
+    info.className='companion-chip-info';
+    info.append(
+      text('strong',`${idx+2}순위 · 동반 ${att.kind==='video'?'영상':'이미지'} #${idx+1}`),
+      text('small',att.label||'원본 게시물 두 번째 미디어 · 함께 게시됨')
+    );
+    const btnGroup=document.createElement('div');
+    btnGroup.className='companion-chip-btns';
+    if(att.kind==='image'){
+      const btnPreviewImg=text('button','크게 보기');
+      btnPreviewImg.type='button';
+      btnPreviewImg.className='secondary btn-xs';
+      btnPreviewImg.title='좌측 미리보기 창에서 이 동반 이미지를 확인합니다 (다시 메인 영상을 클릭하면 영상으로 돌아옵니다)';
+      btnPreviewImg.onclick=e=>{
+        e.stopPropagation();
+        if($('preview')){$('preview').pause();$('preview').hidden=true;}
+        if($('image-preview')){
+          $('image-preview').hidden=false;
+          $('image-preview').src=`${base}${att.file}?t=${Date.now()}`;
+        }
+        strip.querySelectorAll('.companion-media-chip').forEach(c=>c.classList.remove('active-primary'));
+        chip.classList.add('active-primary');
+        message(`${idx+2}순위 동반 이미지를 미리보기 창에 표시했습니다. [1순위 · 메인 영상] 카드를 누르면 다시 영상으로 돌아옵니다.`);
+      };
+      const btnUseInCarousel=text('button','캐러셀 카드로 편집');
+      btnUseInCarousel.type='button';
+      btnUseInCarousel.className='btn-xs';
+      btnUseInCarousel.title='이 동반 이미지를 캐러셀·뉴스카드 스튜디오의 슬라이드 배경으로 바로 불러와 문구를 편집합니다';
+      btnUseInCarousel.onclick=e=>{
+        e.stopPropagation();
+        act('동반 이미지를 캐러셀 슬라이드로 불러오는 중…',async()=>{
+          const resp=await fetch(`${base}${att.file}?t=${Date.now()}`);
+          const blob=await resp.blob();
+          const dataUrl=await readImageFileAsDataUrl(blob);
+          document.querySelector('[data-workspace="create"]')?.click();
+          document.querySelector('[data-production-stage="carousel"]')?.click();
+          const hasSlides=Array.isArray(job?.carousel?.slides)&&job.carousel.slides.length>0;
+          await applyCarouselCustomPhotoDataUrl(dataUrl,hasSlides?'add_slide':'replace',`동반 이미지 #${idx+1}`);
+        },`동반 이미지 #${idx+1}을(를) 캐러셀·뉴스카드 편집 화면으로 불러왔습니다!`);
+      };
+      btnGroup.append(btnPreviewImg,btnUseInCarousel);
+    }
+    primaryChip.onclick=()=>{
+      if(!isPrimaryImage&&$('preview')){
+        $('preview').hidden=false;
+        if($('image-preview'))$('image-preview').hidden=true;
+      }
+      strip.querySelectorAll('.companion-media-chip').forEach(c=>c.classList.remove('active-primary'));
+      primaryChip.classList.add('active-primary');
+    };
+    chip.append(info,btnGroup);
+    strip.append(chip);
+  });
+
+  bar.append(head,strip);
+}
+
 function renderAttachmentsPreview(){
+  renderPlayerCompanionMediaBar();
   const builder=$('media-bundle-builder'),box=$('attachments-box'),list=$('attachments-list');
   if(!box||!list)return;
   list.replaceChildren();
@@ -3350,7 +3607,7 @@ function render(){
   }
 }
 async function update(path,data){const targetId=job?.id;if(!targetId)return;const next=await api(`jobs/${targetId}/${path}`,data);if(job?.id!==targetId)return;job=next;render();await refreshJobs();}
-if($('url-fetch-form'))$('url-fetch-form').onsubmit=event=>{event.preventDefault();act('게시물에서 미디어와 본문을 가져오는 중…',async()=>{const url=$('fetch-url').value.trim();job=await api('acquire',{url});render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();},'영상·이미지와 게시물 정보를 불러왔습니다.');};
+if($('url-fetch-form'))$('url-fetch-form').onsubmit=event=>{event.preventDefault();act('게시물에서 미디어와 본문을 가져오는 중…',async()=>{const url=$('fetch-url').value.trim();let acquired=await api('acquire',{url});job=await normalizeAcquiredComboJob(acquired,{url,cleanImageUrls:[]});if((job?.attachments||[]).length>0&&$('upload-format'))$('upload-format').value='combo';render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();},'영상·이미지와 게시물 정보를 불러왔습니다.');};
 $('upload-form').onsubmit=event=>{event.preventDefault();const file=$('video-file').files[0];if(!file){message('영상 파일을 선택하거나 URL로 불러오기를 사용하세요.',true);return;}act('영상과 음성·프레임을 추출하는 중…',async()=>{const data=new FormData();data.append('video',file);data.append('source',$('source').value);job=await api('jobs',data);render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();});};
 $('image-form').onsubmit=event=>{event.preventDefault();const file=$('image-file').files[0];if(!file){message('이미지 파일을 선택하거나 URL로 불러오기를 사용하세요.',true);return;}act('원본 이미지 불러오는 중…',async()=>{const data=new FormData();data.append('image',file);data.append('source',$('source').value);job=await api('images',data);render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();});};
 if($('btn-save-source-text'))$('btn-save-source-text').onclick=()=>act('원본 게시물 본문 저장 중…',()=>update('repost-meta',{source_text:$('source-post-text').value}),'원본 게시물 글을 저장했습니다. 이제 [2 대본·게시문]에서 한국 스타일로 번역·재작성할 수 있습니다.');
@@ -5389,14 +5646,11 @@ async function refreshReferences(requestedCollection=referenceCollection){
     thumbBox.append(img,fallback);
 
     const badge=document.createElement('span');badge.className='media-badge';
-    const isVideoRef=ref.mediaKind==='video'||/(?:youtube\.com|youtu\.be)/i.test(ref.permalink||'');
+    const hasCoverFrameInRef=(ref.imageUrls||[]).some(u=>isThreadsVideoCoverFrameUrl(u));
+    const isVideoRef=ref.mediaKind==='video'||hasCoverFrameInRef||/(?:youtube\.com|youtu\.be)/i.test(ref.permalink||'');
     const cleanVideoUrls=(ref.videoUrls||[]).filter(u=>u&&u!==ref.permalink&&!/(?:youtube\.com|youtu\.be)/i.test(u));
-    const cleanImageUrls=(ref.imageUrls||[]).filter(u=>{
-      if(!u)return false;
-      if(isVideoRef&&(u===ref.thumbnailUrl||u===ref.poster||/(?:ytimg\.com|ggpht\.com)/i.test(u)))return false;
-      return true;
-    });
-    const vCount=cleanVideoUrls.length, iCount=cleanImageUrls.length;
+    const cleanImageUrls=cleanAndDeduplicateCompanionImageUrls(ref.imageUrls||[],ref);
+    const vCount=cleanVideoUrls.length||(hasCoverFrameInRef?1:0), iCount=cleanImageUrls.length;
     let badgeLabel=isVideoRef?'영상':ref.mediaKind==='image'?'이미지':'미디어';
     if(vCount>0&&iCount>0)badgeLabel=`영상 ${vCount} · 이미지 ${iCount}`;
     else if(vCount>0)badgeLabel=vCount>1?`영상 ${vCount}개`:'영상';
@@ -5424,16 +5678,17 @@ async function refreshReferences(requestedCollection=referenceCollection){
     }
 
     const allMedia=[
-      ...cleanVideoUrls.map((u,idx)=>({url:u,kind:'video',label:`영상 #${idx+1}`})),
-      ...cleanImageUrls.map((u,idx)=>({url:u,kind:'image',label:`이미지 #${idx+1}`}))
+      ...(cleanVideoUrls.length?cleanVideoUrls.map((u,idx)=>({url:u,kind:'video',label:iCount>0?`영상 #${idx+1} + 동반 이미지 ${iCount}장`:`영상 #${idx+1}`})):(isVideoRef?[{url:'',kind:'video',label:iCount>0?`메인 영상 + 동반 이미지 ${iCount}장 (2개 모두)`:`메인 영상`}]:[])),
+      ...cleanImageUrls.map((u,idx)=>({url:u,kind:'image',label:`이미지 #${idx+1} 단독`}))
     ];
+    const hasExplicitUserMediaChoice=referenceMediaChoices.has(ref.permalink);
     let chosenMedia=allMedia.find(m=>m.url===referenceMediaChoices.get(ref.permalink))||allMedia[0]||null;
     if(allMedia.length>1){
       const selectorWrap=document.createElement('div');selectorWrap.className='media-selector-wrap';
       selectorWrap.append(text('label','사용할 미디어 선택:'));
       const selectEl=document.createElement('select');
       allMedia.forEach((m,idx)=>{const opt=document.createElement('option');opt.value=idx;opt.textContent=m.label;selectEl.append(opt);});
-      selectEl.value=String(allMedia.indexOf(chosenMedia));
+      selectEl.value=String(Math.max(0,allMedia.indexOf(chosenMedia)));
       selectEl.onchange=e=>{e.stopPropagation();chosenMedia=allMedia[parseInt(selectEl.value,10)]||allMedia[0];referenceMediaChoices.set(ref.permalink,chosenMedia.url);};
       selectEl.onclick=e=>e.stopPropagation();
       selectorWrap.append(selectEl);info.append(selectorWrap);
@@ -5455,15 +5710,30 @@ async function refreshReferences(requestedCollection=referenceCollection){
       chooseBtn.disabled=true;
       try{
         await act('콘텐츠 원본을 획득하는 중…',async()=>{
+          const isThreadsUrl=/(?:threads\.com|threads\.net)\//i.test(ref.permalink||'');
+          const explicitPick=referenceMediaChoices.has(ref.permalink);
           const payload={
             url:ref.permalink,
-            kind:isVideoRef?'video':(ref.mediaKind||'auto'),
+            kind:isVideoRef?'video':(isThreadsUrl?'auto':(ref.mediaKind||'auto')),
             source_text:ref.text||'',
             video_urls:cleanVideoUrls,
             image_urls:cleanImageUrls
           };
-          if(chosenMedia){payload.media_url=chosenMedia.url;payload.kind=chosenMedia.kind;}
-          try{job=await api('acquire',payload);}catch(err){statusText.textContent='획득 실패: '+err.message;referenceStates.set(ref.permalink,statusText.textContent);throw err;}
+          if(chosenMedia&&chosenMedia.url&&(chosenMedia.kind==='video'||explicitPick||!isThreadsUrl)){
+            payload.media_url=chosenMedia.url;
+            payload.kind=chosenMedia.kind;
+            if(explicitPick)payload.explicit_media_choice=true;
+          }
+          try{
+            const acquired=await api('acquire',payload);
+            job=await normalizeAcquiredComboJob(acquired,{
+              url:ref.permalink,
+              sourceText:ref.text||'',
+              cleanImageUrls,
+              explicitMediaChoice:explicitPick&&chosenMedia?.kind==='image'
+            });
+            if((job?.attachments||[]).length>0&&$('upload-format'))$('upload-format').value='combo';
+          }catch(err){statusText.textContent='획득 실패: '+err.message;referenceStates.set(ref.permalink,statusText.textContent);throw err;}
           statusText.textContent='준비 완료!';referenceStates.set(ref.permalink,statusText.textContent);
           render();await refreshJobs();
           document.querySelector('[data-workspace="create"]')?.click();
@@ -6149,18 +6419,31 @@ window.addEventListener('message',event=>{
   if($('source'))$('source').value=ref.permalink;
   if($('fetch-url'))$('fetch-url').value=ref.permalink;
   act('선택한 게시물에서 미디어와 본문을 바로 가져오는 중…',async()=>{
+    const isThreadsUrl=/(?:threads\.com|threads\.net)\//i.test(ref.permalink||'');
+    const hasCoverFrameInRef=(ref.imageUrls||[]).some(u=>isThreadsVideoCoverFrameUrl(u));
     const cleanVideoUrls=(ref.videoUrls||[]).filter(u=>u&&u!==ref.permalink&&!/(?:youtube\.com|youtu\.be)/i.test(u));
-    const cleanImageUrls=(ref.imageUrls||[]).filter(u=>u&&!/(?:ytimg\.com|ggpht\.com)/i.test(u));
+    const cleanImageUrls=cleanAndDeduplicateCompanionImageUrls(ref.imageUrls||[],ref);
     const payload={
       url:ref.permalink,
-      kind:ref.mediaKind||'auto',
+      kind:(cleanVideoUrls.length||hasCoverFrameInRef||ref.mediaKind==='video')?'video':(isThreadsUrl?'auto':(ref.mediaKind||'auto')),
       source_text:ref.text||'',
       video_urls:cleanVideoUrls,
       image_urls:cleanImageUrls
     };
-    if(cleanVideoUrls[0]){payload.media_url=cleanVideoUrls[0];payload.kind='video';}
-    else if(cleanImageUrls[0]){payload.media_url=cleanImageUrls[0];payload.kind='image';}
-    job=await api('acquire',payload);
+    if(cleanVideoUrls[0]){
+      payload.media_url=cleanVideoUrls[0];
+      payload.kind='video';
+    }else if(cleanImageUrls[0]&&!isThreadsUrl&&!hasCoverFrameInRef){
+      payload.media_url=cleanImageUrls[0];
+      payload.kind='image';
+    }
+    const acquired=await api('acquire',payload);
+    job=await normalizeAcquiredComboJob(acquired,{
+      url:ref.permalink,
+      sourceText:ref.text||'',
+      cleanImageUrls
+    });
+    if((job?.attachments||[]).length>0&&$('upload-format'))$('upload-format').value='combo';
     render();
     await refreshJobs();
     await refreshReferences().catch(()=>{});
