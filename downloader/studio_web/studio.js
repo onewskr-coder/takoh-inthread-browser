@@ -1199,54 +1199,93 @@ function renderAttachmentsPreview(){
   box.hidden=false;
   const base=`/studio/jobs/${job.id}/media/`;
   const ts=Math.floor((job.text_edit?.updated_at||Date.now())*1000);
+  const isPrimaryImage=job.kind==='image';
+  const durStr=isPrimaryImage?'단일 이미지':`${Number(job.media?.duration||0).toFixed(1)}초`;
+  const resStr=(job.media?.width&&job.media?.height)?`${job.media.width}×${job.media.height}`:'원본 해상도';
+
   // 1st slot: Primary video or image
   const primaryCard=document.createElement('div');
   primaryCard.className='attachment-item primary-slot';
   const pBadge=document.createElement('div');
   pBadge.className='attachment-slot-badge';
-  pBadge.append(text('span',job.kind==='image'?'1순위 · 메인 이미지':'1순위 · 메인 영상'));
+  const pOrder=text('span','1순위 · 메인 '+(isPrimaryImage?'이미지':'영상'));
+  pOrder.className='attachment-rank-pill primary';
+  const pType=text('span',isPrimaryImage?'IMAGE':'VIDEO');
+  pType.className='attachment-kind-tag';
+  pBadge.append(pOrder,pType);
+
+  const pThumbWrap=document.createElement('div');
+  pThumbWrap.className='attachment-thumb-frame';
   const pImg=document.createElement('img');
   const firstFrame=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
   pImg.src=`${base}${firstFrame}?t=${ts}`;
-  pImg.alt='메인 미디어';
-  primaryCard.append(pBadge,pImg,text('small',job.kind==='image'?'원본/편집 이미지':'현재 영상 1개'));
+  pImg.alt='1순위 메인 미디어 미리보기';
+  pThumbWrap.append(pImg);
+
+  const pMeta=document.createElement('div');
+  pMeta.className='attachment-meta-info';
+  const pTitle=text('strong',job.name||(isPrimaryImage?'메인 이미지':'메인 편집 영상'));
+  pTitle.className='attachment-item-title';
+  const pSub=text('small',`${isPrimaryImage?'원본/편집 이미지':'메인 업로드 영상'} · ${durStr} · ${resStr}`);
+  pSub.className='attachment-item-sub';
+  pMeta.append(pTitle,pSub);
+
+  primaryCard.append(pBadge,pThumbWrap,pMeta);
   list.append(primaryCard);
 
   const items=job?.attachments||[];
   for(const [idx,att] of items.entries()){
     const card=document.createElement('div');
-    card.className='attachment-item';
+    card.className='attachment-item companion-slot';
     const slotHead=document.createElement('div');
     slotHead.className='attachment-slot-badge';
-    slotHead.append(text('span',`${idx+2}순위 · ${att.kind==='video'?'영상':'이미지'}`));
+    const rankPill=text('span',`${idx+2}순위 · 동반 ${att.kind==='video'?'영상':'이미지'}`);
+    rankPill.className='attachment-rank-pill';
+    const kindTag=text('span',att.kind==='video'?'VIDEO':'IMAGE');
+    kindTag.className='attachment-kind-tag';
+    slotHead.append(rankPill,kindTag);
+
+    const thumbWrap=document.createElement('div');
+    thumbWrap.className='attachment-thumb-frame';
     if(att.kind==='image'){
       const img=document.createElement('img');
       img.src=`${base}${att.file}?t=${ts}`;
-      img.alt=`첨부 이미지 ${idx+2}`;
-      card.append(slotHead,img);
+      img.alt=`${idx+2}순위 동반 이미지`;
+      thumbWrap.append(img);
     }else{
       const badge=text('span',`추가 영상 #${idx+2}`);
       badge.className='attachment-video-badge';
-      card.append(slotHead,badge);
+      thumbWrap.append(badge);
     }
+
+    const meta=document.createElement('div');
+    meta.className='attachment-meta-info';
+    const titleStr=att.label||(att.file?.startsWith('carousel-')?`캐러셀 슬라이드 (${att.file})`:`동반 이미지 #${idx+1} (${att.file||'첨부'})`);
+    const aTitle=text('strong',titleStr);
+    aTitle.className='attachment-item-title';
+    const aSub=text('small',`쓰레드 우측 동반 첨부 · 파일: ${att.file||'image'}`);
+    aSub.className='attachment-item-sub';
+    meta.append(aTitle,aSub);
+
     const actions=document.createElement('div');
     actions.className='attachment-slot-actions';
     if(idx>0){
-      const btnLeft=text('button','◀');btnLeft.type='button';btnLeft.className='secondary btn-xs';
+      const btnLeft=text('button','◀ 앞으로');btnLeft.type='button';btnLeft.className='secondary btn-xs';
       btnLeft.title='순서 앞으로 이동';
       btnLeft.onclick=()=>act('첨부 순서 변경 중…',()=>update('attachments-config',{action:'move',from_index:idx,to_index:idx-1}));
       actions.append(btnLeft);
     }
     if(idx<items.length-1){
-      const btnRight=text('button','▶');btnRight.type='button';btnRight.className='secondary btn-xs';
+      const btnRight=text('button','뒤로 ▶');btnRight.type='button';btnRight.className='secondary btn-xs';
       btnRight.title='순서 뒤로 이동';
       btnRight.onclick=()=>act('첨부 순서 변경 중…',()=>update('attachments-config',{action:'move',from_index:idx,to_index:idx+1}));
       actions.append(btnRight);
     }
-    const btnDel=text('button','✕ 제외');btnDel.type='button';btnDel.className='secondary btn-xs';
+    const btnDel=text('button','✕ 첨부 제외');btnDel.type='button';btnDel.className='secondary btn-xs btn-danger-ghost';
     btnDel.onclick=()=>act('첨부 미디어 제외 중…',()=>update('attachments-config',{action:'remove',index:idx}));
     actions.append(btnDel);
-    card.append(actions);
+
+    card.append(slotHead,thumbWrap,meta,actions);
     list.append(card);
   }
 }
