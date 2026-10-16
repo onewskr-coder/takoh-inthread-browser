@@ -31,7 +31,8 @@ function writingCounts(){for(const id of ['script','body']){const count=Array.fr
 for(const id of ['script','body'])$(id).addEventListener('input',writingCounts);
 for(const [button,field] of [['copy-intro','script'],['copy-draft-body','body']])$(button).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(field).value);},'문단을 유지해 복사했습니다.');
 function text(tag,value){const el=document.createElement(tag);el.textContent=value;return el;}
-window.$=$;window.api=api;window.act=act;window.message=message;window.text=text;
+function escapeHtml(str){return String(str??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+window.$=$;window.api=api;window.act=act;window.message=message;window.text=text;window.escapeHtml=escapeHtml;
 let editJobId=null;
 let hookFocus=null;
 function refreshHookFocus(){

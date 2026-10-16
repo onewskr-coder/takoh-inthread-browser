@@ -1,5 +1,6 @@
 'use strict';
 (() => {
+  const escapeHtml = window.escapeHtml || (str => String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
   // Keep the existing controls and handlers; group infrequent actions into disclosures.
   function organiseDiscovery(){
     const root=document.getElementById('discovery-workspace');if(!root)return;
