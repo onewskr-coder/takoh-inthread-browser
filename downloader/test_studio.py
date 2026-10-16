@@ -436,7 +436,9 @@ class StudioTests(unittest.TestCase):
         self.assertIn(product['affiliate_url'], response.json['comment'])
         self.assertEqual(self.post(job, 'prepare', {'script': 'test', 'body': '고지 없음', 'disclosure': 'test'}).status_code, 400)
         job = self.post(job, 'product', {**product, 'name': '다른 상품'}).json
-        self.assertIsNone(job['draft'])
+        self.assertIsNotNone(job['draft'])
+        self.assertTrue(job['draft'].get('needs_review'))
+        self.assertIn('재검토', job['draft'].get('review_reason', ''))
         self.assertEqual(job['comment'], '')
 
     def test_external_routes_store_results_without_credentials_and_lock_started_job(self):
@@ -917,8 +919,679 @@ class StudioTests(unittest.TestCase):
         # Library items remain intact
         self.assertEqual(len(self.client.get('/studio/saved-references').json), 2)
 
+    def test_carousel_and_media_text_edit_erase_mode_none_preserves_original_frame(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # 1. carousel-generate with UI value erase_mode='none' and overlay_position='center' must map to 'keep' and 'middle'
+        # Even with auto_caption=True or leftover slide_texts, 'none' mode must not inject captions or dark boxes over the original frames
+        car_res = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 3,
+            'aspect': '4:5',
+            'erase_mode': 'none',
+            'overlay_position': 'center',
+            'auto_caption': True,
+            'slide_texts': ['잔여 문구 1', '잔여 문구 2', '잔여 문구 3'],
+        }, headers=self.headers)
+        self.assertEqual(car_res.status_code, 200)
+        car = car_res.json['carousel']
+        self.assertEqual(car['erase_mode'], 'keep')
+        self.assertEqual(car['overlay_position'], 'middle')
+        self.assertEqual(len(car['slides']), 3)
+        for slide in car['slides']:
+            self.assertEqual(slide['text'], '')
+
+        # 2. media-text-edit with UI value erase_mode='none' and overlay_position='center' must succeed without StudioError
+        edit_res = self.client.post(f'/studio/jobs/{job_id}/media-text-edit', json={
+            'erase_mode': 'none',
+            'overlay_text': '',
+            'overlay_position': 'center',
+        }, headers=self.headers)
+        self.assertEqual(edit_res.status_code, 200)
+        self.assertEqual(edit_res.json['text_edit']['erase_mode'], 'keep')
+        self.assertEqual(edit_res.json['text_edit']['overlay_position'], 'middle')
+
+        # 3. If previous edit created video-raw, carousel extraction must use video-raw
+        raw_video = Path(self.data.name) / job_id / 'video-raw'
+        self.assertTrue(raw_video.is_file())
+        car_res2 = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 3,
+            'aspect': '4:5',
+            'erase_mode': 'cover_first',
+            'overlay_position': 'bottom',
+            'auto_caption': False,
+            'slide_texts': ['표지 후킹 문구', '2번 문구', '3번 문구'],
+        }, headers=self.headers)
+        self.assertEqual(car_res2.status_code, 200)
+        slides2 = car_res2.json['carousel']['slides']
+        self.assertEqual(len(slides2), 3)
+        self.assertEqual(slides2[0]['text'], '표지 후킹 문구')
+        self.assertEqual(slides2[1]['text'], '')
+        self.assertEqual(slides2[2]['text'], '')
+
+        # 4. Per-slide timestamp update replaces only the requested slide
+        upd_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-update', json={
+            'index': 2,
+            'timestamp': 1.25,
+        }, headers=self.headers)
+        self.assertEqual(upd_res.status_code, 200)
+        self.assertEqual(upd_res.json['carousel']['slides'][1]['timestamp'], 1.25)
+
+    def test_stage0_r1_exported_carousel_delivery_immutability_and_hash_invalidation(self):
+        import hashlib
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # Generate initial carousel
+        car_res = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 3,
+            'aspect': '4:5',
+            'erase_mode': 'none',
+            'auto_caption': False,
+        }, headers=self.headers)
+        self.assertEqual(car_res.status_code, 200)
+
+        # Prepare job for publish
+        prep = self.client.post(f'/studio/jobs/{job_id}/prepare', json={
+            'body': '첫 번째 예약 테스트 본문입니다.',
+            'script': '첫 번째 예약 테스트 본문입니다.',
+            'disclosure': '',
+            'comment': '첫 번째 댓글',
+        }, headers=self.headers)
+        self.assertEqual(prep.status_code, 200)
+        self.assertGreaterEqual(len(prep.json.get('draft_history') or []), 1)
+
+        # Export carousel delivery 1
+        exp1 = self.client.post(f'/studio/jobs/{job_id}/extension-export', json={
+            'platform': 'instagram_carousel',
+            'upload_format': 'carousel',
+        }, headers=self.headers)
+        self.assertEqual(exp1.status_code, 200)
+        deliv1_id = exp1.json['id']
+        deliv1_file0 = Path(self.data.name) / 'deliveries' / deliv1_id / 'file-0'
+        self.assertTrue(deliv1_file0.is_file())
+        deliv1_bytes_before = deliv1_file0.read_bytes()
+        deliv1_sha_before = hashlib.sha256(deliv1_bytes_before).hexdigest()
+
+        # Mutate slide 1 via carousel-slide-update with a new text and timestamp=0.0 (R4 + R1)
+        upd = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-update', json={
+            'index': 1,
+            'timestamp': 0,
+            'text': '수정된 표지 타이틀 문구',
+            'erase_mode': 'title_first',
+        }, headers=self.headers)
+        self.assertEqual(upd.status_code, 200)
+        self.assertEqual(upd.json['carousel']['slides'][0]['timestamp'], 0.0)
+        self.assertEqual(upd.json['carousel']['slides'][0]['text'], '수정된 표지 타이틀 문구')
+        self.assertEqual(upd.json['carousel']['slides'][0]['erase_mode'], 'keep')
+
+        # Verify delivery 1 file-0 bytes on disk were NOT mutated!
+        deliv1_bytes_after = deliv1_file0.read_bytes()
+        self.assertEqual(hashlib.sha256(deliv1_bytes_after).hexdigest(), deliv1_sha_before)
+        # Verify working carousel-1.jpg changed
+        working_slide0 = Path(self.data.name) / job_id / 'carousel-1.jpg'
+        self.assertNotEqual(hashlib.sha256(working_slide0.read_bytes()).hexdigest(), deliv1_sha_before)
+
+        # Re-exporting produces a new delivery_id with the updated slide
+        exp2 = self.client.post(f'/studio/jobs/{job_id}/extension-export', json={
+            'platform': 'instagram_carousel',
+            'upload_format': 'carousel',
+        }, headers=self.headers)
+        self.assertEqual(exp2.status_code, 200)
+        deliv2_id = exp2.json['id']
+        self.assertNotEqual(deliv1_id, deliv2_id)
+        deliv2_file0 = Path(self.data.name) / 'deliveries' / deliv2_id / 'file-0'
+        self.assertEqual(
+            hashlib.sha256(deliv2_file0.read_bytes()).hexdigest(),
+            hashlib.sha256(working_slide0.read_bytes()).hexdigest()
+        )
+        # And delivery 1 is still intact
+        self.assertEqual(hashlib.sha256(deliv1_file0.read_bytes()).hexdigest(), deliv1_sha_before)
+
+    def test_stage0_r2_r3_r5_draft_history_saved_products_and_title_first(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # R5: title_first puts title on slide 1 with erase_mode='keep' (no OCR cover_box) and keeps slides 2..N untouched
+        car_res = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 3,
+            'aspect': '4:5',
+            'erase_mode': 'title_first',
+            'overlay_position': 'top',
+            'auto_caption': False,
+            'slide_texts': ['표지 전용 타이틀', '무시될 2번 문구', '무시될 3번 문구'],
+        }, headers=self.headers)
+        self.assertEqual(car_res.status_code, 200)
+        car = car_res.json['carousel']
+        self.assertEqual(car['erase_mode'], 'title_first')
+        self.assertEqual(car['caption_scope'], 'first')
+        self.assertEqual(car['slides'][0]['text'], '표지 전용 타이틀')
+        self.assertEqual(car['slides'][0]['erase_mode'], 'keep')
+        self.assertEqual(car['slides'][0]['role'], 'cover')
+        self.assertEqual(car['slides'][1]['text'], '')
+        self.assertEqual(car['slides'][1]['erase_mode'], 'keep')
+        self.assertEqual(car['slides'][1]['role'], 'body')
+
+        # R2: multiple prepare calls record bounded per-job draft_history
+        self.client.post(f'/studio/jobs/{job_id}/prepare', json={'body': '첫 본문 버전', 'script': '첫 본문 버전'}, headers=self.headers)
+        prep2 = self.client.post(f'/studio/jobs/{job_id}/prepare', json={'body': '두 번째 본문 버전', 'script': '두 번째 본문 버전'}, headers=self.headers)
+        self.assertEqual(prep2.status_code, 200)
+        bodies = [h['body'] for h in prep2.json['draft_history']]
+        self.assertIn('첫 본문 버전', bodies)
+        self.assertIn('두 번째 본문 버전', bodies)
+
+        # R3: /studio/saved-products validation, CRUD, migration, and 50-item limit
+        bad_save = self.client.post('/studio/saved-products', json={'name': '', 'affiliate_url': ''}, headers=self.headers)
+        self.assertEqual(bad_save.status_code, 400)
+
+        good_save = self.client.post('/studio/saved-products', json={
+            'name': '스텐 배수구 거름망',
+            'platform': 'coupang',
+            'link_entry_mode': 'manual',
+            'affiliate_url': 'https://link.coupang.com/a/test1',
+        }, headers=self.headers)
+        self.assertEqual(good_save.status_code, 200)
+        saved_id = good_save.json['saved_id']
+        self.assertEqual(len(good_save.json['products']), 1)
+
+        # Delete
+        del_res = self.client.delete('/studio/saved-products', json={'id': saved_id}, headers=self.headers)
+        self.assertEqual(del_res.status_code, 200)
+        self.assertEqual(len(del_res.json['products']), 0)
+
+    def test_five_new_features_overlay_attachments_carousel_templates_and_multiplatform_images(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # 1. Media text edit with draggable coordinates (overlay_x, overlay_y) and top/hook title (title_text, title_x, title_y, title_end)
+        edit_res = self.client.post(f'/studio/jobs/{job_id}/media-text-edit', json={
+            'erase_mode': 'none',
+            'overlay_text': '하단 자막 테스트',
+            'overlay_position': 'bottom',
+            'overlay_x': 45.0,
+            'overlay_y': 80.0,
+            'title_text': '초반 3초 후킹 타이틀',
+            'title_position': 'top',
+            'title_x': 50.0,
+            'title_y': 16.0,
+            'title_start': 0.0,
+            'title_end': 3.5,
+        }, headers=self.headers)
+        self.assertEqual(edit_res.status_code, 200)
+        te = edit_res.json['text_edit']
+        self.assertEqual(te['overlay_text'], '하단 자막 테스트')
+        self.assertEqual(te['overlay_x'], 45.0)
+        self.assertEqual(te['overlay_y'], 80.0)
+        self.assertEqual(te['title_text'], '초반 3초 후킹 타이틀')
+        self.assertEqual(te['title_x'], 50.0)
+        self.assertEqual(te['title_y'], 16.0)
+        self.assertEqual(te['title_end'], 3.5)
+
+        # 2. Attachments config for Threads/Instagram/Naver Clip/TikTok (영상 1 + 이미지 1 preset & reorder)
+        att_res = self.client.post(f'/studio/jobs/{job_id}/attachments-config', json={
+            'action': 'preset_video_plus_images',
+            'image_count': 2,
+            'source': 'frames',
+        }, headers=self.headers)
+        self.assertEqual(att_res.status_code, 200)
+        self.assertEqual(len(att_res.json['attachments']), 2)
+
+        move_res = self.client.post(f'/studio/jobs/{job_id}/attachments-config', json={
+            'action': 'move',
+            'index': 0,
+            'direction': 1,
+        }, headers=self.headers)
+        self.assertEqual(move_res.status_code, 200)
+        self.assertEqual(len(move_res.json['attachments']), 2)
+
+        # 3. Carousel generate with cover_title, body slide_texts, template, and deterministic fallback
+        self.client.post(f'/studio/jobs/{job_id}/prepare', json={
+            'body': '자취방 삶의 질 수직상승 아이템!\n설치 10초 만에 끝납니다.\n물때 걱정이 사라졌어요.',
+            'script': '자취방 삶의 질 수직상승 아이템!\n설치 10초 만에 끝납니다.\n물때 걱정이 사라졌어요.',
+            'disclosure': '',
+            'comment': '첫 댓글 링크 안내',
+        }, headers=self.headers)
+
+        car_res = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 3,
+            'aspect': '4:5',
+            'erase_mode': 'title_all',
+            'template': 'highlight_hook',
+            'cover_title': '',
+            'slide_texts': [],
+            'auto_caption': False,
+        }, headers=self.headers)
+        self.assertEqual(car_res.status_code, 200)
+        car = car_res.json['carousel']
+        self.assertEqual(car['template'], 'highlight_hook')
+        self.assertEqual(len(car['slides']), 3)
+        # Deterministic fallback must populate cover (slide 1) and body slides (slides 2..3) from draft body!
+        self.assertTrue(bool(car['slides'][0]['text'].strip()))
+        self.assertTrue(bool(car['slides'][1]['text'].strip()))
+        self.assertTrue(bool(car['slides'][2]['text'].strip()))
+
+        # 4. Extension export supports carousel/combo on naver_clip and tiktok as well as threads
+        exp_naver_car = self.client.post(f'/studio/jobs/{job_id}/extension-export', json={
+            'platform': 'naver_clip',
+            'publish_format': 'carousel',
+        }, headers=self.headers)
+        self.assertEqual(exp_naver_car.status_code, 200)
+        naver_packet = json.loads((Path(self.data.name) / 'deliveries' / exp_naver_car.json['id'] / 'packet.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(naver_packet['files']), 3)
+
+        exp_tiktok_car = self.client.post(f'/studio/jobs/{job_id}/extension-export', json={
+            'platform': 'tiktok',
+            'publish_format': 'carousel',
+        }, headers=self.headers)
+        self.assertEqual(exp_tiktok_car.status_code, 200)
+        tiktok_packet = json.loads((Path(self.data.name) / 'deliveries' / exp_tiktok_car.json['id'] / 'packet.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(tiktok_packet['files']), 3)
+
+        # Combo (video 1 + 2 attached images = 3 files) vs video only (1 file)
+        exp_threads_combo = self.client.post(f'/studio/jobs/{job_id}/extension-export', json={
+            'platform': 'threads',
+            'publish_format': 'combo',
+        }, headers=self.headers)
+        self.assertEqual(exp_threads_combo.status_code, 200)
+        combo_packet = json.loads((Path(self.data.name) / 'deliveries' / exp_threads_combo.json['id'] / 'packet.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(combo_packet['files']), 3)
+        self.assertEqual(combo_packet['files'][0]['kind'], 'video')
+        self.assertEqual(combo_packet['files'][1]['kind'], 'image')
+
+        exp_threads_video_only = self.client.post(f'/studio/jobs/{job_id}/extension-export', json={
+            'platform': 'threads',
+            'publish_format': 'video',
+        }, headers=self.headers)
+        self.assertEqual(exp_threads_video_only.status_code, 200)
+        video_only_packet = json.loads((Path(self.data.name) / 'deliveries' / exp_threads_video_only.json['id'] / 'packet.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(video_only_packet['files']), 1)
+
+    def test_magazine_carousel_8_themes_slide_actions_and_video_png_overlay(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # Inject rich analysis.result and product into job.json to verify 2-tier editorial harvesting
+        job_path = Path(self.data.name) / job_id / 'job.json'
+        persisted = json.loads(job_path.read_text(encoding='utf-8'))
+        persisted['product'] = {
+            'name': '무타공 스테인리스 선반',
+            'summary': '자취방 욕실 수납 고민 끝',
+            'affiliate_url': 'https://link.coupang.com/a/test2',
+        }
+        persisted['analysis'] = {
+            'status': 'completed',
+            'result': {
+                'summary': '접착력 테스트 결과 5kg 아령도 버티는 무타공 욕실 선반입니다.',
+                'audio_summary': '물빠짐 구조로 물때가 끼지 않아 위생적입니다.',
+                'observations': [
+                    '00:01 타일 벽면에 원터치로 부착하는 장면',
+                    '00:02 샴푸 4통을 올려도 흔들림 없는 지지력',
+                ],
+                'search_terms': ['무타공 욕실 선반', '스테인리스 코너선반'],
+            },
+        }
+        job_path.write_text(json.dumps(persisted, ensure_ascii=False), encoding='utf-8')
+
+        # 1. Generate carousel with magazine_gradient theme and let fallback harvest 2-tier headline\nsubcopy
+        car_res = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 4,
+            'aspect': '4:5',
+            'erase_mode': 'title_all',
+            'template': 'magazine_gradient',
+            'cover_title': '',
+            'slide_texts': [],
+            'auto_caption': False,
+        }, headers=self.headers)
+        self.assertEqual(car_res.status_code, 200)
+        car = car_res.json['carousel']
+        self.assertEqual(car['template'], 'magazine_gradient')
+        self.assertEqual(len(car['slides']), 4)
+        # Verify automatic Cover / Body / CTA role assignment
+        self.assertEqual([s.get('role') for s in car['slides']], ['cover', 'body', 'body', 'cta'])
+        # Cover and body slides must contain 2-tier headline\nsubcopy harvested from product & analysis.result
+        self.assertIn('\n', car['slides'][0]['text'])
+        self.assertIn('무타공 스테인리스 선반', car['slides'][0]['text'])
+
+        # 1b. Test per-slide role & template override via /carousel-slide-update
+        upd_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-update', json={
+            'index': 2,
+            'role': 'cta',
+            'template': 'clean_white_card',
+            'text': '[최종 요약] 무타공 선반 체크리스트\n1) 5kg 하중 지지 • 2) 원터치 부착 • 3) 물빠짐 위생 설계',
+            'badge': 'SUMMARY & LINK',
+        }, headers=self.headers)
+        self.assertEqual(upd_res.status_code, 200)
+        upd_slides = upd_res.json['carousel']['slides']
+        self.assertEqual(upd_slides[1]['role'], 'cta')
+        self.assertEqual(upd_slides[1]['template'], 'clean_white_card')
+        self.assertEqual(upd_slides[1]['badge'], 'SUMMARY & LINK')
+
+        # 2. Test slide deck actions: add, move, delete via /carousel-slide-action
+        add_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-action', json={
+            'action': 'add',
+            'timestamp': 1.5,
+            'text': '[추가 포인트] 물빠짐 완벽\n습기 많은 욕실에서도 물때 걱정 제로',
+            'badge': 'WATERPROOF CHECK',
+        }, headers=self.headers)
+        self.assertEqual(add_res.status_code, 200)
+        slides_after_add = add_res.json['carousel']['slides']
+        self.assertEqual(len(slides_after_add), 5)
+        self.assertEqual(slides_after_add[4]['badge'], 'WATERPROOF CHECK')
+        self.assertEqual(slides_after_add[4]['role'], 'cta')
+
+        move_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-action', json={
+            'action': 'move',
+            'index': 5,
+            'direction': -1,
+        }, headers=self.headers)
+        self.assertEqual(move_res.status_code, 200)
+        slides_after_move = move_res.json['carousel']['slides']
+        self.assertEqual(slides_after_move[3]['badge'], 'WATERPROOF CHECK')
+        self.assertEqual([s['index'] for s in slides_after_move], [1, 2, 3, 4, 5])
+
+        del_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-action', json={
+            'action': 'delete',
+            'index': 4,
+        }, headers=self.headers)
+        self.assertEqual(del_res.status_code, 200)
+        slides_after_del = del_res.json['carousel']['slides']
+        self.assertEqual(len(slides_after_del), 4)
+        self.assertEqual([s['index'] for s in slides_after_del], [1, 2, 3, 4])
+
+        # 3. Test video media-text-edit with viral Korean video hook template (reels_giant_yellow_impact), kicker badge, and 2-line split
+        edit_res = self.client.post(f'/studio/jobs/{job_id}/media-text-edit', json={
+            'erase_mode': 'none',
+            'template': 'warm_luxury',
+            'title_badge': 'BEST PICK',
+            'title_color': 'reels_giant_yellow_impact',
+            'title_text': '밭일하시는 부모님 | 이거면 끝',
+            'title_position': 'top',
+            'title_x': 50.0,
+            'title_y': 18.0,
+            'title_start': 0.0,
+            'title_end': 3.0,
+            'overlay_text': '첫 댓글에서 *최저가 링크* 확인하세요',
+            'overlay_position': 'bottom',
+            'overlay_x': 50.0,
+            'overlay_y': 82.0,
+        }, headers=self.headers)
+        self.assertEqual(edit_res.status_code, 200)
+        te = edit_res.json['text_edit']
+        self.assertEqual(te['template'], 'warm_luxury')
+        self.assertEqual(te['title_badge'], 'BEST PICK')
+        self.assertEqual(te['title_color'], 'reels_giant_yellow_impact')
+
+    def test_carousel_story_draft_and_3part_cover_body_cta_generation(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        job_path = Path(self.data.name) / job_id / 'job.json'
+        persisted = json.loads(job_path.read_text(encoding='utf-8'))
+        persisted['product'] = {
+            'name': '자동 회전 물걸레 청소기',
+            'summary': '허리 숙일 필요 없는 초강력 듀얼 스핀 물걸레',
+            'affiliate_url': 'https://link.coupang.com/a/spinmop',
+        }
+        persisted['analysis'] = {
+            'status': 'completed',
+            'result': {
+                'summary': '분당 200회 회전으로 찌든 바닥 얼룩을 한 번에 닦아내는 무선 물걸레 청소기입니다.',
+                'audio_summary': '물 분사 버튼으로 걸레가 마르지 않고 끝까지 촉촉하게 유지됩니다.',
+                'observations': [
+                    '00:01 커피 자국을 한 번에 지우는 장면',
+                    '00:02 소파 밑 낮은 틈새까지 180도 눕혀서 청소하는 모습',
+                ],
+                'search_terms': ['무선 물걸레 청소기', '듀얼 스핀 청소기'],
+            },
+        }
+        job_path.write_text(json.dumps(persisted, ensure_ascii=False), encoding='utf-8')
+
+        # 1. Test /carousel-story-draft deterministic fallback (use_ai=False) returns 3-part cover, body, cta
+        draft_res = self.client.post(f'/studio/jobs/{job_id}/carousel-story-draft', json={
+            'count': 4,
+            'use_ai': False,
+        }, headers=self.headers)
+        self.assertEqual(draft_res.status_code, 200)
+        story = draft_res.json['carousel_story_draft']
+        self.assertEqual(story['count'], 4)
+        self.assertEqual(len(story['slides']), 4)
+        self.assertEqual([s['role'] for s in story['slides']], ['cover', 'body', 'body', 'cta'])
+        self.assertIn('자동 회전 물걸레 청소기', story['cover_title'])
+        self.assertEqual(len(story['body_lines']), 3)
+        self.assertIn('핵심 요약', story['slides'][3]['text'])
+
+        # 2. Test /carousel-story-draft with mocked AI provider/model override
+        mock_ai_dict = {
+            'slides': [
+                {'role': 'cover', 'headline': '걸레질 아직도 무릎 꿇고 하세요?', 'subcopy': '자동 회전 물걸레 청소기 실사용 3가지 포인트', 'timestamp': 0.2},
+                {'role': 'body', 'headline': '포인트 1. 커피 얼룩 1초 컷', 'subcopy': '분당 200회 듀얼 스핀으로 찌든 때까지 깔끔 삭제', 'timestamp': 0.8},
+                {'role': 'body', 'headline': '포인트 2. 소파 밑 180도 밀착', 'subcopy': '낮은 틈새까지 걸림 없이 쑥 들어가는 헤드 설계', 'timestamp': 1.5},
+                {'role': 'cta', 'headline': '[최종 요약] 무선 물걸레 체크리스트', 'subcopy': '1) 200회 스핀 • 2) 물 분사 • 프로필·첫 댓글 링크 확인', 'timestamp': 2.1},
+            ]
+        }
+        with patch.object(studio, 'generate', return_value=mock_ai_dict) as mocked_provider:
+            ai_draft_res = self.client.post(f'/studio/jobs/{job_id}/carousel-story-draft', json={
+                'count': 4,
+                'use_ai': True,
+                'provider': 'gemini_api',
+                'model': 'gemini-2.5-flash',
+                'key': 'test-key',
+            }, headers=self.headers)
+            self.assertEqual(ai_draft_res.status_code, 200)
+            ai_story = ai_draft_res.json['carousel_story_draft']
+            self.assertTrue(ai_story['ai_used'])
+            self.assertEqual(ai_story['provider'], 'gemini_api')
+            self.assertEqual(ai_story['model'], 'gemini-2.5-flash')
+            self.assertIn('걸레질 아직도 무릎 꿇고 하세요?', ai_story['cover_title'])
+            self.assertIn('[최종 요약]', ai_story['slides'][3]['text'])
+            self.assertTrue(mocked_provider.called)
+
+    def test_video_subtitle_erase_modes_blur_cover_inpaint_mask_and_zoom(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # 1. Test blur_subtitles with custom mask rectangle and 118% video zoom
+        blur_res = self.client.post(f'/studio/jobs/{job_id}/media-text-edit', json={
+            'erase_mode': 'blur_subtitles',
+            'rectangle': {'x': 6, 'y': 72, 'w': 88, 'h': 18},
+            'video_zoom': 118,
+            'focus_x': 50,
+            'focus_y': 45,
+            'overlay_text': '[블러 모드] 테스트 자막',
+        }, headers=self.headers)
+        self.assertEqual(blur_res.status_code, 200)
+        te_blur = blur_res.json['text_edit']
+        self.assertEqual(te_blur['erase_mode'], 'blur_subtitles')
+        self.assertEqual(te_blur['video_zoom'], 118.0)
+        self.assertEqual(te_blur['focus_y'], 45.0)
+        self.assertEqual(te_blur['rectangle']['y'], 72.0)
+
+        # 2. Test cover_subtitles with custom mask_color, mask_opacity, and 125% zoom
+        cover_res = self.client.post(f'/studio/jobs/{job_id}/media-text-edit', json={
+            'erase_mode': 'cover_subtitles',
+            'rectangle': {'x': 8, 'y': 70, 'w': 84, 'h': 20},
+            'mask_color': '#1e293b',
+            'mask_opacity': 0.90,
+            'video_zoom': 125,
+            'focus_x': 50,
+            'focus_y': 50,
+            'overlay_text': '*덮어씌우기* 테스트 자막',
+        }, headers=self.headers)
+        self.assertEqual(cover_res.status_code, 200)
+        te_cover = cover_res.json['text_edit']
+        self.assertEqual(te_cover['erase_mode'], 'cover_subtitles')
+        self.assertEqual(te_cover['mask_color'], '#1e293b')
+        self.assertAlmostEqual(float(te_cover['mask_opacity']), 0.90, places=2)
+        self.assertEqual(te_cover['video_zoom'], 125.0)
+
+    def test_carousel_cover_hook_formulas_and_slide_photo_paste_and_3tier_text(self):
+        import base64
+        import io
+        from PIL import Image
+
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        # 1. Verify Cover Hook Formulas ('question', 'number', 'twist') in carousel-story-draft
+        for formula_key, expected_token in [
+            ('question', '아직도'),
+            ('number', '핵심 공식'),
+            ('twist', '의외의 반전'),
+        ]:
+            draft_res = self.client.post(f'/studio/jobs/{job_id}/carousel-story-draft', json={
+                'count': 4,
+                'hook_formula': formula_key,
+                'use_ai': False,
+            }, headers=self.headers)
+            self.assertEqual(draft_res.status_code, 200)
+            draft = draft_res.json['carousel_story_draft']
+            self.assertEqual(draft['hook_formula'], formula_key)
+            self.assertIn(expected_token, draft['cover_title'])
+            self.assertTrue(draft['slides'][0].get('title'))
+            self.assertTrue(draft['slides'][0].get('subtitle'))
+
+        # 2. Generate 4-slide carousel with hook_formula='number'
+        gen_res = self.client.post(f'/studio/jobs/{job_id}/carousel-generate', json={
+            'count': 4,
+            'aspect': '4:5',
+            'template': 'editorial_dark',
+            'hook_formula': 'number',
+            'cover_title': '[잘 터지는] *캐러셀* 제작하기\n잘 되는 캐러셀에는 공식이 있습니다!',
+        }, headers=self.headers)
+        self.assertEqual(gen_res.status_code, 200)
+        slides = gen_res.json['carousel']['slides']
+        self.assertEqual(len(slides), 4)
+        self.assertEqual(slides[0]['title'], '[잘 터지는] *캐러셀* 제작하기')
+        self.assertEqual(slides[0]['subtitle'], '잘 되는 캐러셀에는 공식이 있습니다!')
+
+        # 3. Create a synthetic PNG data URL (simulating Ctrl+V clipboard paste or image upload)
+        buf = io.BytesIO()
+        Image.new('RGB', (320, 400), color=(28, 64, 128)).save(buf, format='PNG')
+        fake_data_url = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+        # 4. Update Slide 1 with pasted image_data_url + Title + Subtitle + Body Text
+        upd_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-update', json={
+            'index': 1,
+            'image_data_url': fake_data_url,
+            'title': '혹시 [캐러셀 첫장] *아직도 대충* 만드세요?',
+            'subtitle': '첫 장이 전체 스와이프의 90%를 결정합니다!',
+            'body_text': '· 질문형 후킹\n· 숫자·공식형 후킹\n· 반전·통념파괴형 후킹',
+            'badge': 'QUESTION HOOK',
+        }, headers=self.headers)
+        self.assertEqual(upd_res.status_code, 200)
+        s1 = upd_res.json['carousel']['slides'][0]
+        self.assertTrue(s1.get('custom_image', '').startswith('carousel-custom-1-'))
+        self.assertEqual(s1['title'], '혹시 [캐러셀 첫장] *아직도 대충* 만드세요?')
+        self.assertEqual(s1['subtitle'], '첫 장이 전체 스와이프의 90%를 결정합니다!')
+        self.assertIn('질문형 후킹', s1['body_text'])
+
+        # 5. Add a new slide with pasted/uploaded image_data_url via carousel-slide-action
+        add_res = self.client.post(f'/studio/jobs/{job_id}/carousel-slide-action', json={
+            'action': 'add',
+            'image_data_url': fake_data_url,
+            'title': '[추가 사진 슬라이드] 핵심 비교',
+            'subtitle': '복사·붙여넣기로 추가한 이미지 설명',
+            'body_text': '· 전후 비교 디테일 체크',
+        }, headers=self.headers)
+        self.assertEqual(add_res.status_code, 200)
+        after_slides = add_res.json['carousel']['slides']
+        self.assertEqual(len(after_slides), 5)
+        added_slide = after_slides[3]  # Inserted before final CTA slide
+        self.assertTrue(added_slide.get('custom_image'))
+        self.assertEqual(added_slide['title'], '[추가 사진 슬라이드] 핵심 비교')
+        self.assertEqual(added_slide['subtitle'], '복사·붙여넣기로 추가한 이미지 설명')
+
+    def test_video_text_inspector_11_typography_parameters_persist_and_render(self):
+        with self.fixture.open('rb') as file:
+            response = self.client.post('/studio/jobs', data={'video': (file, 'fixture.mp4')}, headers=self.headers)
+        self.assertEqual(response.status_code, 201)
+        job_id = response.json['id']
+
+        res = self.client.post(f'/studio/jobs/{job_id}/media-text-edit', json={
+            'erase_mode': 'none',
+            'title_text': '[클릭 편집창] 타이틀 | 글꼴·기울임·자간·2중 획',
+            'title_badge': 'HOT TREND',
+            'title_color': 'reels_giant_yellow_impact',
+            'title_font': 'black_han_sans',
+            'title_size': 56,
+            'title_bold': True,
+            'title_italic': True,
+            'title_underline': True,
+            'title_text_color': '#ffea18',
+            'title_bg_color': '#0f172a',
+            'title_bg_opacity': 85,
+            'title_letter_spacing': 3.5,
+            'title_line_spacing': 1.25,
+            'title_align': 'left',
+            'title_scale_pct': 115,
+            'title_opacity': 92,
+            'title_stroke_width': 5,
+            'title_stroke_color': '#000000',
+            'title_double_stroke_width': 6,
+            'title_double_stroke_color': '#f43f5e',
+            'overlay_text': '하단 자막도 클릭 한 번으로\n색상·정렬·불투명도·줄간격 완벽 조절',
+            'overlay_font': 'jua',
+            'overlay_size': 44,
+            'overlay_bold': False,
+            'overlay_italic': True,
+            'overlay_underline': True,
+            'overlay_text_color': '#38bdf8',
+            'overlay_bg_color': '#1e293b',
+            'overlay_bg_opacity': 78,
+            'overlay_letter_spacing': 2.0,
+            'overlay_line_spacing': 1.40,
+            'overlay_align': 'right',
+            'overlay_scale_pct': 110,
+            'overlay_opacity': 88,
+            'overlay_stroke_width': 4,
+            'overlay_stroke_color': '#000000',
+            'overlay_double_stroke_width': 5,
+            'overlay_double_stroke_color': '#facc15',
+        }, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        te = res.json['text_edit']
+        self.assertEqual(te['title_font'], 'black_han_sans')
+        self.assertTrue(te['title_bold'])
+        self.assertTrue(te['title_italic'])
+        self.assertTrue(te['title_underline'])
+        self.assertEqual(te['title_text_color'], '#ffea18')
+        self.assertEqual(te['title_bg_color'], '#0f172a')
+        self.assertEqual(te['title_bg_opacity'], 85.0)
+        self.assertEqual(te['title_letter_spacing'], 3.5)
+        self.assertEqual(te['title_line_spacing'], 1.25)
+        self.assertEqual(te['title_align'], 'left')
+        self.assertEqual(te['title_scale_pct'], 115.0)
+        self.assertEqual(te['title_opacity'], 92.0)
+        self.assertEqual(te['title_double_stroke_width'], 6)
+        self.assertEqual(te['overlay_font'], 'jua')
+        self.assertFalse(te['overlay_bold'])
+        self.assertTrue(te['overlay_italic'])
+        self.assertTrue(te['overlay_underline'])
+        self.assertEqual(te['overlay_text_color'], '#38bdf8')
+        self.assertEqual(te['overlay_align'], 'right')
+        self.assertEqual(te['overlay_scale_pct'], 110.0)
+        self.assertEqual(te['overlay_opacity'], 88.0)
+        self.assertEqual(te['overlay_double_stroke_width'], 5)
+
 
 if __name__ == '__main__':
     unittest.main()
+
 
 

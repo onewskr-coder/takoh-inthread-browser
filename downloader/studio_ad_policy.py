@@ -7,8 +7,11 @@ POLICY_VERSION = 'platform-ad-v1'
 VIDEO_AD_PLATFORMS = {'instagram_reels', 'instagram_carousel', 'instagram', 'tiktok', 'naver_clip'}
 
 def disclosure_body(body, platform):
-    clean = re.sub(r'^\s*(?:(?:#광고|\[광고\])\s*)+', '', str(body or '')).strip()
-    return ('#광고' if platform == 'threads' else '[광고]') + (' ' + clean if clean else '')
+    raw = str(body or '')
+    had_double_newline = bool(re.match(r'^\s*(?:(?:#광고|\[광고\])\s*)*\n\n', raw))
+    clean = re.sub(r'^\s*(?:(?:#광고|\[광고\])\s*)+', '', raw).strip()
+    sep = '\n\n' if (had_double_newline and platform == 'threads') else (' ' if clean else '')
+    return ('#광고' if platform == 'threads' else '[광고]') + (sep + clean if clean else '')
 
 def prepare_ad_video(source, binary, run, inspect):
     source = Path(source)

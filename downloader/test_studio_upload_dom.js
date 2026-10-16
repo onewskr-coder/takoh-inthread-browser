@@ -1,5 +1,5 @@
 const {JSDOM}=require(process.env.STUDIO_JSDOM||'jsdom');
-const assert=require('node:assert/strict'),fs=require('node:fs');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 (async()=>{
 for(const automatic of [false,true]){
 const dom=new JSDOM('<button id="create">만들기</button>',{url:'https://www.threads.com/',runScripts:'outside-only'}),w=dom.window,d=w.document;
@@ -13,10 +13,11 @@ d.getElementById('create').onclick=()=>{
  dialog.querySelector('input').onchange=()=>{const video=d.createElement('video');Object.defineProperty(video,'readyState',{value:2});dialog.append(video);};
  dialog.querySelector('#post').onclick=()=>{assert.equal(dialog.querySelector('textarea').value,body);assert.equal(dialog.querySelector('input').files[0].name,'test.mp4');dialog.remove();const article=d.createElement('article');article.innerHTML='<a href="https://www.threads.com/@owner/post/NEW">시간</a><p></p><button id="reply">답글</button>';article.querySelector('p').textContent=body;d.body.append(article);article.querySelector('#reply').onclick=()=>{const reply=d.createElement('div');reply.setAttribute('role','dialog');reply.innerHTML='<textarea></textarea><button>게시</button>';d.body.append(reply);reply.querySelector('button').onclick=()=>{assert.equal(reply.querySelector('textarea').value,comment);reply.remove();const text=d.createElement('article');text.textContent=comment;d.body.append(text);};};};
 };
-const source=fs.readFileSync('studio-upload.js','utf8').split(/\r?\n\(\(\) => \{/)[0];w.eval(source+'\nwindow.runUpload=takohThreadsUpload;');
+const source=fs.readFileSync(path.join(__dirname,'studio-upload.js'),'utf8').split(/\r?\n\(\(\) => \{/)[0];w.eval(source+'\nwindow.runUpload=takohThreadsUpload;');
 const result=await w.runUpload({body,comment,name:'test.mp4',video:'AQID',automatic});
 assert.equal(result.state,automatic?'posted':'awaiting_confirmation');
 assert.equal(d.querySelectorAll('article').length,automatic?2:0);
+console.log('Passed Test 1: automatic='+automatic);
 dom.window.close();
 }
 
@@ -28,7 +29,7 @@ d.getElementById('create').onclick=()=>{createClicked=true;};
 w.HTMLElement.prototype.getClientRects=function(){return [1];};
 Object.defineProperty(w.HTMLElement.prototype,'innerText',{get(){return this.textContent;}});
 w.DataTransfer=class{constructor(){this.files=[];this.items={add:item=>this.files.push(item)};}};
-const source=fs.readFileSync('studio-upload.js','utf8').split(/\r?\n\(\(\) => \{/)[0];w.eval(source+'\nwindow.runUpload=takohThreadsUpload;');
+const source=fs.readFileSync(path.join(__dirname,'studio-upload.js'),'utf8').split(/\r?\n\(\(\) => \{/)[0];w.eval(source+'\nwindow.runUpload=takohThreadsUpload;');
 const resPartial=await w.runUpload({
  body:'#광고\n\n캐러셀 테스트',
  comment:'',
@@ -39,6 +40,7 @@ const resPartial=await w.runUpload({
 assert.equal(resPartial.state,'uncertain');
 assert.match(resPartial.error||'',/전체 파일을 확보하지 못해 게시를 차단/);
 assert.equal(createClicked,false);
+console.log('Passed Test 2: partial carousel');
 dom.window.close();
 }
 
@@ -77,7 +79,7 @@ d.getElementById('create').onclick=()=>{
   d.body.append(realNew);
  };
 };
-const source=fs.readFileSync('studio-upload.js','utf8').split(/\r?\n\(\(\) => \{/)[0];w.eval(source+'\nwindow.runUpload=takohThreadsUpload;');
+const source=fs.readFileSync(path.join(__dirname,'studio-upload.js'),'utf8').split(/\r?\n\(\(\) => \{/)[0];w.eval(source+'\nwindow.runUpload=takohThreadsUpload;');
 const resVerify=await w.runUpload({
  body,
  comment:'',

@@ -26,7 +26,7 @@ const {lockProfile}=require('./profile-lock.cjs');
 const profileGuard=ownsApp?lockProfile(profilePath):{acquired:false,release(){}};
 app.on('will-quit',()=>profileGuard.release());
 if(!ownsApp||!profileGuard.acquired){console.error('QUIT REASON:',{ownsApp,acquired:profileGuard.acquired});app.quit();}else{app.on('second-instance',()=>{if(win){win.show();win.focus();}});}
-const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://m.naver.com/shorts/',naver_creator:'https://clipcreators.naver.com/web',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
+const sites={browser:'https://www.facebook.com/',threads:'https://www.threads.com/',instagram:'https://www.instagram.com/',naver_clip:'https://m.naver.com/',naver_creator:'https://clipcreators.naver.com/web',tiktok:'https://www.tiktok.com/tiktokstudio/upload',pinterest:'https://www.pinterest.com/',studio:'http://127.0.0.1:5006/studio/'};
 let win,toolbar,active,currentWork='';const views=new Map();const recentDownloads=new Map();
 function trackSiteDownloads(contents){
   if(contents.session.__takohDownloadsTracked)return;
@@ -92,10 +92,11 @@ async function recoverStudioPage() {
     await view.initialLoad;
   }
 }
+const explainGoogleLogin=require('./google-login.cjs').createGoogleLoginNotice({dialog,shell});
 function configurePopups(contents,key){
   if(key==='naver_clip'||key==='naver_creator')require('./naver-navigation.cjs').installNaverNavigation(contents);
   const blockedGoogle=url=>{try{return new URL(url).hostname==='accounts.google.com';}catch{return false;}};
-  const explainGoogle=()=>{dialog.showMessageBox({type:'info',title:'Google 로그인 안내',message:'Google 로그인은 내장 브라우저에서 제한될 수 있습니다.',detail:'외부 브라우저에서 Pinterest 로그인을 진행할 수 있습니다. 외부 로그인은 이 앱으로 자동 전달되지 않습니다. 앱에서는 Pinterest 이메일 로그인을 사용하세요.',buttons:['닫기','외부 Pinterest 열기'],defaultId:0,cancelId:0}).then(({response})=>{if(response===1)shell.openExternal('https://www.pinterest.com/login/');});};
+  const explainGoogle=()=>explainGoogleLogin(key);
   contents.setWindowOpenHandler(({url})=>{
     if(blockedGoogle(url)){explainGoogle();return {action:'deny'};}
     let allowed=false;try{allowed=url==='about:blank'||new URL(url).protocol==='https:';}catch{}
@@ -169,7 +170,7 @@ async function ensureThreadsView(platform='threads'){
 }
 ipcMain.handle('site-location',event=>{if(event.sender!==toolbar?.webContents)return null;const key=[...views.entries()].find(([,view])=>view===active)?.[0];return {key,url:active?.webContents.getURL()||'',work:currentWork};});
 ipcMain.handle('site-navigate',async(event,value)=>{if(event.sender!==toolbar?.webContents)return;try{const url=navigation.address(value);const key=navigation.siteKey(url);select(key);await active.webContents.loadURL(url);return {success:true};}catch(error){return {error:error.message};}});
-ipcMain.handle('work-select',async(event,name)=>{if(event.sender!==toolbar?.webContents)return;const destination={discovery:{workspace:'discovery'},library:{workspace:'create',stage:'reference'},create:{workspace:'create',stage:'analysis'},publish:{workspace:'publish'},settings:{workspace:'settings'}}[name];if(!destination)return {error:'알 수 없는 작업 메뉴'};try{await helperReady;select('studio');currentWork=name;const target=active;await recoverStudioPage();await target.initialLoad;await target.webContents.executeJavaScript(`document.querySelector('[data-workspace="${destination.workspace}"]')?.click();`+(destination.stage?`document.querySelector('[data-production-stage="${destination.stage}"]')?.click();`:''));return {success:true};}catch(error){return {error:error.message};}});
+ipcMain.handle('work-select',async(event,name)=>{if(event.sender!==toolbar?.webContents)return;const destination={source:{workspace:'source'},reference:{workspace:'reference'},library:{workspace:'reference'},discovery:{workspace:'discovery'},research:{workspace:'research'},download:{workspace:'download'},create:{workspace:'jobs'},jobs:{workspace:'jobs'},publish:{workspace:'publish'},scheduler:{workspace:'scheduler'},settings:{workspace:'settings'}}[name];if(!destination)return {error:'알 수 없는 작업 메뉴'};try{await helperReady;select('studio');currentWork=name;const target=active;await recoverStudioPage();await target.initialLoad;await target.webContents.executeJavaScript(`if(typeof window.selectWorkspace==='function'){window.selectWorkspace(${JSON.stringify(destination.workspace)});}else{document.querySelector('[data-workspace="${destination.workspace}"]')?.click();}`+(destination.stage?`if(typeof window.selectStage==='function'){window.selectStage(${JSON.stringify(destination.stage)});}else{document.querySelector('[data-production-stage="${destination.stage}"]')?.click();}`:''));return {success:true};}catch(error){return {error:error.message};}});
 ipcMain.handle('helper-status',async event=>{if(event.sender!==toolbar?.webContents)return null;if(helperManager?.status.state==='ready'&&!await helperManager.probe())helperManager.status={state:'failed',message:'도우미 연결 끊김 · 아래 재연결 버튼을 눌러주세요.'};return helperManager?{...helperManager.status,message:restartNotice||helperManager.status.message}:null;});
 ipcMain.handle('helper-retry',async event=>{if(event.sender!==toolbar?.webContents||!helperManager)return {error:'도우미 관리자를 찾을 수 없습니다.'};try{helperReady=helperManager.retry();await helperReady;await recoverStudioPage();return {success:true,message:helperManager.status.message};}catch(error){return {error:error.message};}});
 ipcMain.handle('native-media',async(event,message)=>{
@@ -179,6 +180,13 @@ ipcMain.handle('native-media',async(event,message)=>{
   try{
     await helperReady;
     if(studioSender){
+      if(message?.action==='studioWorkspaceChanged'){
+        const ws=String(message.workspace||'').trim();
+        if(['reference','discovery','research','download','jobs','create','publish','scheduler','settings'].includes(ws)){
+          currentWork=['jobs','create','publish','scheduler'].includes(ws)?'create':ws;
+        }
+        return {success:true,data:{work:currentWork}};
+      }
       if(message?.action==='studioThreadsResearch'&&researchManager){if(JSON.stringify(message).length>10000)throw Error('요청 크기 초과');return {success:true,data:await researchManager.request(message.packet?.action,message.packet)};}
       if(message?.action==='studioBrowseThreadsForResearch'){select('threads');return {success:true};}
       if(message?.action==='studioListReferences')return {success:true,data:await native.helper('references')};
@@ -212,12 +220,33 @@ ipcMain.handle('native-media',async(event,message)=>{
         }
         return {success:true,data:{width:quickSidebarWidth}};
       }
+      if(message?.action==='studioOpenPlatform'){
+        const rawPlat=String(message.platform||message.packet?.platform||'threads').trim();
+        const siteKey={
+          threads:'threads',
+          instagram_reels:'instagram',
+          instagram_carousel:'instagram',
+          instagram:'instagram',
+          naver_clip:'naver_creator',
+          naver_creator:'naver_creator',
+          tiktok:'tiktok',
+        }[rawPlat]||'threads';
+        select(siteKey);
+        const targetUrl=String(message.url||message.packet?.url||'').trim();
+        if(targetUrl&&/^https:\/\//i.test(targetUrl)&&native.trusted(targetUrl)){
+          const view=views.get(siteKey);
+          if(view&&!view.webContents.isDestroyed()){
+            view.webContents.loadURL(targetUrl).catch(()=>{});
+          }
+        }
+        return {success:true,data:{siteKey}};
+      }
       return {success:false,error:'제작 화면에서 지원하지 않는 동작입니다.'};
     }
     if(!message||JSON.stringify(message).length>200000)throw Error('요청 크기 초과');
     if(message.action==='studioFindProducts'){
-      const origin=new URL(event.sender.getURL());if(!['threads.com','www.threads.com','threads.net','www.threads.net'].includes(origin.hostname))throw Error('Threads 게시물에서만 제품 찾기를 시작할 수 있습니다.');
-      const result=await researchManager.request('start-from-post',{url:message.url});select('studio');currentWork='discovery';await recoverStudioPage();const view=views.get('studio');await view.initialLoad;await view.webContents.executeJavaScript("document.querySelector('[data-workspace=research]')?.click();window.dispatchEvent(new Event('takoh-research-started'));");return {success:true,data:{started:true}};
+      const origin=new URL(event.sender.getURL());if(!['threads.com','www.threads.com','threads.net','www.threads.net'].includes(origin.hostname))throw Error('Threads 게시물에서만 동일·연관 쇼핑계정 찾기를 시작할 수 있습니다.');
+      const result=await researchManager.request('start-from-post',{url:message.url});select('studio');currentWork='research';await recoverStudioPage();const view=views.get('studio');await view.initialLoad;await view.webContents.executeJavaScript("document.querySelector('[data-workspace=research]')?.click();window.dispatchEvent(new Event('takoh-research-started'));");return {success:true,data:{started:true}};
     }
     if(message.action==='studioSaveReference'){
       if(!native.trusted(message.reference?.permalink))throw Error('지원 사이트 게시물 주소가 필요합니다.');
@@ -227,14 +256,9 @@ ipcMain.handle('native-media',async(event,message)=>{
       if(!native.trusted(message.reference?.permalink))throw Error('지원 사이트 게시물 주소가 필요합니다.');
       await native.helper('references/import',{reference:message.reference}).catch(()=>{});
       const studioView=getOrCreateView('studio');
-      if(active&&active!==studioView){
-        quickSidebarOpen=true;
-        win.contentView.addChildView(studioView);
-        resize();
-      }else{
-        select('studio');
-        currentWork='create';
-      }
+      quickSidebarOpen=false;
+      select('studio');
+      currentWork='create';
       if(studioView&&!studioView.webContents.isDestroyed()){
         await recoverStudioPage();
         await studioView.initialLoad;
@@ -243,7 +267,7 @@ ipcMain.handle('native-media',async(event,message)=>{
           await new Promise(r=>setTimeout(r,200));
         }
         studioView.webContents.send('native-collection-changed');
-        studioView.webContents.send('native-create-direct',{...message.reference,quickSidebar:quickSidebarOpen});
+        studioView.webContents.send('native-create-direct',{...message.reference,quickSidebar:false});
       }
       return {success:true};
     }

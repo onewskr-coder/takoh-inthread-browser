@@ -47,7 +47,19 @@ async function refreshStatus() {
         document.getElementById('address').value = current.url;
       }
       document.querySelectorAll('[data-site]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.site === current.key)));
-      document.querySelectorAll('[data-work]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.work === current.work)));
+      const work = current.work || '';
+      const isSourceWork = ['source', 'reference', 'library', 'discovery', 'research', 'download'].includes(work);
+      const isProductionWork = ['create', 'jobs', 'publish', 'scheduler'].includes(work);
+      document.querySelectorAll('[data-work]').forEach(button => {
+        const bw = button.dataset.work;
+        const pressed = (bw === work) || (bw === 'source' && work === 'source') || (bw === 'reference' && work === 'library') || (bw === 'create' && isProductionWork);
+        button.setAttribute('aria-pressed', String(pressed));
+        if (button.dataset.workGroup === 'source') {
+          button.classList.toggle('group-active', isSourceWork);
+        } else if (button.dataset.workGroup === 'production') {
+          button.classList.toggle('group-active', isProductionWork);
+        }
+      });
     }
   } catch {
     document.getElementById('helper-status').textContent = '상태 확인 실패';

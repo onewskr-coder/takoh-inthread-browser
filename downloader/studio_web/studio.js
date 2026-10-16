@@ -55,22 +55,39 @@ $('subtitle-region-preview').onpointermove=event=>{if(!regionStart)return;const 
 $('subtitle-region-preview').onpointerup=()=>{regionStart=null;};
 $('subtitle-region-preview').onpointercancel=()=>{regionStart=null;};
 function renderEditor(){
-  $('hook-editor').hidden=!job?.analysis||job?.kind==='image';
-  if(!job?.analysis||job.kind==='image'||editJobId===job.id)return;
-  editJobId=job.id;const duration=job.media.duration,length=Math.round(Math.min(3,duration/3)*100)/100;
-  $('hook-length').value=length;$('hook-start').max=duration-length;
-  const result=job.analysis.result,hook=result.hook,recommendations=job.hook_recommendations?.candidates||[];
-  $('hook-candidate').replaceChildren();
-  for(const [i,item] of (recommendations.length?recommendations:result.observations).entries()){const option=text('option',recommendations.length?`${i+1}순위 · 적합도 ${item.score}/100 · ${item.timestamp}초 · ${item.reason}`:`${item.timestamp}초 · ${item.description}`);option.value=String(Math.max(0,Math.min(duration-length,item.timestamp)));option.dataset.timestamp=item.timestamp;option.dataset.reason=item.reason||item.description;$('hook-candidate').append(option);}
-  const recommendation=recommendations.length?Number($('hook-candidate').value):hook&&Number.isFinite(hook.timestamp)?Math.max(0,Math.min(duration-length,hook.timestamp)):Number($('hook-candidate').value||0);
-  $('hook-start').value=recommendation;refreshHookFocus();
-  $('hook-reason').textContent=recommendations.length?'1순위 자동 선택 · '+recommendations[0].reason:hook?.reason?'AI 추천: '+hook.reason:'저장된 관찰 장면 중 사용할 구간을 선택하거나 AI 추천을 실행하세요.';
-  if(!recommendations.length&&hook)$('hook-candidate').value=String(recommendation);
-  $('hook-effect').value='impact';
-  $('subtitle-region-image').src=`/studio/jobs/${job.id}/media/${job.evidence.frames[0].file}`;
-  $('subtitle-treatment').value='auto_subtitles';$('subtitle-region').hidden=true;regionBox();
+  if($('hook-editor'))$('hook-editor').hidden=(activeEditTab!=='hook');
+  if(!job||job.kind==='image')return;
+  const duration=Number(job.media?.duration||3),length=Math.round(Math.min(3,duration/3)*100)/100;
+  if(editJobId!==job.id){
+    editJobId=job.id;
+    $('hook-length').value=length;$('hook-start').max=Math.max(0,duration-length);
+    const result=job.analysis?.result||{},hook=result.hook,recommendations=job.hook_recommendations?.candidates||[],obs=result.observations||[];
+    $('hook-candidate').replaceChildren();
+    const list=recommendations.length?recommendations:obs;
+    if(list.length){
+      for(const [i,item] of list.entries()){
+        const option=text('option',recommendations.length?`${i+1}순위 · 적합도 ${item.score}/100 · ${item.timestamp}초 · ${item.reason}`:`${item.timestamp}초 · ${item.description}`);
+        option.value=String(Math.max(0,Math.min(duration-length,item.timestamp)));
+        option.dataset.timestamp=item.timestamp;
+        option.dataset.reason=item.reason||item.description;
+        $('hook-candidate').append(option);
+      }
+    }else{
+      const opt=text('option','0.0초 · 영상 시작 구간 (AI 후킹 추천 실행 가능)');
+      opt.value='0';opt.dataset.timestamp='0';opt.dataset.reason='원하는 시작 시점을 직접 입력하거나 [AI 후킹 구간 추천]을 실행하세요.';
+      $('hook-candidate').append(opt);
+    }
+    const recommendation=recommendations.length?Number($('hook-candidate').value):hook&&Number.isFinite(hook.timestamp)?Math.max(0,Math.min(duration-length,hook.timestamp)):Number($('hook-candidate').value||0);
+    $('hook-start').value=recommendation;refreshHookFocus();
+    $('hook-reason').textContent=recommendations.length?'1순위 자동 선택 · '+recommendations[0].reason:hook?.reason?'AI 추천: '+hook.reason:'저장된 관찰 장면 중 사용할 구간을 선택하거나 AI 추천을 실행하세요.';
+    if(!recommendations.length&&hook)$('hook-candidate').value=String(recommendation);
+    $('hook-effect').value='impact';
+    const firstFrame=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
+    $('subtitle-region-image').src=`/studio/jobs/${job.id}/media/${firstFrame}`;
+    $('subtitle-treatment').value='auto_subtitles';$('subtitle-region').hidden=true;regionBox();
+  }
 }
-$('hook-candidate').onchange=()=>{const select=$('hook-candidate');$('hook-start').value=select.value;refreshHookFocus();const option=select.selectedOptions[0];$('hook-reason').textContent=option?.dataset.reason||'';const timestamp=Number(option?.dataset.timestamp||0);const frame=[...job.evidence.frames].sort((a,b)=>Math.abs(a.timestamp-timestamp)-Math.abs(b.timestamp-timestamp))[0];if(frame)$('subtitle-region-image').src=`/studio/jobs/${job.id}/media/${frame.file}`;};
+$('hook-candidate').onchange=()=>{const select=$('hook-candidate');$('hook-start').value=select.value;refreshHookFocus();const option=select.selectedOptions[0];$('hook-reason').textContent=option?.dataset.reason||'';const timestamp=Number(option?.dataset.timestamp||0);const frame=[...(job?.evidence?.frames||[])].sort((a,b)=>Math.abs(a.timestamp-timestamp)-Math.abs(b.timestamp-timestamp))[0];if(frame)$('subtitle-region-image').src=`/studio/jobs/${job.id}/media/${frame.file}`;};
 $('recommend-hook').onclick=()=>act('영상 전체에서 후킹 후보를 비교하는 중…',async()=>{job=await api(`jobs/${job.id}/hook-recommend`,credentials('analysis'));editJobId=null;render();await refreshJobs();},'추천 1순위를 선택했습니다. 원본 구간을 확인하고 인트로 효과를 고르세요.');
 $('preview-hook').onclick=()=>{$('preview').currentTime=Number($('hook-start').value);$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
 $('create-hook-edit').onclick=()=>act('후킹 편집과 자막 처리 중… 원본은 보관됩니다.',async()=>{
@@ -81,28 +98,127 @@ $('create-hook-edit').onclick=()=>act('후킹 편집과 자막 처리 중… 원
 },'편집본을 별도 작업으로 저장했습니다. 처음과 자막 영역의 복원 결과를 확인하세요.');
 async function refreshJobs(){
   const items=await api('jobs');$('jobs').replaceChildren();
+  let cReady=0,cAnalyzed=0,cPublished=0;
   for(const item of items){
-    const row=document.createElement('div');row.className='saved-job';
-    row.classList.toggle('active',item.id===job?.id);row.dataset.search=(item.name||'').toLocaleLowerCase();row.dataset.group=['published','posted'].includes(item.status)?'published':item.analyzed||['analyzed','draft_ready','publish_ready','edited'].includes(item.status)?'analyzed':'ready';
-    const button=document.createElement('button');button.type='button';button.className='saved-job-open';button.title=item.name;
+    const isPub=['published','posted'].includes(item.status)||item.publication?.status==='published';
+    const isDoneOrProg=Boolean(item.analyzed||item.edited||['analyzed','draft_ready','publish_ready','edited','analysis_ready','product_ready'].includes(item.status));
+    const group=isPub?'published':(isDoneOrProg?'analyzed':'ready');
+    if(group==='published')cPublished++;
+    else if(group==='analyzed')cAnalyzed++;
+    else cReady++;
+
+    const row=document.createElement('div');row.className='saved-job dashboard-job-card';
+    row.classList.toggle('active',item.id===job?.id);
+    row.dataset.search=((item.name||'')+' '+(item.product_name||'')+' '+(item.body_preview||'')).toLocaleLowerCase();
+    row.dataset.group=group;
+
+    const topBtn=document.createElement('button');topBtn.type='button';topBtn.className='saved-job-open';topBtn.title=item.name;
+    const thumbWrap=document.createElement('div');thumbWrap.className='saved-job-thumb-wrap';
     const thumbnail=document.createElement('img');thumbnail.src=`/studio/jobs/${item.id}/media/frame-0.jpg`;thumbnail.alt='';thumbnail.loading='lazy';thumbnail.onerror=()=>{thumbnail.hidden=true;};
-    const details=document.createElement('span');details.className='saved-job-details';
-    const title=text('span',item.name);title.className='saved-job-title';
-    const status=text('span',`${names[item.status]||item.status}${item.reused_from?' · 재사용':''}`);status.className='saved-job-status';
-    const action=text('span',item.analyzed?'열어서 대본 작성·재게시 →':'열어서 분석 →');action.className='saved-job-action';
-    details.append(title,status,action);button.append(thumbnail,details);
-    button.onclick=()=>act('저장된 원본과 분석을 불러오는 중…',async()=>{job=item.analyzed?await api(`jobs/${item.id}/reuse`,{}):await api(`jobs/${item.id}`);render();await refreshJobs();document.querySelector('[data-workspace="create"]')?.click();document.querySelector(`[data-production-stage="${job.analysis?'writing':'analysis'}"]`)?.click();});
-    row.append(button);
-    const remove=text('button','×');remove.type='button';remove.className='saved-job-delete';remove.title='이 작업 삭제';remove.setAttribute('aria-label',item.name+' 작업 삭제');remove.onclick=()=>{
-      if(!window.confirm(`“${item.name}” 작업과 이 작업의 보관 파일을 삭제할까요? 다운로드 폴더의 원본과 Threads 게시물은 삭제되지 않습니다.`))return;
-      act('작업 삭제 중…',async()=>{const response=await fetch(`/studio/jobs/${item.id}`,{method:'DELETE',headers:{'X-Studio-Token':token}});const result=await response.json();if(!response.ok)throw new Error(result.error||'작업 삭제 실패');if(job?.id===item.id){job=null;editJobId=null;render();}await refreshJobs();},'저장된 작업을 삭제했습니다.');
+    const kindTag=text('span',item.kind==='image'?'이미지':'영상');kindTag.className='saved-job-kind-badge';
+    thumbWrap.append(thumbnail,kindTag);
+
+    const details=document.createElement('div');details.className='saved-job-details';
+    const headRow=document.createElement('div');headRow.className='saved-job-head-row';
+    const title=text('strong',item.name||'이름 없는 프로젝트');title.className='saved-job-title';
+    const status=text('span',`${names[item.status]||item.status}${item.reused_from?' · 재사용':''}`);
+    status.className='saved-job-status status-'+group;
+    headRow.append(title);
+    details.append(headRow,status);
+
+    // 4-step pipeline pills: 분석 · 편집 · 대본 · 게시준비
+    const stepBar=document.createElement('div');stepBar.className='saved-job-steps';
+    const p1=text('span','01 분석');p1.className='job-step-pill'+(item.analyzed?' done':'');
+    const p2=text('span','02 편집');p2.className='job-step-pill'+((item.edited||item.has_carousel||item.has_text_edit)?' done':'');
+    const p3=text('span','03 대본');p3.className='job-step-pill'+((['draft_ready','publish_ready','published'].includes(item.status))?' done':'');
+    const p4=text('span','04 게시');p4.className='job-step-pill'+((['publish_ready','published'].includes(item.status))?' done':'');
+    stepBar.append(p1,p2,p3,p4);
+    details.append(stepBar);
+
+    topBtn.append(thumbWrap,details);
+    const openJobToStage=(targetWorkspace,targetStage)=>act('선택한 프로젝트를 불러오는 중…',async()=>{
+      job=await api(`jobs/${item.id}`);
+      render();await refreshJobs();
+      if(window.selectWorkspace)window.selectWorkspace(targetWorkspace);
+      else document.querySelector(`[data-workspace="${targetWorkspace}"]`)?.click();
+      if(targetWorkspace==='create'&&targetStage){
+        if(window.selectStage)window.selectStage(targetStage);
+        else document.querySelector(`[data-production-stage="${targetStage}"]`)?.click();
+      }
+    });
+    topBtn.onclick=()=>openJobToStage('create',item.analyzed?'editing':'analysis');
+    row.append(topBtn);
+
+    const quickBar=document.createElement('div');quickBar.className='saved-job-quick-actions';
+    const btnAn=text('button','분석');btnAn.type='button';btnAn.className='secondary btn-xs';
+    btnAn.onclick=e=>{e.stopPropagation();openJobToStage('create','analysis');};
+    const btnEd=text('button','미디어편집');btnEd.type='button';btnEd.className='secondary btn-xs';
+    btnEd.onclick=e=>{e.stopPropagation();openJobToStage('create','editing');};
+    const btnCar=text('button','캐러셀편집');btnCar.type='button';btnCar.className='secondary btn-xs';
+    btnCar.onclick=e=>{e.stopPropagation();openJobToStage('create','carousel');};
+    const btnWr=text('button','대본');btnWr.type='button';btnWr.className='secondary btn-xs';
+    btnWr.onclick=e=>{e.stopPropagation();openJobToStage('create','writing');};
+    const btnPub=text('button','게시');btnPub.type='button';btnPub.className='secondary btn-xs';
+    btnPub.onclick=e=>{e.stopPropagation();openJobToStage('publish','');};
+    quickBar.append(btnAn,btnEd,btnCar,btnWr,btnPub);
+    row.append(quickBar);
+
+    const remove=text('button','×');remove.type='button';remove.className='saved-job-delete';remove.title='이 프로젝트 삭제';remove.setAttribute('aria-label',item.name+' 작업 삭제');remove.onclick=e=>{
+      e.stopPropagation();
+      if(!window.confirm(`“${item.name}” 프로젝트와 보관 파일을 삭제할까요? 다운로드 폴더의 원본과 게시된 콘텐츠는 삭제되지 않습니다.`))return;
+      act('작업 삭제 중…',async()=>{const response=await fetch(`/studio/jobs/${item.id}`,{method:'DELETE',headers:{'X-Studio-Token':token}});const result=await response.json();if(!response.ok)throw new Error(result.error||'작업 삭제 실패');if(job?.id===item.id){job=null;editJobId=null;try{localStorage.removeItem('takoh-active-job-id');}catch{}render();}await refreshJobs();},'저장된 프로젝트를 삭제했습니다.');
     };row.append(remove);
     $('jobs').append(row);
   }
+  if($('kpi-total-jobs'))$('kpi-total-jobs').textContent=String(items.length);
+  if($('kpi-ready-jobs'))$('kpi-ready-jobs').textContent=String(cReady);
+  if($('kpi-analyzed-jobs'))$('kpi-analyzed-jobs').textContent=String(cAnalyzed);
+  if($('kpi-published-jobs'))$('kpi-published-jobs').textContent=String(cPublished);
   window.filterSavedJobs?.();
+  if(!job&&!window.__initialJobRestored){
+    window.__initialJobRestored=true;
+    let savedJobId='';
+    try{savedJobId=localStorage.getItem('takoh-active-job-id')||'';}catch{}
+    if(savedJobId&&items.some(it=>it.id===savedJobId)){
+      try{
+        job=await api(`jobs/${savedJobId}`);
+        render();
+        document.querySelectorAll('#jobs .saved-job').forEach(r=>r.classList.remove('active'));
+        const idx=items.findIndex(it=>it.id===savedJobId);
+        if(idx>=0&&$('jobs')?.children[idx])$('jobs').children[idx].classList.add('active');
+      }catch{}
+    }
+  }
 }
-window.filterSavedJobs=()=>{const query=($('saved-job-search')?.value||'').toLocaleLowerCase(),group=$('saved-job-filter')?.value||'all';const rows=[...$('jobs').children];let shown=0;for(const row of rows){row.hidden=!row.dataset.search.includes(query)||(group!=='all'&&row.dataset.group!==group);if(!row.hidden)shown++;}if($('saved-job-count'))$('saved-job-count').textContent=shown+' / '+rows.length+'개 작업';};
-$('saved-job-search')?.addEventListener('input',window.filterSavedJobs);$('saved-job-filter')?.addEventListener('change',window.filterSavedJobs);
+window.filterSavedJobs=()=>{
+  const query=($('saved-job-search')?.value||'').toLocaleLowerCase(),group=$('saved-job-filter')?.value||'all';
+  document.querySelectorAll('[data-kpi-filter]').forEach(btn=>btn.classList.toggle('active',btn.dataset.kpiFilter===group));
+  const rows=[...$('jobs').children];let shown=0;
+  for(const row of rows){
+    row.hidden=!row.dataset.search.includes(query)||(group!=='all'&&row.dataset.group!==group);
+    if(!row.hidden)shown++;
+  }
+  if($('saved-job-count'))$('saved-job-count').textContent=`${shown} / ${rows.length}개 프로젝트`;
+};
+$('saved-job-search')?.addEventListener('input',window.filterSavedJobs);
+$('saved-job-filter')?.addEventListener('change',window.filterSavedJobs);
+document.querySelectorAll('[data-kpi-filter]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if($('saved-job-filter')){$('saved-job-filter').value=btn.dataset.kpiFilter||'all';window.filterSavedJobs();}
+  });
+});
+if($('dashboard-url-form'))$('dashboard-url-form').onsubmit=event=>{
+  event.preventDefault();
+  const url=($('dashboard-fetch-url')?.value||'').trim();
+  if(!url){message('불러올 게시물 URL을 입력해 주세요.',true);return;}
+  act('게시물에서 미디어와 본문을 가져와 제작 프로젝트를 생성하는 중…',async()=>{
+    job=await api('acquire',{url});
+    if($('dashboard-fetch-url'))$('dashboard-fetch-url').value='';
+    render();await refreshJobs();
+    document.querySelector('[data-workspace="create"]')?.click();
+    document.querySelector('[data-production-stage="analysis"]')?.click();
+  },'새 프로젝트를 생성했습니다! 01 영상·소재 분석 단계로 이동했습니다.');
+};
 async function exportPlatformPacket(id,data){
  let policy;try{policy=await api('disclosure-policy');}catch{throw new Error('플랫폼별 광고 표시를 적용하려면 도우미 최신 코드로 재시작이 필요합니다. 게시 준비를 중단했습니다.');}
  if(policy.version!=='platform-ad-v1')throw new Error('광고 표시 도우미 버전이 맞지 않아 게시 준비를 중단했습니다.');
@@ -119,11 +235,13 @@ function buildDefaultComment(){
 }
 
 function updateProductionStepBadges(){
+  const hasSavedProduct=Boolean(!productDirty&&job?.product&&(job.product.affiliate_url||(job.product.name&&['user_confirmed','api_issued'].includes(job.product.attribution))));
   const checks={
-    reference:Boolean(displayedReferences?.length||job),
-    analysis:Boolean(job?.analysis||job?.source_text||job),
-    writing:Boolean(job?.draft||$('script')?.value?.trim()),
-    product:Boolean(job?.product?.affiliate_url||job?.product?.name||job?.comment||$('comment')?.value?.trim()),
+    analysis:Boolean(job&&(job.analysis||job.media_ocr||(job.source_text&&job.source_text.trim()))),
+    editing:Boolean(job&&(job.text_edit||job.edit||(job.attachments?.length))),
+    carousel:Boolean(job&&(job.carousel?.slides?.length)),
+    writing:Boolean(job&&(job.draft?.body||job.draft?.script||job.status==='publish_ready'||job.status==='published')),
+    product:hasSavedProduct,
     publish:job?.status==='publish_ready'||job?.status==='published'||job?.publication?.status==='published'
   };
   document.querySelectorAll('[data-production-stage]').forEach(btn=>{
@@ -131,54 +249,1717 @@ function updateProductionStepBadges(){
     btn.classList.toggle('step-done',Boolean(checks[key]));
   });
 }
+const carouselTemplateNames={
+  editorial_dark:'시네마 리뷰 다크 (상하 분할 + 좌측 넘버링)',
+  magazine_gradient:'뉴욕 매거진 세리프 (우측 액자 + 좌측 인덱스)',
+  clean_white:'클린 화이트 갤러리 (오프화이트 지면)',
+  highlight_hook:'하이라이트 훅 배너 (상단 배너 + 하단 캡션)',
+  mint_modern:'모던 큐레이션 북 (슬레이트 + 좌측 보더)',
+  warm_luxury:'폴라로이드 저널 (모눈 지면 + 폴라로이드)',
+  neon_pop:'모던 윈도우 카드 (블러 배경 + UI 윈도우)',
+  minimal_outline:'미니멀 명조 포스터 (풀블리드 + 세리프)'
+};
+const carouselRoleLabels={
+  cover:'01 메인 표지 (Cover · 풀블리드 포스터)',
+  body:'02 본문 포인트 (Body · 8종 테마별 고유 연출)',
+  cta:'03 마지막 요약·CTA (CTA · 체크리스트 + 액션 바)'
+};
+let activeCarouselSlideIndex=1;
+function formatHighlightPreviewHtml(raw){
+  const escaped=String(raw||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return escaped
+    .replace(/\[([^\]]+)\]/g,'<span class="drag-hl-box">$1</span>')
+    .replace(/\*([^\*]+)\*/g,'<span class="drag-hl-accent">$1</span>');
+}
+function renderCarouselIntelBar(){
+  const wrap=$('carousel-intel-badges');
+  if(!wrap)return;
+  wrap.replaceChildren();
+  if(!job){
+    const p=text('span','원본·분석 자료 대기');p.className='intel-pill';wrap.append(p);
+    return;
+  }
+  const items=[
+    {label:'원본 게시물 글',ok:Boolean((job.source_text||$('source-post-text')?.value||'').trim())},
+    {label:`AI 장면 분석 (${(job.analysis?.result?.observations||[]).length}개)`,ok:Boolean(job.analysis?.result)},
+    {label:'OCR 번역',ok:Boolean(job.media_ocr?.translated_text||job.media_ocr?.raw_text)},
+    {label:'게시글 초안',ok:Boolean((job.draft?.body||$('script')?.value||'').trim())},
+    {label:`상품 정보${job.product?.name?' ('+job.product.name.slice(0,12)+')':''}`,ok:Boolean(job.product?.name)}
+  ];
+  for(const it of items){
+    const badge=text('span',`${it.ok?'✓ ':'· '}${it.label}`);
+    badge.className='intel-pill'+(it.ok?' active':'');
+    wrap.append(badge);
+  }
+}
+const coverHookFormulaMeta={
+  question:{name:'질문형 후킹',badge:'QUESTION HOOK',desc:'호기심·공감 유발 질문으로 스와이프 유도'},
+  number:{name:'숫자·공식형 후킹',badge:'90% FORMULA',desc:'구체적 수치·법칙으로 신뢰도·클릭률 상승'},
+  twist:{name:'반전·통념파괴형',badge:'TWIST HOOK',desc:'고정관념을 깨는 반전 문장으로 시선 고정'},
+  loss_aversion:{name:'손실회피·비교형',badge:'MUST CHECK',desc:'모르면 손해 보는 핵심 체크 포인트 강조'},
+  direct_rule:{name:'단도직입·비결형',badge:'CORE SECRET',desc:'잘 터지는 핵심 공식·결론을 직관적으로 제시'}
+};
+function formatCoverHookByFormula(formulaKey,rawTopic,rawSub,prodName,slideCount){
+  const f=(formulaKey||'number').trim();
+  const countNum=Math.max(2,Math.min(10,Number(slideCount||$('carousel-count')?.value||5)));
+  const pointCount=Math.max(2,countNum-1);
+  let baseTopic=String(rawTopic||'').replace(/\|.*$/,'').replace(/\[|\]|\*/g,'').trim();
+  // Strip previously applied formula wrappers if user switches between chips
+  baseTopic=baseTopic
+    .replace(/^혹시\s+/,'')
+    .replace(/\s*(?:아직도 그대로 쓰세요\?|왜 다들 이걸로 바꿀까\?)$/,'')
+    .replace(/^(?:90%가 놓치는|잘 터지는)\s+/,'')
+    .replace(/\s*핵심 공식\s*\d+가지$/,'')
+    .replace(/^다들 반대로 알고 있는\s+/,'')
+    .replace(/\s*진짜 반전 핵심$/,'')
+    .replace(/^모르면 손해 보는\s+/,'')
+    .replace(/\s*실패 없는 체크리스트$/,'')
+    .replace(/^잘 되는\s+/,'')
+    .replace(/\s*제작·활용 공식 정리$/,'')
+    .trim();
+  const kw=(prodName||baseTopic||'핵심 포인트').slice(0,18).trim()||'핵심 포인트';
+  const detail=(baseTopic&&baseTopic!==kw)?baseTopic.slice(0,22).trim():'실전 노하우';
+  let title='';
+  let subtitle=String(rawSub||'').trim();
+  if(f==='question'){
+    title=detail&&detail!==kw?`혹시 [${kw}] *${detail}* 아직도 그대로 쓰세요?`:`혹시 [${kw}] 아직도 *그대로* 쓰세요?`;
+    if(!subtitle||/공식이 있습니다|체크 포인트|가이드/.test(subtitle)){
+      subtitle='90%가 무심코 지나치는 결정적 차이, 슬라이드를 넘겨 확인하세요!';
+    }
+  }else if(f==='number'){
+    title=`90%가 놓치는 [${kw}] *핵심 공식 ${pointCount}가지*`;
+    if(!subtitle||/지나치는 결정적|체크 포인트|가이드/.test(subtitle)){
+      subtitle=`잘 되는 ${kw}에는 반드시 통하는 ${pointCount}가지 공식이 있습니다!`;
+    }
+  }else if(f==='twist'){
+    title=`다들 반대로 알고 있는 [${kw}] *진짜 반전 핵심*`;
+    if(!subtitle||/공식이 있습니다|체크 포인트|가이드/.test(subtitle)){
+      subtitle='기존 상식을 뒤집는 실사용 비교 결과를 한눈에 정리했습니다!';
+    }
+  }else if(f==='loss_aversion'){
+    title=`모르면 손해 보는 [${kw}] *실패 없는 체크리스트*`;
+    if(!subtitle||/공식이 있습니다|체크 포인트|가이드/.test(subtitle)){
+      subtitle='선택 전 딱 1분만 투자하면 후회 없는 핵심 기준을 알려드립니다.';
+    }
+  }else{
+    title=`잘 되는 [${kw}] *제작·활용 공식* 정리`;
+    if(!subtitle||/지나치는 결정적|체크 포인트|가이드/.test(subtitle)){
+      subtitle=`잘 터지는 ${kw}에는 공식이 있습니다! 핵심만 빠르게 확인하세요.`;
+    }
+  }
+  return {title,subtitle,combined:`${title} | ${subtitle}`,badge:coverHookFormulaMeta[f]?.badge||'MAIN COVER'};
+}
+function readImageFileAsDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    if(!file||!String(file.type||'').startsWith('image/')){
+      reject(new Error('이미지 파일(PNG, JPG, WEBP 등)만 사용할 수 있습니다.'));
+      return;
+    }
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result||''));
+    reader.onerror=()=>reject(new Error('이미지 파일을 읽는 중 오류가 발생했습니다.'));
+    reader.readAsDataURL(file);
+  });
+}
+async function readClipboardImageAsDataUrl(){
+  if(!navigator.clipboard||!navigator.clipboard.read){
+    throw new Error('이 환경에서는 버튼 클릭 클립보드 읽기가 제한되어 있습니다. 화면에서 바로 Ctrl+V를 눌러 붙여넣으세요.');
+  }
+  const items=await navigator.clipboard.read();
+  for(const item of items){
+    const imgType=(item.types||[]).find(t=>t.startsWith('image/'));
+    if(imgType){
+      const blob=await item.getType(imgType);
+      return await readImageFileAsDataUrl(blob);
+    }
+  }
+  throw new Error('클립보드에 복사된 이미지가 없습니다. 이미지를 복사(Ctrl+C 또는 우클릭 이미지 복사)한 뒤 다시 시도하거나 Ctrl+V를 누르세요.');
+}
+let pendingCarouselPhotoMode='replace'; // 'replace' | 'add_slide'
+async function applyCarouselCustomPhotoDataUrl(dataUrl,mode='replace',sourceLabel='클립보드/파일 이미지'){
+  if(!job)throw new Error('먼저 작업할 영상·소재를 불러오세요.');
+  if(!dataUrl||!dataUrl.startsWith('data:image/'))throw new Error('유효한 이미지 데이터가 아닙니다.');
+  const slides=job?.carousel?.slides||[];
+  if(!slides.length){
+    await act(`${sourceLabel}로 캐러셀 세트를 초기화하고 표지 사진에 적용하는 중…`,async()=>{
+      if(!($('carousel-cover-title')?.value||'').trim())ensureCarouselStoryAutoPopulated(true);
+      $('btn-generate-carousel')?.click();
+    });
+    return;
+  }
+  if(mode==='add_slide'){
+    await act(`${sourceLabel}로 새 캐러셀 슬라이드를 추가하는 중…`,async()=>{
+      await update('carousel-slide-action',{
+        action:'add',
+        image_data_url:dataUrl,
+        title:'[추가 체크 포인트]',
+        subtitle:'새로 추가한 이미지의 핵심 설명을 입력하세요',
+        body_text:''
+      });
+      const nextSlides=job?.carousel?.slides||[];
+      if(nextSlides.length>=2){
+        activeCarouselSlideIndex=nextSlides.length-1;
+      }
+      renderCarouselPreview();
+    },`${sourceLabel}를 기반으로 새 슬라이드를 추가했습니다!`);
+  }else{
+    const targetIdx=activeCarouselSlideIndex||1;
+    await act(`슬라이드 #${targetIdx} 사진을 ${sourceLabel}(으)로 교체하는 중…`,async()=>{
+      await update('carousel-slide-update',{
+        index:targetIdx,
+        image_data_url:dataUrl
+      });
+      renderCarouselPreview();
+    },`슬라이드 #${targetIdx} 사진을 ${sourceLabel}(으)로 교체했습니다!`);
+  }
+}
+function splitSlideThreeTierText(slideObj){
+  if(!slideObj)return {title:'',subtitle:'',bodyText:''};
+  const lines=String(slideObj.text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const title=(slideObj.title!==undefined&&String(slideObj.title).trim())?String(slideObj.title).trim():(lines[0]||'');
+  const subtitle=(slideObj.subtitle!==undefined&&String(slideObj.subtitle).trim())?String(slideObj.subtitle).trim():(lines[1]||'');
+  const bodyText=(slideObj.body_text!==undefined&&String(slideObj.body_text).trim())?String(slideObj.body_text).trim():(lines.length>2?lines.slice(2).join('\n'):'');
+  return {title,subtitle,bodyText};
+}
 function renderCarouselPreview(){
-  const wrap=$('carousel-slides-wrap'),grid=$('carousel-slides-preview'),label=$('carousel-slides-label');
+  renderCarouselIntelBar();
+  const wrap=$('carousel-slides-wrap'),grid=$('carousel-slides-preview'),label=$('carousel-slides-label'),workbench=$('carousel-active-workbench');
   if(!wrap||!grid)return;
   grid.replaceChildren();
+  if(workbench)workbench.replaceChildren();
   const slides=job?.carousel?.slides||[];
-  if(!job||!slides.length){wrap.hidden=true;return;}
+  const setupDrawer=$('carousel-batch-setup-drawer');
+  if(!job){wrap.hidden=true;return;}
   wrap.hidden=false;
-  if(label)label.textContent=`생성된 캐러셀 슬라이드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} 비율) — [게시·예약]에서 인스타 캐러셀/쓰레드로 바로 업로드 가능`;
+  if(!slides.length){
+    if(setupDrawer)setupDrawer.open=true;
+    if(label)label.textContent='슬라이드 워크벤치 (아직 생성된 슬라이드가 없습니다)';
+    if(workbench){
+      const emptyBox=document.createElement('div');
+      emptyBox.className='carousel-empty-workbench';
+      emptyBox.append(
+        text('strong','아직 생성된 캐러셀 슬라이드가 없습니다'),
+        text('p','위에서 첫 장(표지) 90% 후킹 공식(질문형·숫자형·반전형)과 8종 테마를 고른 뒤 [캐러셀 세트 생성]을 누르면 표지·본문·마지막장 슬라이드가 생성되며, 하단에서 사진 수정(이미지 추가·Ctrl+V 붙여넣기)·제목·부제목·본문 텍스트 추가를 바로 편집할 수 있습니다.')
+      );
+      const actRow=document.createElement('div');
+      actRow.style.cssText='display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap;';
+      const bAuto=text('button','1. 분석·본문 자료로 대본 자동 채우기');
+      bAuto.type='button';bAuto.className='secondary';
+      bAuto.onclick=()=>$('btn-autofill-carousel-texts')?.click();
+      const bGen=text('button','2. 캐러셀 세트 즉시 생성하기');
+      bGen.type='button';
+      bGen.onclick=()=>{
+        if($('carousel-cover-title')&&!$('carousel-cover-title').value.trim())$('btn-autofill-carousel-texts')?.click();
+        $('btn-generate-carousel')?.click();
+      };
+      actRow.append(bAuto,bGen);
+      emptyBox.append(actRow);
+      workbench.append(emptyBox);
+    }
+    return;
+  }
+  if(setupDrawer&&slides.length>0)setupDrawer.open=false;
+  if(!slides.some(s=>Number(s.index)===activeCarouselSlideIndex)){
+    activeCarouselSlideIndex=Number(slides[0]?.index||1);
+  }
+  const activeSlide=slides.find(s=>Number(s.index)===activeCarouselSlideIndex)||slides[0];
+  const tplLabel=carouselTemplateNames[job.carousel.template||'editorial_dark']||'시네마 리뷰 다크';
+  if(label)label.textContent=`슬라이드 스토리보드 (${slides.length}장 · ${job.carousel.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`;
   const base=`/studio/jobs/${job.id}/media/`;
   const tsCache=Math.floor((job.carousel.updated_at||Date.now())*1000);
+  const maxDur=Math.max(0.5,Number(job.media?.duration||5));
+
+  // 1. Render Compact Horizontal Storyboard Filmstrip Deck ([1] [2] [3] [4] [+ 슬라이드 추가])
   for(const s of slides){
+    const sRole=s.role||(s.index===1?'cover':(s.index===slides.length&&slides.length>=3?'cta':'body'));
+    const isSelected=(Number(s.index)===Number(activeSlide?.index));
     const fig=document.createElement('figure');
-    fig.className='carousel-slide-card';
+    fig.className='carousel-storyboard-card'+(sRole==='cover'?' is-cover-slide':'')+(sRole==='cta'?' is-cta-slide':'')+(isSelected?' is-selected-slide':'');
+    fig.onclick=()=>{
+      activeCarouselSlideIndex=s.index;
+      renderCarouselPreview();
+    };
+
+    const headRow=document.createElement('div');
+    headRow.className='storyboard-card-head';
+    const roleShort=sRole==='cover'?'표지(90%훅)':(sRole==='cta'?'마지막장':'본문');
+    const roleBadgeEl=text('span',`0${s.index} ${roleShort}`);
+    roleBadgeEl.className=`storyboard-role-badge role-badge-${sRole}`;
+    const sourceTag=s.custom_image?'내 사진':`${Number(s.timestamp||0).toFixed(1)}s`;
+    const editPill=text('span',isSelected?'편집 중':sourceTag);
+    editPill.className='storyboard-select-pill'+(isSelected?' active':'');
+    headRow.append(roleBadgeEl,editPill);
+
+    const thumbWrap=document.createElement('div');
+    thumbWrap.className='storyboard-thumb-wrap';
     const img=document.createElement('img');
-    img.src=`${base}${s.file}?t=${tsCache}`;
+    img.src=`${base}${s.file}?t=${tsCache}_${s.sha256||''}`;
     img.alt=`슬라이드 ${s.index}`;
-    const cap=text('figcaption',`#${s.index} (${Number(s.timestamp||0).toFixed(1)}초)${s.text?' · '+s.text:''}`);
-    fig.append(img,cap);
+    thumbWrap.append(img);
+
+    const tier=splitSlideThreeTierText(s);
+    const captionSummary=document.createElement('div');
+    captionSummary.className='storyboard-card-summary';
+    const sumHead=text('strong',(tier.title||'문구 없음').slice(0,24));
+    captionSummary.append(sumHead);
+
+    fig.append(headRow,thumbWrap,captionSummary);
     grid.append(fig);
+  }
+
+  // Canva-style [+ 슬라이드 추가] card at the end of the filmstrip
+  if(slides.length<10){
+    const addCard=document.createElement('button');
+    addCard.type='button';
+    addCard.className='carousel-storyboard-add-card';
+    addCard.title='새 본문 슬라이드 추가 (또는 이미지 파일로 새 슬라이드 추가)';
+    const plusIcon=text('span','+');
+    plusIcon.className='storyboard-add-plus';
+    const addTxt=text('strong','슬라이드 추가');
+    const addSub=text('small','현재 장면 / 사진 추가');
+    addCard.append(plusIcon,addTxt,addSub);
+    addCard.onclick=()=>$('btn-carousel-add-slide')?.click();
+    grid.append(addCard);
+  }
+
+  // 2. Render Active Slide Live Workbench (Left: Live Preview, Right/Bottom: 1.사진수정 · 첫장후킹 · 2.제목 · 3.부제목 · 4.본문텍스트추가)
+  if(workbench&&activeSlide){
+    const activeRole=activeSlide.role||(activeSlide.index===1?'cover':(activeSlide.index===slides.length&&slides.length>=3?'cta':'body'));
+    const activeTpl=activeSlide.template||job.carousel.template||'editorial_dark';
+    const {title:initHead,subtitle:initSubtitle,bodyText:initBodyText}=splitSlideThreeTierText(activeSlide);
+
+    const wbGrid=document.createElement('div');
+    wbGrid.className='carousel-wb-grid';
+
+    // Left Column: Large Live Card Canvas Preview + Slide Navigation Strip
+    const wbPreviewCol=document.createElement('div');
+    wbPreviewCol.className='carousel-wb-preview-col';
+    const wbPreviewHeader=document.createElement('div');
+    wbPreviewHeader.className='carousel-wb-preview-head';
+    const rolePill=text('span',activeRole==='cover'?'01 첫장 표지 (90% 후킹)':(activeRole==='cta'?`0${activeSlide.index} 마지막장 요약·CTA`:`0${activeSlide.index} 본문 슬라이드`));
+    rolePill.className=`wb-role-pill role-${activeRole}`;
+    const slideNavWrap=document.createElement('div');
+    slideNavWrap.className='wb-slide-nav-btns';
+    const btnPrevSlide=text('button','◀ 이전');btnPrevSlide.type='button';btnPrevSlide.className='secondary btn-xs';
+    btnPrevSlide.disabled=activeSlide.index<=1;
+    btnPrevSlide.onclick=()=>{activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);renderCarouselPreview();};
+    const slideIdxLabel=text('strong',`0${activeSlide.index} / 0${slides.length}`);
+    slideIdxLabel.style.cssText='font-size:11.5px;white-space:nowrap;';
+    const btnNextSlide=text('button','다음 ▶');btnNextSlide.type='button';btnNextSlide.className='secondary btn-xs';
+    btnNextSlide.disabled=activeSlide.index>=slides.length;
+    btnNextSlide.onclick=()=>{activeCarouselSlideIndex=Math.min(slides.length,activeSlide.index+1);renderCarouselPreview();};
+    slideNavWrap.append(btnPrevSlide,slideIdxLabel,btnNextSlide);
+    wbPreviewHeader.append(rolePill,slideNavWrap);
+
+    const wbStage=document.createElement('div');
+    wbStage.className='carousel-wb-stage wb-canvas-frame';
+    wbStage.title='이미지를 이곳에 드래그 앤 드롭하거나 Ctrl+V를 누르면 이 슬라이드 사진이 바로 교체됩니다';
+    const bigImg=document.createElement('img');
+    bigImg.src=`${base}${activeSlide.file}?t=${tsCache}_${activeSlide.sha256||''}`;
+    bigImg.alt=`선택된 슬라이드 #${activeSlide.index} 미리보기`;
+    bigImg.onclick=()=>{if($('preview')&&job.kind!=='image'){$('preview').currentTime=Number(activeSlide.timestamp||0);}};
+    wbStage.append(bigImg);
+
+    // Support Drag-and-Drop image onto the preview stage
+    wbStage.addEventListener('dragover',e=>{e.preventDefault();wbStage.classList.add('drag-over');});
+    wbStage.addEventListener('dragleave',()=>wbStage.classList.remove('drag-over'));
+    wbStage.addEventListener('drop',async e=>{
+      e.preventDefault();
+      wbStage.classList.remove('drag-over');
+      const f=e.dataTransfer?.files?.[0];
+      if(!f)return;
+      try{
+        const dataUrl=await readImageFileAsDataUrl(f);
+        await applyCarouselCustomPhotoDataUrl(dataUrl,'replace',`드롭한 이미지(${f.name})`);
+      }catch(err){
+        message(err.message,true);
+      }
+    });
+
+    const wbHint=text('p',`이 화면에서 바로 Ctrl+V(이미지 붙여넣기) 또는 이미지를 드래그해 놓으면 #${activeSlide.index}번 슬라이드 사진이 교체됩니다.`);
+    wbHint.className='hint';
+    wbHint.style.margin='6px 0 0';
+    wbPreviewCol.append(wbPreviewHeader,wbStage,wbHint);
+
+    // Right Column: Structured Slide Workbench (사진 수정 -> 첫장 후킹 공식 -> 제목 -> 부제목 -> 본문 텍스트 추가 -> 스타일/테마)
+    const wbInspectorCol=document.createElement('div');
+    wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector';
+
+    const inspHead=document.createElement('div');
+    inspHead.className='wb-inspector-head';
+    const photoStatusText=activeSlide.custom_image?'사용자 추가/붙여넣기 사진 적용됨':(job.kind==='image'?'원본 이미지 배경':`영상 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`);
+    inspHead.append(
+      text('h4',`슬라이드 #${activeSlide.index} 하단 구성 편집 (${activeRole==='cover'?'첫장 표지 · 90% 후킹':activeRole==='cta'?'마지막장 요약':'본문 카드'})`),
+      text('span',photoStatusText)
+    );
+
+    // Forward declare inputs & update helper so all sections can call applyActiveSlideUpdate
+    let headInput,subtitleInput,bodyTextarea,badgeInput,roleSelect,tplSelect,fontSelectEl,s1Num,s1Color,s2Num,s2Color;
+    const composeThreeTierText=()=>{
+      const t=(headInput?.value||'').trim();
+      const s=(subtitleInput?.value||'').trim();
+      const b=(bodyTextarea?.value||'').trim();
+      return [t,s,b].filter(Boolean).join('\n');
+    };
+    const applyActiveSlideUpdate=extra=>act(`슬라이드 #${activeSlide.index} 재합성 중…`,()=>update('carousel-slide-update',{
+      index:activeSlide.index,
+      timestamp:extra.timestamp!==undefined?extra.timestamp:activeSlide.timestamp,
+      title:extra.title!==undefined?extra.title:(headInput?.value||'').trim(),
+      subtitle:extra.subtitle!==undefined?extra.subtitle:(subtitleInput?.value||'').trim(),
+      body_text:extra.body_text!==undefined?extra.body_text:(bodyTextarea?.value||'').trim(),
+      text:extra.text!==undefined?extra.text:composeThreeTierText(),
+      badge:extra.badge!==undefined?extra.badge:(badgeInput?.value||'').trim(),
+      role:extra.role!==undefined?extra.role:(roleSelect?.value||activeRole),
+      template:extra.template!==undefined?extra.template:(tplSelect?.value||activeTpl),
+      font_family:extra.font_family!==undefined?extra.font_family:(fontSelectEl?.value||'heavy_kr'),
+      stroke_width:extra.stroke_width!==undefined?extra.stroke_width:Number(s1Num?.value||0),
+      stroke_color:extra.stroke_color!==undefined?extra.stroke_color:(s1Color?.value||'#000000'),
+      double_stroke_width:extra.double_stroke_width!==undefined?extra.double_stroke_width:Number(s2Num?.value||0),
+      double_stroke_color:extra.double_stroke_color!==undefined?extra.double_stroke_color:(s2Color?.value||'#facc15'),
+      ...(extra.image_data_url?{image_data_url:extra.image_data_url}:{}),
+      ...(extra.clear_custom_image?{clear_custom_image:true}:{}),
+      ...(extra.hook_formula?{hook_formula:extra.hook_formula}:{})
+    }),`슬라이드 #${activeSlide.index} 변경사항을 카드에 반영했습니다.`);
+
+    // --- SECTION 1: 사진 수정 (이미지 파일 추가 · Ctrl+V 복사 붙여넣기 · 영상 시점 캡처) ---
+    const photoBox=document.createElement('div');
+    photoBox.className='wb-structured-section wb-photo-edit-box';
+    const photoHead=document.createElement('div');
+    photoHead.className='wb-section-head';
+    const photoTitle=text('strong','1. 사진 수정 (이미지 추가 · 복사 붙여넣기 · 장면 캡처)');
+    const photoBadge=text('span',activeSlide.custom_image?'외부 사진 적용됨':'영상/원본 프레임');
+    photoBadge.className='wb-section-pill'+(activeSlide.custom_image?' active':'');
+    photoHead.append(photoTitle,photoBadge);
+
+    const photoActionRow=document.createElement('div');
+    photoActionRow.className='wb-photo-action-row';
+    const btnUploadPhoto=text('button','+ 이미지 파일 추가/교체');
+    btnUploadPhoto.type='button';
+    btnUploadPhoto.className='secondary btn-xs';
+    btnUploadPhoto.onclick=()=>{
+      pendingCarouselPhotoMode='replace';
+      $('carousel-slide-photo-input')?.click();
+    };
+    const btnPastePhoto=text('button','클립보드 이미지 붙여넣기 (Ctrl+V)');
+    btnPastePhoto.type='button';
+    btnPastePhoto.className='secondary btn-xs wb-paste-highlight-btn';
+    btnPastePhoto.onclick=async()=>{
+      try{
+        const dataUrl=await readClipboardImageAsDataUrl();
+        await applyCarouselCustomPhotoDataUrl(dataUrl,'replace','클립보드 붙여넣기 이미지');
+      }catch(err){
+        message(err.message,true);
+      }
+    };
+    const btnAddSlideWithPhoto=text('button','+ 새 슬라이드로 사진 추가');
+    btnAddSlideWithPhoto.type='button';
+    btnAddSlideWithPhoto.className='secondary btn-xs';
+    btnAddSlideWithPhoto.onclick=()=>{
+      pendingCarouselPhotoMode='add_slide';
+      $('carousel-slide-photo-input')?.click();
+    };
+    photoActionRow.append(btnUploadPhoto,btnPastePhoto,btnAddSlideWithPhoto);
+
+    if(job.kind!=='image'){
+      const btnTsMinus=text('button','-0.5초');btnTsMinus.type='button';btnTsMinus.className='secondary btn-xs';
+      btnTsMinus.onclick=()=>applyActiveSlideUpdate({timestamp:Math.max(0,Number(activeSlide.timestamp||0)-0.5),clear_custom_image:true});
+      const btnTsPlus=text('button','+0.5초');btnTsPlus.type='button';btnTsPlus.className='secondary btn-xs';
+      btnTsPlus.onclick=()=>applyActiveSlideUpdate({timestamp:Math.min(Math.max(0,maxDur-0.1),Number(activeSlide.timestamp||0)+0.5),clear_custom_image:true});
+      const btnTsCapture=text('button','현재 영상 시점 캡처');btnTsCapture.type='button';btnTsCapture.className='secondary btn-xs';
+      btnTsCapture.onclick=()=>{
+        const cur=$('preview')?.currentTime;
+        const rawTs=(typeof cur==='number'&&Number.isFinite(cur))?cur:Number(activeSlide.timestamp||0);
+        applyActiveSlideUpdate({timestamp:Math.min(Math.max(0,maxDur-0.1),rawTs),clear_custom_image:true});
+      };
+      photoActionRow.append(btnTsMinus,btnTsPlus,btnTsCapture);
+    }
+    if(activeSlide.custom_image){
+      const btnResetFrame=text('button','원본 영상/이미지 배경으로 복원');
+      btnResetFrame.type='button';
+      btnResetFrame.className='secondary btn-xs btn-subtle-danger';
+      btnResetFrame.onclick=()=>applyActiveSlideUpdate({clear_custom_image:true});
+      photoActionRow.append(btnResetFrame);
+    }
+    const photoHint=text('p','팁: 웹페이지나 캡처 도구에서 이미지를 복사(Ctrl+C)한 뒤 이 화면에서 Ctrl+V를 누르면 현재 슬라이드 사진이 즉시 바뀝니다.');
+    photoHint.className='hint';
+    photoBox.append(photoHead,photoActionRow,photoHint);
+
+    // --- COVER HOOK FORMULA BAR (Especially highlighted on Slide 1 / Cover, or available to convert any slide into a hook cover) ---
+    const hookFormulaBox=document.createElement('div');
+    hookFormulaBox.className='wb-structured-section wb-cover-hook-box';
+    const hookHead=document.createElement('div');
+    hookHead.className='wb-section-head';
+    hookHead.append(
+      text('strong',activeSlide.index===1?'첫 장(표지)이 90% — 바이럴 후킹 공식 원클릭 적용':'슬라이드 후킹 공식 변환 (질문형 · 숫자형 · 반전형)'),
+      text('span','클릭 시 제목·부제목 즉시 변환')
+    );
+    const hookChipsRow=document.createElement('div');
+    hookChipsRow.className='cover-hook-formula-chips';
+    const curFormula=$('carousel-cover-hook-formula')?.value||'number';
+    for(const [fKey,fMeta] of Object.entries(coverHookFormulaMeta)){
+      const chip=document.createElement('button');
+      chip.type='button';
+      chip.className='cover-hook-chip'+(fKey===curFormula?' active':'');
+      chip.append(text('strong',fMeta.name),text('small',fMeta.desc));
+      chip.onclick=()=>{
+        if($('carousel-cover-hook-formula'))$('carousel-cover-hook-formula').value=fKey;
+        document.querySelectorAll('.cover-hook-chip').forEach(c=>c.classList.toggle('active',c.dataset.coverHookFormula===fKey||c===chip));
+        const prod=($('product-name')?.value||job?.product?.name||'').trim();
+        const lines=extractBestHookLines();
+        const seedTopic=(headInput?.value||'').trim()||lines[0]||'핵심 포인트';
+        const seedSub=(subtitleInput?.value||'').trim()||lines[1]||'';
+        const formatted=formatCoverHookByFormula(fKey,seedTopic,seedSub,prod,slides.length);
+        if(headInput)headInput.value=formatted.title;
+        if(subtitleInput)subtitleInput.value=formatted.subtitle;
+        if(badgeInput&&activeRole==='cover')badgeInput.value=formatted.badge;
+        if(activeSlide.index===1&&$('carousel-cover-title')){
+          $('carousel-cover-title').value=formatted.combined;
+        }
+        applyActiveSlideUpdate({
+          title:formatted.title,
+          subtitle:formatted.subtitle,
+          badge:activeRole==='cover'?formatted.badge:(badgeInput?.value||'').trim(),
+          hook_formula:fKey
+        });
+      };
+      hookChipsRow.append(chip);
+    }
+    hookFormulaBox.append(hookHead,hookChipsRow);
+
+    // --- SECTION 2: 제목 (Title) ---
+    const titleSection=document.createElement('div');
+    titleSection.className='wb-structured-section wb-text-tier-box';
+    const headTopBar=document.createElement('div');
+    headTopBar.className='wb-section-head';
+    const headLabelEl=text('strong',activeRole==='cover'?'2. 제목 (첫장 핵심 후킹 대제목)':(activeRole==='cta'?'2. 제목 (마지막장 핵심 결론)':'2. 제목 (슬라이드 메인 헤드라인)'));
+    const syntaxBtns=document.createElement('div');
+    syntaxBtns.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
+    const btnHlBox=text('button','+ [박스 강조]');btnHlBox.type='button';btnHlBox.className='secondary btn-xs';
+    const btnHlAcc=text('button','+ *색상 강조*');btnHlAcc.type='button';btnHlAcc.className='secondary btn-xs';
+    headInput=document.createElement('input');
+    headInput.type='text';
+    headInput.id='wb-active-head-input';
+    headInput.value=initHead;
+    headInput.placeholder='예: [잘 터지는] *캐러셀* 제작하기 ([대괄호]=박스 강조, *별표*=색상 강조)';
+    btnHlBox.onclick=()=>{
+      const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
+      const sel=headInput.value.slice(st,en)||'핵심키워드';
+      headInput.value=headInput.value.slice(0,st)+`[${sel}]`+headInput.value.slice(en);
+      headInput.focus();
+    };
+    btnHlAcc.onclick=()=>{
+      const st=headInput.selectionStart??headInput.value.length,en=headInput.selectionEnd??headInput.value.length;
+      const sel=headInput.value.slice(st,en)||'강조단어';
+      headInput.value=headInput.value.slice(0,st)+`*${sel}*`+headInput.value.slice(en);
+      headInput.focus();
+    };
+    syntaxBtns.append(btnHlBox,btnHlAcc);
+    headTopBar.append(headLabelEl,syntaxBtns);
+    titleSection.append(headTopBar,headInput);
+
+    // --- SECTION 3: 부제목 (Subtitle) ---
+    const subtitleSection=document.createElement('div');
+    subtitleSection.className='wb-structured-section wb-text-tier-box';
+    const subTopBar=document.createElement('div');
+    subTopBar.className='wb-section-head';
+    subTopBar.append(
+      text('strong','3. 부제목 (제목 아래 핵심 보조 카피 · 훅 설명)'),
+      text('span','1줄 요약 서브타이틀')
+    );
+    subtitleInput=document.createElement('input');
+    subtitleInput.type='text';
+    subtitleInput.id='wb-active-subtitle-input';
+    subtitleInput.value=initSubtitle;
+    subtitleInput.placeholder=activeRole==='cover'?'예: 잘 되는 캐러셀에는 공식이 있습니다!':'예: 실사용에서 가장 먼저 체감된 핵심 차이점';
+    subtitleSection.append(subTopBar,subtitleInput);
+
+    // --- SECTION 4: 본문 텍스트 추가 (Body Copy / Bullet Lines) ---
+    const bodyTextSection=document.createElement('div');
+    bodyTextSection.className='wb-structured-section wb-text-tier-box';
+    const bodyTopBar=document.createElement('div');
+    bodyTopBar.className='wb-section-head';
+    bodyTopBar.append(text('strong','4. 본문 텍스트 추가 (상세 설명 · 체크리스트 줄 추가)'));
+    const bodyBtnGroup=document.createElement('div');
+    bodyBtnGroup.style.cssText='display:flex;gap:4px;flex-wrap:wrap;';
+    bodyTextarea=document.createElement('textarea');
+    bodyTextarea.id='wb-active-body-input';
+    bodyTextarea.rows=2;
+    bodyTextarea.value=initBodyText;
+    bodyTextarea.placeholder='슬라이드에 추가로 넣을 본문 텍스트나 체크포인트를 입력하세요 (줄바꿈으로 여러 줄 추가 가능)';
+    const btnAddBullet=text('button','+ 체크포인트 줄 추가');
+    btnAddBullet.type='button';
+    btnAddBullet.className='secondary btn-xs';
+    btnAddBullet.onclick=()=>{
+      const lines=extractBestHookLines();
+      const candidate=lines[(activeSlide.index+1)%lines.length]||'핵심 실사용 체크 포인트';
+      const cur=bodyTextarea.value.trim();
+      bodyTextarea.value=cur?`${cur}\n· ${candidate}`:`· ${candidate}`;
+      bodyTextarea.focus();
+    };
+    const btnClearBody=text('button','본문 비우기');
+    btnClearBody.type='button';
+    btnClearBody.className='secondary btn-xs';
+    btnClearBody.onclick=()=>{bodyTextarea.value='';bodyTextarea.focus();};
+    bodyBtnGroup.append(btnAddBullet,btnClearBody);
+    bodyTopBar.append(bodyBtnGroup);
+    bodyTextSection.append(bodyTopBar,bodyTextarea);
+
+    // Keep legacy #wb-active-sub-input hidden alias synced so any external script reading it continues to work
+    const legacySubHidden=document.createElement('textarea');
+    legacySubHidden.id='wb-active-sub-input';
+    legacySubHidden.hidden=true;
+    legacySubHidden.value=[initSubtitle,initBodyText].filter(Boolean).join('\n');
+    const syncLegacySub=()=>{
+      legacySubHidden.value=[(subtitleInput?.value||'').trim(),(bodyTextarea?.value||'').trim()].filter(Boolean).join('\n');
+    };
+    subtitleInput.addEventListener('input',syncLegacySub);
+    bodyTextarea.addEventListener('input',syncLegacySub);
+
+    // --- SECTION 5: 레이아웃 테마 · 글씨체 · 테두리 설정 ---
+    const styleDrawer=document.createElement('details');
+    styleDrawer.className='wb-style-drawer';
+    styleDrawer.open=true;
+    const styleSummary=document.createElement('summary');
+    styleSummary.textContent='5. 슬라이드 역할 · 8종 레이아웃 테마 · 글씨체 · 2중 테두리 설정';
+    styleDrawer.append(styleSummary);
+
+    const roleThemeRow=document.createElement('div');
+    roleThemeRow.className='columns';
+    roleThemeRow.style.marginTop='8px';
+    const roleLabelEl=text('label','슬라이드 역할 (표지 / 본문 / 요약)');
+    roleSelect=document.createElement('select');
+    roleSelect.id='wb-active-role-select';
+    for(const [rKey,rName] of Object.entries(carouselRoleLabels)){
+      const opt=text('option',rName);opt.value=rKey;if(rKey===activeRole)opt.selected=true;
+      roleSelect.append(opt);
+    }
+    roleLabelEl.append(roleSelect);
+
+    const tplLabelEl=text('label','슬라이드 레이아웃 테마 (8종 고유 연출)');
+    tplSelect=document.createElement('select');
+    tplSelect.id='wb-active-tpl-select';
+    for(const [tKey,tName] of Object.entries(carouselTemplateNames)){
+      const opt=text('option',tName);opt.value=tKey;if(tKey===activeTpl)opt.selected=true;
+      tplSelect.append(opt);
+    }
+    tplLabelEl.append(tplSelect);
+
+    const badgeLabelEl=text('label','상단 배지 / 킥커');
+    badgeInput=document.createElement('input');
+    badgeInput.type='text';
+    badgeInput.id='wb-active-badge-input';
+    badgeInput.value=activeSlide.badge||(activeRole==='cover'?'MAIN COVER':(activeRole==='cta'?'SUMMARY · CTA':`POINT 0${Math.max(1,activeSlide.index-1)}`));
+    badgeLabelEl.append(badgeInput);
+    roleThemeRow.append(roleLabelEl,tplLabelEl,badgeLabelEl);
+
+    // Quick Role Preset Buttons
+    const roleQuickBar=document.createElement('div');
+    roleQuickBar.className='wb-role-quick-bar';
+    for(const [rKey,rShort] of [['cover','표지(Cover) 레이아웃'],['body','본문(Body) 레이아웃'],['cta','요약(CTA) 레이아웃']]){
+      const rBtn=text('button',rShort);
+      rBtn.type='button';
+      rBtn.className='secondary btn-xs'+(rKey===activeRole?' active':'');
+      rBtn.onclick=()=>{
+        roleSelect.value=rKey;
+        applyActiveSlideUpdate({role:rKey});
+      };
+      roleQuickBar.append(rBtn);
+    }
+
+    // Per-slide Font + 1st & 2nd Double-Stroke Controls
+    const activeFontKey=activeSlide.font_family||job.carousel.font_family||$('carousel-font')?.value||'heavy_kr';
+    const activeStrokeW=Number(activeSlide.stroke_width??job.carousel.stroke_width??$('carousel-stroke-width')?.value??0);
+    const activeStrokeC=activeSlide.stroke_color||job.carousel.stroke_color||$('carousel-stroke-color')?.value||'#000000';
+    const activeDStrokeW=Number(activeSlide.double_stroke_width??job.carousel.double_stroke_width??$('carousel-double-stroke-width')?.value??0);
+    const activeDStrokeC=activeSlide.double_stroke_color||job.carousel.double_stroke_color||$('carousel-double-stroke-color')?.value||'#facc15';
+
+    const fontStrokeRow=document.createElement('div');
+    fontStrokeRow.className='columns typography-fx-grid';
+    fontStrokeRow.style.marginTop='6px';
+    const fontLabelWrap=document.createElement('label');
+    const fontHeadSpan=document.createElement('span');
+    fontHeadSpan.className='font-label-head';
+    fontHeadSpan.append(text('span','슬라이드 글씨체'));
+    const btnWbUploadFont=text('button','+ 내 폰트');
+    btnWbUploadFont.type='button';
+    btnWbUploadFont.className='secondary btn-xs btn-upload-custom-font';
+    btnWbUploadFont.onclick=()=>triggerCustomFontUpload('wb-active-font-select');
+    fontHeadSpan.append(btnWbUploadFont);
+    fontSelectEl=document.createElement('select');
+    fontSelectEl.id='wb-active-font-select';
+    fontSelectEl.className='studio-font-select';
+    if($('carousel-font')){
+      fontSelectEl.innerHTML=$('carousel-font').innerHTML;
+    }
+    fontSelectEl.value=activeFontKey;
+    if(!fontSelectEl.value)fontSelectEl.value='heavy_kr';
+    fontLabelWrap.append(fontHeadSpan,fontSelectEl);
+
+    const s1Label=text('label','1차 안쪽 테두리 (px·색상)');
+    const s1Row=document.createElement('div');s1Row.className='stroke-control-row';
+    const s1Range=document.createElement('input');s1Range.type='range';s1Range.className='px-size-range-slider';s1Range.min='0';s1Range.max='24';s1Range.step='1';s1Range.value=String(activeStrokeW);
+    s1Num=document.createElement('input');s1Num.type='number';s1Num.id='wb-active-stroke-width';s1Num.min='0';s1Num.max='24';s1Num.step='1';s1Num.value=String(activeStrokeW);
+    s1Color=document.createElement('input');s1Color.type='color';s1Color.id='wb-active-stroke-color';s1Color.className='stroke-color-picker';s1Color.value=activeStrokeC;
+    s1Range.oninput=()=>{s1Num.value=s1Range.value;};
+    s1Num.oninput=()=>{s1Range.value=s1Num.value;};
+    s1Row.append(s1Range,s1Num,text('span','px'),s1Color);
+    s1Label.append(s1Row);
+
+    const s2Label=text('label','2중 바깥 테두리 (px·색상)');
+    const s2Row=document.createElement('div');s2Row.className='stroke-control-row';
+    const s2Range=document.createElement('input');s2Range.type='range';s2Range.className='px-size-range-slider';s2Range.min='0';s2Range.max='24';s2Range.step='1';s2Range.value=String(activeDStrokeW);
+    s2Num=document.createElement('input');s2Num.type='number';s2Num.id='wb-active-double-stroke-width';s2Num.min='0';s2Num.max='24';s2Num.step='1';s2Num.value=String(activeDStrokeW);
+    s2Color=document.createElement('input');s2Color.type='color';s2Color.id='wb-active-double-stroke-color';s2Color.className='stroke-color-picker';s2Color.value=activeDStrokeC;
+    s2Range.oninput=()=>{s2Num.value=s2Range.value;};
+    s2Num.oninput=()=>{s2Range.value=s2Num.value;};
+    s2Row.append(s2Range,s2Num,text('span','px'),s2Color);
+    s2Label.append(s2Row);
+
+    fontStrokeRow.append(fontLabelWrap,s1Label,s2Label);
+    styleDrawer.append(roleThemeRow,roleQuickBar,fontStrokeRow);
+
+    roleSelect.onchange=()=>applyActiveSlideUpdate({role:roleSelect.value});
+    tplSelect.onchange=()=>applyActiveSlideUpdate({template:tplSelect.value});
+    fontSelectEl.onchange=()=>applyActiveSlideUpdate({font_family:fontSelectEl.value});
+
+    // Action Footer inside Inspector
+    const wbFooter=document.createElement('div');
+    wbFooter.className='wb-inspector-footer wb-inspector-actions';
+    const orderGroup=document.createElement('div');
+    orderGroup.style.cssText='display:flex;gap:6px;flex-wrap:wrap;';
+    if(activeSlide.index>1){
+      const bLeft=text('button','◀ 순서 앞으로');bLeft.type='button';bLeft.className='secondary btn-xs';
+      bLeft.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
+        const nextIdx=activeSlide.index-1;
+        await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:-1});
+        activeCarouselSlideIndex=nextIdx;
+        renderCarouselPreview();
+      });
+      orderGroup.append(bLeft);
+    }
+    if(activeSlide.index<slides.length){
+      const bRight=text('button','순서 뒤로 ▶');bRight.type='button';bRight.className='secondary btn-xs';
+      bRight.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
+        const nextIdx=activeSlide.index+1;
+        await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:1});
+        activeCarouselSlideIndex=nextIdx;
+        renderCarouselPreview();
+      });
+      orderGroup.append(bRight);
+    }
+    if(slides.length>2){
+      const bDel=text('button','슬라이드 삭제');bDel.type='button';bDel.className='secondary btn-xs btn-subtle-danger';
+      bDel.onclick=()=>act(`슬라이드 #${activeSlide.index} 삭제 중…`,async()=>{
+        await update('carousel-slide-action',{action:'delete',index:activeSlide.index});
+        activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);
+        renderCarouselPreview();
+      });
+      orderGroup.append(bDel);
+    }
+    const btnApplySlide=text('button',`슬라이드 #${activeSlide.index} (사진·제목·부제목·본문) 적용`);
+    btnApplySlide.type='button';
+    btnApplySlide.onclick=()=>applyActiveSlideUpdate({});
+    wbFooter.append(orderGroup,btnApplySlide);
+
+    wbInspectorCol.append(inspHead,photoBox,hookFormulaBox,titleSection,subtitleSection,bodyTextSection,legacySubHidden,styleDrawer,wbFooter);
+    wbGrid.append(wbPreviewCol,wbInspectorCol);
+    workbench.append(wbGrid);
   }
 }
 function renderAttachmentsPreview(){
-  const box=$('attachments-box'),list=$('attachments-list');
+  const builder=$('media-bundle-builder'),box=$('attachments-box'),list=$('attachments-list');
   if(!box||!list)return;
   list.replaceChildren();
-  const items=job?.attachments||[];
-  if(!job||!items.length){box.hidden=true;return;}
+  if(!job){if(builder)builder.hidden=true;box.hidden=true;return;}
+  if(builder)builder.hidden=false;
   box.hidden=false;
   const base=`/studio/jobs/${job.id}/media/`;
+  const ts=Math.floor((job.text_edit?.updated_at||Date.now())*1000);
+  // 1st slot: Primary video or image
+  const primaryCard=document.createElement('div');
+  primaryCard.className='attachment-item primary-slot';
+  const pBadge=document.createElement('div');
+  pBadge.className='attachment-slot-badge';
+  pBadge.append(text('span',job.kind==='image'?'1순위 · 메인 이미지':'1순위 · 메인 영상'));
+  const pImg=document.createElement('img');
+  const firstFrame=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
+  pImg.src=`${base}${firstFrame}?t=${ts}`;
+  pImg.alt='메인 미디어';
+  primaryCard.append(pBadge,pImg,text('small',job.kind==='image'?'원본/편집 이미지':'현재 영상 1개'));
+  list.append(primaryCard);
+
+  const items=job?.attachments||[];
   for(const [idx,att] of items.entries()){
     const card=document.createElement('div');
     card.className='attachment-item';
+    const slotHead=document.createElement('div');
+    slotHead.className='attachment-slot-badge';
+    slotHead.append(text('span',`${idx+2}순위 · ${att.kind==='video'?'영상':'이미지'}`));
     if(att.kind==='image'){
       const img=document.createElement('img');
-      img.src=base+att.file;
+      img.src=`${base}${att.file}?t=${ts}`;
       img.alt=`첨부 이미지 ${idx+2}`;
-      card.append(img);
+      card.append(slotHead,img);
     }else{
-      const badge=text('span',`🎬 추가 영상 #${idx+2}`);
+      const badge=text('span',`추가 영상 #${idx+2}`);
       badge.className='attachment-video-badge';
-      card.append(badge);
+      card.append(slotHead,badge);
     }
+    const actions=document.createElement('div');
+    actions.className='attachment-slot-actions';
+    if(idx>0){
+      const btnLeft=text('button','◀');btnLeft.type='button';btnLeft.className='secondary btn-xs';
+      btnLeft.title='순서 앞으로 이동';
+      btnLeft.onclick=()=>act('첨부 순서 변경 중…',()=>update('attachments-config',{action:'move',from_index:idx,to_index:idx-1}));
+      actions.append(btnLeft);
+    }
+    if(idx<items.length-1){
+      const btnRight=text('button','▶');btnRight.type='button';btnRight.className='secondary btn-xs';
+      btnRight.title='순서 뒤로 이동';
+      btnRight.onclick=()=>act('첨부 순서 변경 중…',()=>update('attachments-config',{action:'move',from_index:idx,to_index:idx+1}));
+      actions.append(btnRight);
+    }
+    const btnDel=text('button','✕ 제외');btnDel.type='button';btnDel.className='secondary btn-xs';
+    btnDel.onclick=()=>act('첨부 미디어 제외 중…',()=>update('attachments-config',{action:'remove',index:idx}));
+    actions.append(btnDel);
+    card.append(actions);
     list.append(card);
   }
 }
+const CSS_FONT_MAP={
+  heavy_kr:'"Malgun Gothic","Pretendard","Apple SD Gothic Neo",Impact,sans-serif',
+  malgun_bold:'"Malgun Gothic","Pretendard",sans-serif',
+  black_han_sans:'"StudioFont_black_han_sans","Black Han Sans","Malgun Gothic",Impact,sans-serif',
+  gasoek_one:'"StudioFont_gasoek_one","Gasoek One","Black Han Sans","Malgun Gothic",Impact,sans-serif',
+  do_hyeon:'"StudioFont_do_hyeon","Do Hyeon","BM DoHyeon","Malgun Gothic",sans-serif',
+  jua:'"StudioFont_jua","Jua","BM JUA","Malgun Gothic",sans-serif',
+  bagel_fat_one:'"StudioFont_bagel_fat_one","Bagel Fat One","Malgun Gothic",cursive,sans-serif',
+  hy_headline:'"HY헤드라인M","HYHeadline-Medium","Malgun Gothic",Impact,sans-serif',
+  hy_gothic_extra:'"HY견고딕","HYGothic-Extra","Malgun Gothic",sans-serif',
+  pyeongchang_peace_bold:'"평창평화체 Bold","PyeongChang Peace Bold","PyeongChangPeace-Bold","Malgun Gothic",sans-serif',
+  sans:'"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif',
+  malgun_regular:'"Malgun Gothic","Apple SD Gothic Neo",sans-serif',
+  gowun_dodum:'"StudioFont_gowun_dodum","Gowun Dodum","Malgun Gothic",sans-serif',
+  orbit:'"StudioFont_orbit","Orbit","Malgun Gothic",monospace,sans-serif',
+  gulim_clean:'"Gulim","굴림","Malgun Gothic",sans-serif',
+  serif:'"StudioFont_gowun_batang_bold","Gowun Batang","Batang","바탕",Georgia,serif',
+  gowun_batang_bold:'"StudioFont_gowun_batang_bold","Gowun Batang","Batang",Georgia,serif',
+  batang_kr:'"Batang","바탕","Gowun Batang",serif',
+  hy_myeongjo_extra:'"HY견명조","HYMyeongJo-Extra","Batang",serif',
+  hy_sin_myeongjo:'"HY신명조","HYSinMyeongJo-Medium","Batang",serif',
+  brush_kr:'"StudioFont_nanum_pen","Nanum Pen Script","Gungsuh","궁서",cursive,serif',
+  nanum_pen:'"StudioFont_nanum_pen","Nanum Pen Script","Gungsuh",cursive,serif',
+  gungseo_kr:'"Gungsuh","궁서","Batang",serif',
+  hy_gungseo_bold:'"HY궁서B","HYGungSo-Bold","Gungsuh","궁서",serif',
+  magic_kr:'"휴먼매직체","HumanMagic","Gungsuh",cursive,sans-serif',
+  hy_mokgak:'"HY목각파임B","HYMokGak-Bold","Malgun Gothic",serif',
+  yet_hangul:'"휴먼옛체","HumanYet","Batang",serif',
+  pyeongchang_regular:'"평창체 Regular","PyeongChang Regular","Malgun Gothic",sans-serif'
+};
+let pendingCustomFontTargetSelect='overlay-title-font';
+function ensureDynamicFontStyleSheet(){
+  let styleEl=$('studio-dynamic-fonts-style');
+  if(!styleEl){
+    styleEl=document.createElement('style');
+    styleEl.id='studio-dynamic-fonts-style';
+    document.head.appendChild(styleEl);
+  }
+  return styleEl;
+}
+function registerCustomFontInDom(fontKey,fontLabel,fontUrl){
+  if(!fontKey)return;
+  const familyName=`StudioFont_${fontKey}`;
+  CSS_FONT_MAP[fontKey]=`"${familyName}","Malgun Gothic","Pretendard",sans-serif`;
+  if(fontUrl){
+    const styleEl=ensureDynamicFontStyleSheet();
+    const rule=`@font-face { font-family: "${familyName}"; src: url("${fontUrl}"); font-display: swap; }`;
+    if(!styleEl.textContent.includes(familyName)){
+      styleEl.textContent+=`\n${rule}`;
+    }
+    if(window.FontFace&&document.fonts){
+      try{
+        const ff=new FontFace(familyName,`url("${fontUrl}")`);
+        ff.load().then(loaded=>{document.fonts.add(loaded);syncDraggableOverlayCanvas();}).catch(()=>{});
+      }catch{}
+    }
+  }
+  const selectIds=['overlay-title-font','overlay-font','inspector-font-select','carousel-font','wb-active-font-select'];
+  for(const sid of selectIds){
+    const sel=$(sid);
+    if(!sel)continue;
+    let customGroup=sel.querySelector('optgroup[data-custom-fonts="1"]');
+    if(!customGroup){
+      customGroup=document.createElement('optgroup');
+      customGroup.label='내 커스텀 추가 폰트 (.ttf/.otf)';
+      customGroup.dataset.customFonts='1';
+      sel.prepend(customGroup);
+    }
+    let existingOpt=sel.querySelector(`option[value="${fontKey}"]`);
+    if(!existingOpt){
+      existingOpt=document.createElement('option');
+      existingOpt.value=fontKey;
+      existingOpt.textContent=`[내 폰트] ${fontLabel||fontKey}`;
+      customGroup.appendChild(existingOpt);
+    }else{
+      existingOpt.textContent=`[내 폰트] ${fontLabel||fontKey}`;
+    }
+  }
+}
+async function loadAvailableStudioFonts(){
+  try{
+    const rawLocal=localStorage.getItem('takoh-custom-fonts-cache');
+    if(rawLocal){
+      const cached=JSON.parse(rawLocal);
+      if(Array.isArray(cached)){
+        for(const item of cached){
+          if(item&&item.key)registerCustomFontInDom(item.key,item.label,item.dataUrl||`/studio/fonts/file/${encodeURIComponent(item.key)}`);
+        }
+      }
+    }
+  }catch{}
+  try{
+    const res=await api('fonts');
+    if(Array.isArray(res?.fonts)){
+      for(const f of res.fonts){
+        if(f.key&&f.source==='custom'){
+          registerCustomFontInDom(f.key,f.label,f.url||`/studio/fonts/file/${encodeURIComponent(f.key)}`);
+        }
+      }
+    }
+  }catch{}
+}
+function triggerCustomFontUpload(targetSelectId){
+  pendingCustomFontTargetSelect=targetSelectId||'overlay-title-font';
+  const fileInput=$('custom-font-upload-input');
+  if(fileInput){
+    fileInput.value='';
+    fileInput.click();
+  }
+}
+window.triggerCustomFontUpload=triggerCustomFontUpload;
+document.querySelectorAll('.btn-upload-custom-font').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    triggerCustomFontUpload(btn.dataset.targetSelect||'overlay-title-font');
+  });
+});
+if($('custom-font-upload-input')){
+  $('custom-font-upload-input').addEventListener('change',async e=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const baseLabel=file.name.replace(/\.(ttf|otf|ttc)$/i,'').trim()||'사용자 폰트';
+    const readAsDataUrl=f=>new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result||''));
+      reader.onerror=()=>reject(new Error('폰트 파일을 읽지 못했습니다.'));
+      reader.readAsDataURL(f);
+    });
+    await act(`사용자 폰트 [${baseLabel}] 등록 및 적용 중…`,async()=>{
+      let dataUrl='';
+      try{dataUrl=await readAsDataUrl(file);}catch{}
+      let fontKey=`custom_${baseLabel.toLowerCase().replace(/[^a-z0-9가-힣]+/g,'_').replace(/^_+|_+$/g,'')||'user_font'}`;
+      let fontLabel=baseLabel;
+      let fontUrl=dataUrl;
+      try{
+        const form=new FormData();
+        form.append('font',file);
+        form.append('label',baseLabel);
+        const uploaded=await api('fonts/upload',form);
+        if(uploaded?.font?.key){
+          fontKey=uploaded.font.key;
+          fontLabel=uploaded.font.label||baseLabel;
+          fontUrl=dataUrl||uploaded.font.url||`/studio/fonts/file/${encodeURIComponent(fontKey)}`;
+        }
+      }catch{}
+      registerCustomFontInDom(fontKey,fontLabel,fontUrl);
+      try{
+        const rawLocal=localStorage.getItem('takoh-custom-fonts-cache');
+        const list=rawLocal?JSON.parse(rawLocal):[];
+        const filtered=Array.isArray(list)?list.filter(x=>x&&x.key!==fontKey):[];
+        filtered.push({key:fontKey,label:fontLabel,dataUrl:dataUrl.length<1800000?dataUrl:''});
+        localStorage.setItem('takoh-custom-fonts-cache',JSON.stringify(filtered.slice(-12)));
+      }catch{}
+      const targetSel=$(pendingCustomFontTargetSelect);
+      if(targetSel){
+        targetSel.value=fontKey;
+        targetSel.dispatchEvent(new Event('change'));
+      }
+      syncDraggableOverlayCanvas();
+      saveActiveJobLocalDraft();
+    },`내 폰트 [${baseLabel}] 등록 완료! 타이틀·자막·캐러셀 글씨체 목록에 즉시 반영되었습니다.`);
+  });
+}
+loadAvailableStudioFonts().catch(()=>{});
+
+function buildLiveDoubleStrokeTextShadow(strokeW,strokeColor,doubleStrokeW,doubleStrokeColor,stageWidth,extraShadow=''){
+  const scale=Math.max(0.32,Math.min(0.88,(stageWidth||360)/1080));
+  const s1=Math.max(0,Number(strokeW||0))*scale;
+  const s2=Math.max(0,Number(doubleStrokeW||0))*scale;
+  const c1=strokeColor||'#000000';
+  const c2=doubleStrokeColor||'#facc15';
+  const shadows=[];
+  const pushRing=(radius,color,steps=16)=>{
+    if(radius<=0.1)return;
+    for(let i=0;i<steps;i++){
+      const angle=(Math.PI*2*i)/steps;
+      const dx=(Math.cos(angle)*radius).toFixed(1);
+      const dy=(Math.sin(angle)*radius).toFixed(1);
+      shadows.push(`${dx}px ${dy}px 0 ${color}`);
+    }
+  };
+  if(s1>0){
+    if(s1>1.6)pushRing(s1*0.55,c1,12);
+    pushRing(s1,c1,16);
+  }
+  if(s2>0){
+    const outerR=s1+s2;
+    if(s2>1.6)pushRing(s1+s2*0.5,c2,16);
+    pushRing(outerR,c2,20);
+  }
+  if(extraShadow)shadows.push(extraShadow);
+  return shadows.join(', ');
+}
+
+let isApplyingDraftOrUndo=false;
+const editorUndoStack=[];
+let lastUndoSnapshotJson='';
+let activeTextLayer='title';
+function syncCapcutInspectorFromBacking(layer){
+  const curLayer=layer||activeTextLayer||'title';
+  const isTitle=(curLayer==='title');
+  document.querySelectorAll('[data-select-text-layer]').forEach(btn=>{
+    const match=(btn.dataset.selectTextLayer===curLayer);
+    btn.classList.toggle('active',match);
+    btn.setAttribute('aria-selected',String(match));
+  });
+  if($('btn-canvas-select-title'))$('btn-canvas-select-title').classList.toggle('active',isTitle);
+  if($('btn-canvas-select-sub'))$('btn-canvas-select-sub').classList.toggle('active',!isTitle);
+  if($('drag-title-box'))$('drag-title-box').classList.toggle('active-selected-layer',isTitle);
+  if($('drag-subtitle-box'))$('drag-subtitle-box').classList.toggle('active-selected-layer',!isTitle);
+  if($('inspector-active-layer-badge')){
+    $('inspector-active-layer-badge').textContent=isTitle?'현재 편집 중: 상단 후킹 타이틀':'현재 편집 중: 하단 한글 자막';
+  }
+  if($('inspector-text-label')){
+    $('inspector-text-label').textContent=isTitle?'① 텍스트 내용 수정 — 상단 후킹 타이틀 (`|` 또는 줄바꿈으로 2줄 구성)':'① 텍스트 내용 수정 — 하단·중앙 한글 자막 (줄바꿈 지원)';
+  }
+  if($('inspector-badge-wrap')){
+    $('inspector-badge-wrap').style.display=isTitle?'':'none';
+  }
+  const setValIfNotFocused=(id,val)=>{
+    const el=$(id);
+    if(el&&document.activeElement!==el){
+      el.value=String(val??'');
+    }
+  };
+  const textVal=isTitle?($('overlay-title-text')?.value||''):($('overlay-korean-text')?.value||'');
+  setValIfNotFocused('inspector-text-input',textVal);
+  if(isTitle){
+    setValIfNotFocused('inspector-badge-input',$('overlay-title-badge')?.value||'');
+    setValIfNotFocused('inspector-duration-select',$('overlay-title-duration')?.value||'0');
+  }
+  const fontVal=isTitle?($('overlay-title-font')?.value||'heavy_kr'):($('overlay-font')?.value||'sans');
+  if($('inspector-font-select'))$('inspector-font-select').value=fontVal;
+
+  const isBold=isTitle?($('overlay-title-bold')?.value!=='0'):($('overlay-bold')?.value!=='0');
+  const isItalic=isTitle?($('overlay-title-italic')?.value==='1'):($('overlay-italic')?.value==='1');
+  const isUnderline=isTitle?($('overlay-title-underline')?.value==='1'):($('overlay-underline')?.value==='1');
+  if($('inspector-btn-bold')){
+    $('inspector-btn-bold').classList.toggle('active',isBold);
+    $('inspector-btn-bold').setAttribute('aria-pressed',String(isBold));
+  }
+  if($('inspector-btn-italic')){
+    $('inspector-btn-italic').classList.toggle('active',isItalic);
+    $('inspector-btn-italic').setAttribute('aria-pressed',String(isItalic));
+  }
+  if($('inspector-btn-underline')){
+    $('inspector-btn-underline').classList.toggle('active',isUnderline);
+    $('inspector-btn-underline').setAttribute('aria-pressed',String(isUnderline));
+  }
+  const alignVal=isTitle?($('overlay-title-align')?.value||'center'):($('overlay-align')?.value||'center');
+  document.querySelectorAll('[data-inspector-align]').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.inspectorAlign===alignVal);
+  });
+
+  const sizeVal=isTitle?($('overlay-title-size')?.value||'54'):($('overlay-size')?.value||'42');
+  setValIfNotFocused('inspector-font-size',sizeVal);
+  setValIfNotFocused('inspector-font-size-range',sizeVal);
+  if($('inspector-font-size-val'))$('inspector-font-size-val').textContent=`${sizeVal}px`;
+
+  const scaleVal=isTitle?($('overlay-title-scale-pct')?.value||'100'):($('overlay-scale-pct')?.value||'100');
+  setValIfNotFocused('inspector-scale-pct',scaleVal);
+  setValIfNotFocused('inspector-scale-pct-range',scaleVal);
+  if($('inspector-scale-pct-val'))$('inspector-scale-pct-val').textContent=`${scaleVal}%`;
+
+  const opacityVal=isTitle?($('overlay-title-opacity')?.value||'100'):($('overlay-opacity')?.value||'100');
+  setValIfNotFocused('inspector-opacity',opacityVal);
+  setValIfNotFocused('inspector-opacity-range',opacityVal);
+  if($('inspector-opacity-val'))$('inspector-opacity-val').textContent=`${opacityVal}%`;
+
+  const letterSpacingVal=isTitle?($('overlay-title-letter-spacing')?.value||'0'):($('overlay-letter-spacing')?.value||'0');
+  setValIfNotFocused('inspector-letter-spacing',letterSpacingVal);
+  setValIfNotFocused('inspector-letter-spacing-range',letterSpacingVal);
+  if($('inspector-letter-spacing-val'))$('inspector-letter-spacing-val').textContent=`${letterSpacingVal}px`;
+
+  const lineSpacingVal=isTitle?($('overlay-title-line-spacing')?.value||'1.18'):($('overlay-line-spacing')?.value||'1.22');
+  setValIfNotFocused('inspector-line-spacing',lineSpacingVal);
+  setValIfNotFocused('inspector-line-spacing-range',lineSpacingVal);
+  if($('inspector-line-spacing-val'))$('inspector-line-spacing-val').textContent=String(lineSpacingVal);
+
+  const radiusVal=isTitle?($('overlay-title-box-radius')?.value||'18'):($('overlay-box-radius')?.value||'22');
+  setValIfNotFocused('inspector-box-radius',radiusVal);
+  setValIfNotFocused('inspector-box-radius-range',radiusVal);
+  if($('inspector-box-radius-val'))$('inspector-box-radius-val').textContent=`${radiusVal}px`;
+
+  const textColorVal=isTitle?($('overlay-title-text-color')?.value||'#ffea18'):($('overlay-text-color')?.value||'#ffffff');
+  setValIfNotFocused('inspector-text-color',textColorVal);
+
+  const bgColorVal=isTitle?($('overlay-title-bg-color')?.value||'#0e1018'):($('overlay-bg-color')?.value||'#0e1018');
+  setValIfNotFocused('inspector-bg-color',bgColorVal);
+
+  const bgOpacityVal=isTitle?($('overlay-title-bg-opacity')?.value||'88'):($('overlay-bg-opacity')?.value||'88');
+  setValIfNotFocused('inspector-bg-opacity',bgOpacityVal);
+  setValIfNotFocused('inspector-bg-opacity-range',bgOpacityVal);
+  if($('inspector-bg-opacity-val'))$('inspector-bg-opacity-val').textContent=`${bgOpacityVal}%`;
+
+  const bgEnabled=isTitle?(($('overlay-title-color')?.value||'reels_giant_yellow_impact')!=='outline'):(($('overlay-style')?.value||'box')!=='outline');
+  if($('inspector-bg-enabled'))$('inspector-bg-enabled').checked=bgEnabled;
+
+  const s1W=isTitle?($('overlay-title-stroke-width')?.value||'4'):($('overlay-stroke-width')?.value||'3');
+  const s1C=isTitle?($('overlay-title-stroke-color')?.value||'#000000'):($('overlay-stroke-color')?.value||'#000000');
+  const s2W=isTitle?($('overlay-title-double-stroke-width')?.value||'0'):($('overlay-double-stroke-width')?.value||'0');
+  const s2C=isTitle?($('overlay-title-double-stroke-color')?.value||'#facc15'):($('overlay-double-stroke-color')?.value||'#facc15');
+  setValIfNotFocused('inspector-stroke-width',s1W);
+  setValIfNotFocused('inspector-stroke-width-range',s1W);
+  setValIfNotFocused('inspector-stroke-color',s1C);
+  setValIfNotFocused('inspector-double-stroke-width',s2W);
+  setValIfNotFocused('inspector-double-stroke-width-range',s2W);
+  setValIfNotFocused('inspector-double-stroke-color',s2C);
+
+  const presetVal=isTitle?($('overlay-title-color')?.value||'reels_giant_yellow_impact'):($('overlay-style')?.value||'box');
+  document.querySelectorAll('[data-inspector-preset]').forEach(chip=>{
+    const p=chip.dataset.inspectorPreset;
+    const match=isTitle?(p===presetVal):((presetVal==='highlight'&&p==='black')||(presetVal==='outline'&&p==='outline')||(presetVal==='box'&&p==='reels_rounded_black'));
+    chip.classList.toggle('active',match);
+  });
+}
+function selectVideoTextLayer(layer,opts={}){
+  activeTextLayer=(layer==='subtitle')?'subtitle':'title';
+  if(opts.openInspectorTab){
+    const curStage=window.currentProductionStage||'analysis';
+    if(curStage!=='editing'){
+      const editStageBtn=document.querySelector('[data-production-stage="editing"]');
+      if(editStageBtn)editStageBtn.click();
+    }
+    if(activeEditTab!=='subtitle'){
+      selectEditTab('subtitle');
+    }
+  }
+  syncCapcutInspectorFromBacking(activeTextLayer);
+  if(opts.focusInput&&$('inspector-text-input')){
+    $('inspector-text-input').focus();
+  }
+}
+window.selectVideoTextLayer=selectVideoTextLayer;
+window.syncCapcutInspectorFromBacking=syncCapcutInspectorFromBacking;
+
+function captureEditorStateSnapshot(){
+  return {
+    jobId:job?.id||'',
+    title_text:$('overlay-title-text')?.value||'',
+    title_badge:$('overlay-title-badge')?.value||'',
+    title_color:$('overlay-title-color')?.value||'reels_giant_yellow_impact',
+    title_size:$('overlay-title-size')?.value||'54',
+    title_font:$('overlay-title-font')?.value||'heavy_kr',
+    title_box_w:$('overlay-title-box-w')?.value||'84',
+    title_box_h:$('overlay-title-box-h')?.value||'0',
+    title_box_radius:$('overlay-title-box-radius')?.value||'18',
+    title_stroke_width:$('overlay-title-stroke-width')?.value||'4',
+    title_stroke_color:$('overlay-title-stroke-color')?.value||'#000000',
+    title_double_stroke_width:$('overlay-title-double-stroke-width')?.value||'0',
+    title_double_stroke_color:$('overlay-title-double-stroke-color')?.value||'#facc15',
+    title_bold:$('overlay-title-bold')?.value||'1',
+    title_italic:$('overlay-title-italic')?.value||'0',
+    title_underline:$('overlay-title-underline')?.value||'0',
+    title_text_color:$('overlay-title-text-color')?.value||'#ffea18',
+    title_bg_color:$('overlay-title-bg-color')?.value||'#0e1018',
+    title_bg_opacity:$('overlay-title-bg-opacity')?.value||'88',
+    title_letter_spacing:$('overlay-title-letter-spacing')?.value||'0',
+    title_line_spacing:$('overlay-title-line-spacing')?.value||'1.18',
+    title_align:$('overlay-title-align')?.value||'center',
+    title_scale_pct:$('overlay-title-scale-pct')?.value||'100',
+    title_opacity:$('overlay-title-opacity')?.value||'100',
+    title_x:$('overlay-title-x')?.value||'50',
+    title_y:$('overlay-title-y')?.value||'18',
+    overlay_text:$('overlay-korean-text')?.value||'',
+    overlay_size:$('overlay-size')?.value||'42',
+    overlay_font:$('overlay-font')?.value||'sans',
+    overlay_style:$('overlay-style')?.value||'box',
+    overlay_position:$('overlay-position')?.value||'bottom',
+    overlay_box_radius:$('overlay-box-radius')?.value||'22',
+    overlay_stroke_width:$('overlay-stroke-width')?.value||'3',
+    overlay_stroke_color:$('overlay-stroke-color')?.value||'#000000',
+    overlay_double_stroke_width:$('overlay-double-stroke-width')?.value||'0',
+    overlay_double_stroke_color:$('overlay-double-stroke-color')?.value||'#facc15',
+    overlay_bold:$('overlay-bold')?.value||'1',
+    overlay_italic:$('overlay-italic')?.value||'0',
+    overlay_underline:$('overlay-underline')?.value||'0',
+    overlay_text_color:$('overlay-text-color')?.value||'#ffffff',
+    overlay_bg_color:$('overlay-bg-color')?.value||'#0e1018',
+    overlay_bg_opacity:$('overlay-bg-opacity')?.value||'88',
+    overlay_letter_spacing:$('overlay-letter-spacing')?.value||'0',
+    overlay_line_spacing:$('overlay-line-spacing')?.value||'1.22',
+    overlay_align:$('overlay-align')?.value||'center',
+    overlay_scale_pct:$('overlay-scale-pct')?.value||'100',
+    overlay_opacity:$('overlay-opacity')?.value||'100',
+    overlay_x:$('overlay-sub-x')?.value||'',
+    overlay_y:$('overlay-sub-y')?.value||'',
+    overlay_box_w:$('overlay-sub-box-w')?.value||'',
+    overlay_box_h:$('overlay-sub-box-h')?.value||'',
+    erase_mode:$('text-erase-mode')?.value||'none',
+    mask_x:$('mask-x')?.value||'6',
+    mask_y:$('mask-y')?.value||'72',
+    mask_w:$('mask-w')?.value||'88',
+    mask_h:$('mask-h')?.value||'18',
+    mask_color:$('erase-mask-color')?.value||'#0f172a',
+    mask_opacity:$('erase-mask-opacity')?.value||'92',
+    toggle_mask_box:Boolean($('toggle-mask-box')?.checked),
+    video_zoom:$('video-zoom-scale')?.value||'100',
+    focus_x:$('video-zoom-focus-x')?.value||'50',
+    focus_y:$('video-zoom-focus-y')?.value||'50',
+    script:$('script')?.value||''
+  };
+}
+function applyEditorStateSnapshot(snap){
+  if(!snap)return;
+  isApplyingDraftOrUndo=true;
+  try{
+    if($('overlay-title-text')&&snap.title_text!==undefined)$('overlay-title-text').value=snap.title_text;
+    if($('overlay-title-badge')&&snap.title_badge!==undefined)$('overlay-title-badge').value=snap.title_badge;
+    if($('overlay-title-color')&&snap.title_color)$('overlay-title-color').value=snap.title_color;
+    if($('overlay-title-size')&&snap.title_size){
+      $('overlay-title-size').value=snap.title_size;
+      if($('overlay-title-size-range'))$('overlay-title-size-range').value=snap.title_size;
+    }
+    if($('overlay-title-font')&&snap.title_font)$('overlay-title-font').value=snap.title_font;
+    if($('overlay-title-box-w')&&snap.title_box_w!==undefined){
+      $('overlay-title-box-w').value=snap.title_box_w;
+      if($('overlay-title-box-w-val'))$('overlay-title-box-w-val').textContent=`${snap.title_box_w}%`;
+    }
+    if($('overlay-title-box-h')&&snap.title_box_h!==undefined){
+      $('overlay-title-box-h').value=snap.title_box_h;
+      if($('overlay-title-box-h-val'))$('overlay-title-box-h-val').textContent=Number(snap.title_box_h)>0?`${snap.title_box_h}%`:'자동';
+    }
+    if($('overlay-title-box-radius')&&snap.title_box_radius!==undefined){
+      $('overlay-title-box-radius').value=snap.title_box_radius;
+      if($('overlay-title-box-radius-range'))$('overlay-title-box-radius-range').value=snap.title_box_radius;
+    }
+    if($('overlay-title-stroke-width')&&snap.title_stroke_width!==undefined){
+      $('overlay-title-stroke-width').value=snap.title_stroke_width;
+      if($('overlay-title-stroke-width-range'))$('overlay-title-stroke-width-range').value=snap.title_stroke_width;
+    }
+    if($('overlay-title-stroke-color')&&snap.title_stroke_color)$('overlay-title-stroke-color').value=snap.title_stroke_color;
+    if($('overlay-title-double-stroke-width')&&snap.title_double_stroke_width!==undefined){
+      $('overlay-title-double-stroke-width').value=snap.title_double_stroke_width;
+      if($('overlay-title-double-stroke-width-range'))$('overlay-title-double-stroke-width-range').value=snap.title_double_stroke_width;
+    }
+    if($('overlay-title-double-stroke-color')&&snap.title_double_stroke_color)$('overlay-title-double-stroke-color').value=snap.title_double_stroke_color;
+    if($('overlay-title-bold')&&snap.title_bold!==undefined)$('overlay-title-bold').value=snap.title_bold;
+    if($('overlay-title-italic')&&snap.title_italic!==undefined)$('overlay-title-italic').value=snap.title_italic;
+    if($('overlay-title-underline')&&snap.title_underline!==undefined)$('overlay-title-underline').value=snap.title_underline;
+    if($('overlay-title-text-color')&&snap.title_text_color)$('overlay-title-text-color').value=snap.title_text_color;
+    if($('overlay-title-bg-color')&&snap.title_bg_color)$('overlay-title-bg-color').value=snap.title_bg_color;
+    if($('overlay-title-bg-opacity')&&snap.title_bg_opacity!==undefined)$('overlay-title-bg-opacity').value=snap.title_bg_opacity;
+    if($('overlay-title-letter-spacing')&&snap.title_letter_spacing!==undefined)$('overlay-title-letter-spacing').value=snap.title_letter_spacing;
+    if($('overlay-title-line-spacing')&&snap.title_line_spacing!==undefined)$('overlay-title-line-spacing').value=snap.title_line_spacing;
+    if($('overlay-title-align')&&snap.title_align)$('overlay-title-align').value=snap.title_align;
+    if($('overlay-title-scale-pct')&&snap.title_scale_pct!==undefined)$('overlay-title-scale-pct').value=snap.title_scale_pct;
+    if($('overlay-title-opacity')&&snap.title_opacity!==undefined)$('overlay-title-opacity').value=snap.title_opacity;
+    if($('overlay-title-x')&&snap.title_x!==undefined)$('overlay-title-x').value=snap.title_x;
+    if($('overlay-title-y')&&snap.title_y!==undefined)$('overlay-title-y').value=snap.title_y;
+    if($('overlay-korean-text')&&snap.overlay_text!==undefined)$('overlay-korean-text').value=snap.overlay_text;
+    if($('overlay-size')&&snap.overlay_size){
+      $('overlay-size').value=snap.overlay_size;
+      if($('overlay-size-range'))$('overlay-size-range').value=snap.overlay_size;
+    }
+    if($('overlay-font')&&snap.overlay_font)$('overlay-font').value=snap.overlay_font;
+    if($('overlay-style')&&snap.overlay_style)$('overlay-style').value=snap.overlay_style;
+    if($('overlay-position')&&snap.overlay_position)$('overlay-position').value=snap.overlay_position;
+    if($('overlay-box-radius')&&snap.overlay_box_radius!==undefined){
+      $('overlay-box-radius').value=snap.overlay_box_radius;
+      if($('overlay-box-radius-range'))$('overlay-box-radius-range').value=snap.overlay_box_radius;
+    }
+    if($('overlay-stroke-width')&&snap.overlay_stroke_width!==undefined){
+      $('overlay-stroke-width').value=snap.overlay_stroke_width;
+      if($('overlay-stroke-width-range'))$('overlay-stroke-width-range').value=snap.overlay_stroke_width;
+    }
+    if($('overlay-stroke-color')&&snap.overlay_stroke_color)$('overlay-stroke-color').value=snap.overlay_stroke_color;
+    if($('overlay-double-stroke-width')&&snap.overlay_double_stroke_width!==undefined){
+      $('overlay-double-stroke-width').value=snap.overlay_double_stroke_width;
+      if($('overlay-double-stroke-width-range'))$('overlay-double-stroke-width-range').value=snap.overlay_double_stroke_width;
+    }
+    if($('overlay-double-stroke-color')&&snap.overlay_double_stroke_color)$('overlay-double-stroke-color').value=snap.overlay_double_stroke_color;
+    if($('overlay-bold')&&snap.overlay_bold!==undefined)$('overlay-bold').value=snap.overlay_bold;
+    if($('overlay-italic')&&snap.overlay_italic!==undefined)$('overlay-italic').value=snap.overlay_italic;
+    if($('overlay-underline')&&snap.overlay_underline!==undefined)$('overlay-underline').value=snap.overlay_underline;
+    if($('overlay-text-color')&&snap.overlay_text_color)$('overlay-text-color').value=snap.overlay_text_color;
+    if($('overlay-bg-color')&&snap.overlay_bg_color)$('overlay-bg-color').value=snap.overlay_bg_color;
+    if($('overlay-bg-opacity')&&snap.overlay_bg_opacity!==undefined)$('overlay-bg-opacity').value=snap.overlay_bg_opacity;
+    if($('overlay-letter-spacing')&&snap.overlay_letter_spacing!==undefined)$('overlay-letter-spacing').value=snap.overlay_letter_spacing;
+    if($('overlay-line-spacing')&&snap.overlay_line_spacing!==undefined)$('overlay-line-spacing').value=snap.overlay_line_spacing;
+    if($('overlay-align')&&snap.overlay_align)$('overlay-align').value=snap.overlay_align;
+    if($('overlay-scale-pct')&&snap.overlay_scale_pct!==undefined)$('overlay-scale-pct').value=snap.overlay_scale_pct;
+    if($('overlay-opacity')&&snap.overlay_opacity!==undefined)$('overlay-opacity').value=snap.overlay_opacity;
+    if($('overlay-sub-x')&&snap.overlay_x!==undefined)$('overlay-sub-x').value=snap.overlay_x;
+    if($('overlay-sub-y')&&snap.overlay_y!==undefined)$('overlay-sub-y').value=snap.overlay_y;
+    if($('overlay-sub-box-w')&&snap.overlay_box_w!==undefined)$('overlay-sub-box-w').value=snap.overlay_box_w;
+    if($('overlay-sub-box-h')&&snap.overlay_box_h!==undefined)$('overlay-sub-box-h').value=snap.overlay_box_h;
+    if($('text-erase-mode')&&snap.erase_mode)$('text-erase-mode').value=snap.erase_mode;
+    if($('mask-x')&&snap.mask_x!==undefined)$('mask-x').value=snap.mask_x;
+    if($('mask-y')&&snap.mask_y!==undefined)$('mask-y').value=snap.mask_y;
+    if($('mask-w')&&snap.mask_w!==undefined)$('mask-w').value=snap.mask_w;
+    if($('mask-h')&&snap.mask_h!==undefined)$('mask-h').value=snap.mask_h;
+    if($('erase-mask-color')&&snap.mask_color)$('erase-mask-color').value=snap.mask_color;
+    if($('erase-mask-opacity')&&snap.mask_opacity!==undefined){
+      $('erase-mask-opacity').value=snap.mask_opacity;
+      if($('erase-mask-opacity-range'))$('erase-mask-opacity-range').value=snap.mask_opacity;
+    }
+    if($('toggle-mask-box')&&snap.toggle_mask_box!==undefined)$('toggle-mask-box').checked=Boolean(snap.toggle_mask_box);
+    if($('video-zoom-scale')&&snap.video_zoom!==undefined){
+      $('video-zoom-scale').value=snap.video_zoom;
+      if($('video-zoom-scale-range'))$('video-zoom-scale-range').value=snap.video_zoom;
+    }
+    if($('video-zoom-focus-x')&&snap.focus_x!==undefined)$('video-zoom-focus-x').value=snap.focus_x;
+    if($('video-zoom-focus-y')&&snap.focus_y!==undefined)$('video-zoom-focus-y').value=snap.focus_y;
+    if($('script')&&snap.script!==undefined){$('script').value=snap.script;if($('body'))$('body').value=snap.script;writingCounts();}
+  }finally{
+    isApplyingDraftOrUndo=false;
+  }
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+}
+function pushEditorUndoSnapshot(){
+  if(isApplyingDraftOrUndo||!job)return;
+  const snap=captureEditorStateSnapshot();
+  const json=JSON.stringify(snap);
+  if(json===lastUndoSnapshotJson)return;
+  if(lastUndoSnapshotJson){
+    try{
+      const prev=JSON.parse(lastUndoSnapshotJson);
+      if(prev.jobId===job.id){
+        editorUndoStack.push(prev);
+        if(editorUndoStack.length>40)editorUndoStack.shift();
+      }
+    }catch{}
+  }
+  lastUndoSnapshotJson=json;
+}
+function performEditorUndo(){
+  if(!job)return false;
+  while(editorUndoStack.length){
+    const prev=editorUndoStack.pop();
+    if(prev&&prev.jobId===job.id){
+      lastUndoSnapshotJson=JSON.stringify(prev);
+      applyEditorStateSnapshot(prev);
+      message('↩ 이전 편집 상태로 되돌렸습니다 (Ctrl+Z).');
+      return true;
+    }
+  }
+  message('되돌릴 이전 편집 내역이 없습니다.');
+  return false;
+}
+window.pushEditorUndoSnapshot=pushEditorUndoSnapshot;
+window.performEditorUndo=performEditorUndo;
+function saveActiveJobLocalDraft(){
+  if(!job?.id||isApplyingDraftOrUndo)return;
+  try{
+    localStorage.setItem('takoh-active-job-id',job.id);
+    const snap=captureEditorStateSnapshot();
+    localStorage.setItem('takoh-job-draft-'+job.id,JSON.stringify({updatedAt:Date.now(),snap}));
+  }catch{}
+}
+function restoreActiveJobLocalDraft(jobId){
+  if(!jobId)return;
+  try{
+    const raw=localStorage.getItem('takoh-job-draft-'+jobId);
+    if(!raw)return;
+    const parsed=JSON.parse(raw);
+    if(parsed?.snap&&parsed.snap.jobId===jobId){
+      const serverUpdated=Math.max(Number(job?.text_edit?.updated_at||0),Number(job?.draft?.generated_at||0))*1000;
+      if(!serverUpdated||parsed.updatedAt>=serverUpdated-1000){
+        applyEditorStateSnapshot(parsed.snap);
+      }
+    }
+  }catch{}
+}
+function resolvePreviewFontSizePx(rawVal,defaultPx,stageWidth){
+  let px=Number(rawVal);
+  if(!Number.isFinite(px)||px<=0)px=defaultPx;
+  if(px<15)px=Math.round((px/100)*1080);
+  const scale=Math.max(0.28,Math.min(0.88,(stageWidth||360)/1080));
+  return Math.max(8,Math.min(96,Math.round(px*scale*10)/10));
+}
+function hexToRgbaCss(hexStr,alpha){
+  const h=String(hexStr||'#0f172a').replace('#','').trim();
+  let r=15,g=23,b=42;
+  if(h.length===3){
+    r=parseInt(h[0]+h[0],16)||15;
+    g=parseInt(h[1]+h[1],16)||23;
+    b=parseInt(h[2]+h[2],16)||42;
+  }else if(h.length>=6){
+    r=parseInt(h.slice(0,2),16)||15;
+    g=parseInt(h.slice(2,4),16)||23;
+    b=parseInt(h.slice(4,6),16)||42;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0.15,Math.min(1,Number(alpha)||0.92))})`;
+}
+function syncDraggableOverlayCanvas(){
+  const titleBox=$('drag-title-box'),titleTxt=$('drag-title-text'),titleKicker=$('drag-title-kicker');
+  const subBox=$('drag-subtitle-box'),subTxt=$('drag-subtitle-text');
+  const maskBox=$('drag-mask-box'),maskBadge=$('drag-mask-badge'),maskLabel=$('drag-mask-label');
+  if(!titleBox||!subBox)return;
+  const curStage=window.currentProductionStage||'analysis';
+  const hideForCarousel=(curStage==='carousel');
+  const tVal=($('overlay-title-text')?.value||'').trim();
+  const tBadge=($('overlay-title-badge')?.value||'').trim();
+  const sVal=($('overlay-korean-text')?.value||'').trim();
+  titleBox.hidden=!job||!tVal||hideForCarousel;
+  subBox.hidden=!job||!sVal||hideForCarousel;
+  const canvas=$('player-overlay-canvas');
+  const cRect=canvas?.getBoundingClientRect();
+  const stageW=(cRect&&cRect.width>40)?cRect.width:360;
+  const stageScale=Math.max(0.32,Math.min(0.88,stageW/1080));
+
+  for(const [rId,nId,defV] of [
+    ['overlay-title-size-range','overlay-title-size','54'],
+    ['overlay-size-range','overlay-size','42'],
+    ['overlay-title-box-radius-range','overlay-title-box-radius','18'],
+    ['overlay-box-radius-range','overlay-box-radius','22'],
+    ['overlay-title-stroke-width-range','overlay-title-stroke-width','4'],
+    ['overlay-title-double-stroke-width-range','overlay-title-double-stroke-width','0'],
+    ['overlay-stroke-width-range','overlay-stroke-width','3'],
+    ['overlay-double-stroke-width-range','overlay-double-stroke-width','0'],
+    ['carousel-stroke-width-range','carousel-stroke-width','0'],
+    ['carousel-double-stroke-width-range','carousel-double-stroke-width','0'],
+    ['erase-mask-opacity-range','erase-mask-opacity','92'],
+    ['video-zoom-scale-range','video-zoom-scale','100']
+  ]){
+    const rEl=$(rId),nEl=$(nId);
+    if(rEl&&nEl&&document.activeElement!==rEl){
+      rEl.value=nEl.value||defV;
+    }
+  }
+
+  // Sync Erase Mode Chips, Mask Box, and Live Video Zoom on Preview
+  const eraseMode=$('text-erase-mode')?.value||'none';
+  document.querySelectorAll('.erase-mode-chip').forEach(chip=>{
+    const pick=chip.dataset.eraseModePick;
+    const isMatch=(pick===eraseMode)||(pick==='auto_subtitles'&&(eraseMode==='auto_text'||eraseMode==='local_fill'));
+    chip.classList.toggle('active',isMatch);
+  });
+  const maskToggleChecked=Boolean($('toggle-mask-box')?.checked);
+  const showMaskBox=Boolean(job)&&!hideForCarousel&&(eraseMode!=='none'||maskToggleChecked);
+  const mx=Math.max(0,Math.min(95,Number($('mask-x')?.value??6)));
+  const my=Math.max(0,Math.min(95,Number($('mask-y')?.value??72)));
+  const mw=Math.max(5,Math.min(100-mx,Number($('mask-w')?.value??88)));
+  const mh=Math.max(4,Math.min(100-my,Number($('mask-h')?.value??18)));
+  const maskColor=$('erase-mask-color')?.value||'#0f172a';
+  const maskOpacityPct=Math.max(20,Math.min(100,Number($('erase-mask-opacity')?.value??92)));
+  if(maskBox){
+    maskBox.hidden=!showMaskBox;
+    const visualMode=eraseMode==='none'?'blur_subtitles':eraseMode;
+    maskBox.dataset.eraseMode=visualMode;
+    maskBox.style.setProperty('--mask-cover-bg',hexToRgbaCss(maskColor,maskOpacityPct/100));
+    const cx=mx+mw/2;
+    const cy=my+mh/2;
+    maskBox.style.left=`${cx}%`;
+    maskBox.style.top=`${cy}%`;
+    maskBox.style.width=`${mw}%`;
+    maskBox.style.maxWidth=`${mw}%`;
+    maskBox.style.height=`${mh}%`;
+    maskBox.style.minHeight=`${mh}%`;
+    const modeLabelMap={
+      none:'마스크 영역 미리보기',
+      blur_subtitles:'자막 흐림(블러) 마스크',
+      cover_subtitles:`덮어씌우기 마스크 (${maskOpacityPct}%)`,
+      auto_subtitles:'AI 자막 완전 삭제 영역',
+      auto_text:'AI 전체 글자 완전 삭제',
+      local_fill:'지정 마스크 정밀 삭제'
+    };
+    const lbl=modeLabelMap[eraseMode]||'자막·워터마크 마스크';
+    if(maskBadge)maskBadge.textContent=lbl;
+    if(maskLabel)maskLabel.textContent=`${lbl} (${Math.round(mx)}%, ${Math.round(my)}% · ${Math.round(mw)}×${Math.round(mh)}%)`;
+  }
+
+  // Live Video / Image Zoom Preview
+  const zoomScalePct=Math.max(100,Math.min(160,Number($('video-zoom-scale')?.value||100)));
+  const focusX=Math.max(0,Math.min(100,Number($('video-zoom-focus-x')?.value??50)));
+  const focusY=Math.max(0,Math.min(100,Number($('video-zoom-focus-y')?.value??50)));
+  if($('video-zoom-badge')){
+    $('video-zoom-badge').textContent=zoomScalePct>100.4?`${Math.round(zoomScalePct)}% 확대 (초점 ${Math.round(focusX)}%, ${Math.round(focusY)}%)`:'100% (원본)';
+  }
+  const vidEl=$('preview'),imgEl=$('image-preview');
+  const zoomFactor=zoomScalePct/100;
+  for(const mediaEl of [vidEl,imgEl]){
+    if(!mediaEl)continue;
+    if(!hideForCarousel&&zoomFactor>1.004){
+      mediaEl.style.transformOrigin=`${focusX}% ${focusY}%`;
+      mediaEl.style.transform=`scale(${zoomFactor.toFixed(3)})`;
+    }else{
+      mediaEl.style.transformOrigin='50% 50%';
+      mediaEl.style.transform='';
+    }
+  }
+  if($('text-erase-summary-readonly')){
+    const eraseSummaryMap={
+      none:'원본 유지',
+      blur_subtitles:`흐림(블러) [마스크 ${Math.round(mw)}×${Math.round(mh)}%]`,
+      cover_subtitles:`덮어씌우기 [색상 ${maskColor} · ${maskOpacityPct}%]`,
+      auto_subtitles:'완전 삭제 (AI 하단 자막 복원)',
+      auto_text:'완전 삭제 (AI 화면 전체 글자 제거)',
+      local_fill:`지정 마스크 복원 [${Math.round(mx)}%, ${Math.round(my)}%]`
+    };
+    $('text-erase-summary-readonly').value=`${eraseSummaryMap[eraseMode]||'원본 유지'} · 화면 확대 ${Math.round(zoomScalePct)}%`;
+  }
+
+  if(tVal&&titleTxt){
+    const tCol=$('overlay-title-color')?.value||'reels_giant_yellow_impact';
+    const tFontKey=$('overlay-title-font')?.value||'heavy_kr';
+    const tFontCss=CSS_FONT_MAP[tFontKey]||CSS_FONT_MAP.heavy_kr;
+    const tScalePct=Math.max(50,Math.min(200,Number($('overlay-title-scale-pct')?.value||100)));
+    const rawTitleSizePx=Number($('overlay-title-size')?.value||54)*(tScalePct/100);
+    const basePx=resolvePreviewFontSizePx(rawTitleSizePx,54,stageW);
+    const l1Px=Math.max(9,Math.round(basePx*0.82*10)/10);
+    const l2Px=Math.max(10,Math.round(basePx*1.12*10)/10);
+    const tBoxRadRaw=Math.max(0,Math.min(80,Number($('overlay-title-box-radius')?.value??18)));
+    const tBoxRadCss=`${Math.round(tBoxRadRaw*stageScale*1.15)}px`;
+    const tStrokeW=Math.max(0,Math.min(24,Number($('overlay-title-stroke-width')?.value??4)));
+    const tStrokeC=$('overlay-title-stroke-color')?.value||'#000000';
+    const tDStrokeW=Math.max(0,Math.min(24,Number($('overlay-title-double-stroke-width')?.value??0)));
+    const tDStrokeC=$('overlay-title-double-stroke-color')?.value||'#facc15';
+    const tStrokeShadow=buildLiveDoubleStrokeTextShadow(tStrokeW,tStrokeC,tDStrokeW,tDStrokeC,stageW,'0 2px 6px rgba(0,0,0,0.85)');
+
+    const tBold=($('overlay-title-bold')?.value!=='0');
+    const tItalic=($('overlay-title-italic')?.value==='1');
+    const tUnderline=($('overlay-title-underline')?.value==='1');
+    const tTextColor=$('overlay-title-text-color')?.value||'';
+    const tBgColor=$('overlay-title-bg-color')?.value||'#0e1018';
+    const tBgOpacity=Math.max(0,Math.min(100,Number($('overlay-title-bg-opacity')?.value??88)));
+    const tLetterSpacing=Math.max(-4,Math.min(24,Number($('overlay-title-letter-spacing')?.value||0)));
+    const tLineSpacing=Math.max(0.85,Math.min(2.2,Number($('overlay-title-line-spacing')?.value||1.18)));
+    const tAlign=$('overlay-title-align')?.value||'center';
+    const tOpacity=Math.max(15,Math.min(100,Number($('overlay-title-opacity')?.value??100)));
+
+    const fwCss=tBold?'900':'400';
+    const fsCss=tItalic?'italic':'normal';
+    const tdCss=tUnderline?'underline':'none';
+    const lsCss=`${(tLetterSpacing*stageScale).toFixed(1)}px`;
+    const commonTypoStyle=`font-weight:${fwCss};font-style:${fsCss};text-decoration:${tdCss};letter-spacing:${lsCss};line-height:${tLineSpacing};text-align:${tAlign};`;
+
+    titleBox.style.fontFamily=tFontCss;
+    titleBox.style.textAlign=tAlign;
+    titleBox.style.opacity=String(tOpacity/100);
+    titleTxt.style.fontFamily=tFontCss;
+    titleTxt.style.fontSize=`${basePx}px`;
+    titleTxt.style.textAlign=tAlign;
+
+    const boxW=Number($('overlay-title-box-w')?.value||84);
+    const boxH=Number($('overlay-title-box-h')?.value||0);
+    if(boxW>=20&&boxW<=98){
+      titleBox.style.width=`${boxW}%`;
+      titleBox.style.maxWidth=`${boxW}%`;
+    }else{
+      titleBox.style.width='';
+      titleBox.style.maxWidth='92%';
+    }
+    if(boxH>=6&&boxH<=65){
+      titleBox.style.minHeight=`${boxH}%`;
+    }else{
+      titleBox.style.minHeight='';
+    }
+    if($('overlay-title-box-w-val'))$('overlay-title-box-w-val').textContent=`${Math.round(boxW||84)}%`;
+    if($('overlay-title-box-h-val'))$('overlay-title-box-h-val').textContent=boxH>=6?`${Math.round(boxH)}%`:'자동';
+
+    const rawLines=tVal.replace(/\|/g,'\n').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const l1=rawLines[0]||tVal;
+    const l2=rawLines.slice(1).join(' ');
+    const primaryTextCol=tTextColor||'#ffea18';
+    if(tCol==='reels_giant_yellow_impact'){
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="color:${primaryTextCol};font-size:${l2Px}px;font-family:${tFontCss};margin-top:2px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${primaryTextCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleBox.style.background=tBgColor&&tBgColor!=='#0e1018'?hexToRgbaCss(tBgColor,tBgOpacity/100):'rgba(0,0,0,0.32)';
+      titleBox.style.border='1px dashed rgba(255,234,24,0.75)';
+    }else if(tCol==='reels_rounded_black'){
+      const cCol=tTextColor&&tTextColor!=='#ffea18'?tTextColor:'#ffffff';
+      titleTxt.innerHTML=rawLines.map(ln=>`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(ln)}</div>`).join('');
+      titleBox.style.background=hexToRgbaCss(tBgColor||'#0a0a0c',tBgOpacity/100);
+      titleBox.style.border='1.5px solid rgba(255,255,255,0.22)';
+    }else if(tCol==='reels_top_banner_pink'){
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="display:inline-block;background:#eab0d5;color:#111114;font-size:${basePx}px;font-family:${tFontCss};padding:2px 8px;border-radius:${tBoxRadCss};margin-top:3px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="display:inline-block;background:#eab0d5;color:#111114;font-size:${basePx}px;font-family:${tFontCss};padding:2px 8px;border-radius:${tBoxRadCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleBox.style.background=hexToRgbaCss(tBgColor||'#050508',tBgOpacity/100);
+      titleBox.style.border='1px solid rgba(234,176,213,0.6)';
+    }else if(tCol==='reels_3d_pop_shadow'){
+      const popShadow=buildLiveDoubleStrokeTextShadow(Math.max(3,tStrokeW),tStrokeC,tDStrokeW,tDStrokeC,stageW,'3px 4px 0 #000');
+      const cCol=tTextColor&&tTextColor!=='#ffea18'?tTextColor:'#ffffff';
+      titleTxt.innerHTML=rawLines.map(ln=>`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontCss};transform:rotate(-3deg);${commonTypoStyle}text-shadow:${popShadow};">${formatHighlightPreviewHtml(ln)}</div>`).join('');
+      titleBox.style.background='rgba(0,0,0,0.22)';
+      titleBox.style.border='1px dashed rgba(255,255,255,0.65)';
+    }else if(tCol==='reels_neon_green_glow'){
+      const neonShadow=buildLiveDoubleStrokeTextShadow(tStrokeW,tStrokeC,tDStrokeW,tDStrokeC,stageW,'0 0 10px rgba(50,255,80,0.85), 0 2px 4px #000');
+      const cCol=tTextColor&&tTextColor!=='#ffea18'?tTextColor:'#52ff5c';
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="color:${cCol};font-size:${l2Px}px;font-family:${tFontCss};margin-top:2px;${commonTypoStyle}text-shadow:${neonShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${cCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${neonShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleBox.style.background='rgba(0,0,0,0.32)';
+      titleBox.style.border='1px dashed rgba(82,255,92,0.75)';
+    }else if(tCol==='reels_editorial_split'){
+      titleTxt.innerHTML=l2?`<div style="color:#ffffff;font-size:${l1Px}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div><div style="display:inline-block;background:rgba(12,14,18,0.92);color:${primaryTextCol};border:1.5px solid ${primaryTextCol};font-size:${basePx}px;font-family:${tFontCss};padding:2px 8px;border-radius:${tBoxRadCss};margin-top:3px;${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l2)}</div>`:`<div style="color:${primaryTextCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(l1)}</div>`;
+      titleBox.style.background=hexToRgbaCss(tBgColor||'#0e1018',tBgOpacity/100);
+      titleBox.style.border='1px solid rgba(255,234,24,0.6)';
+    }else{
+      const fallbackCol=tTextColor||(tCol==='black'?'#141418':(tCol==='white'?'#ffffff':(tCol==='mint'?'#6effd8':'#ffe840')));
+      titleTxt.innerHTML=`<div style="color:${fallbackCol};font-size:${basePx}px;font-family:${tFontCss};${commonTypoStyle}text-shadow:${tStrokeShadow};">${formatHighlightPreviewHtml(tVal)}</div>`;
+      titleBox.style.color=fallbackCol;
+      titleBox.style.background=tCol==='outline'?'rgba(0,0,0,0.18)':(tCol==='black'?'rgba(255,255,255,0.95)':hexToRgbaCss(tBgColor||'#0e1018',tBgOpacity/100));
+      titleBox.style.border='1px solid rgba(255,255,255,0.22)';
+    }
+    titleBox.style.borderRadius=tBoxRadCss;
+    if(titleKicker){
+      titleKicker.hidden=!tBadge;
+      titleKicker.textContent=tBadge||'';
+    }
+    const bRect=titleBox.getBoundingClientRect();
+    let minX=8,maxX=92,minY=8,maxY=92;
+    if(cRect&&cRect.width>20&&bRect.width>0){
+      const halfW=((bRect.width/2+6)/cRect.width)*100;
+      minX=Math.min(50,Math.max(6,halfW));
+      maxX=Math.max(50,Math.min(94,100-halfW));
+    }
+    if(cRect&&cRect.height>20&&bRect.height>0){
+      const halfH=((bRect.height/2+6)/cRect.height)*100;
+      minY=Math.min(50,Math.max(6,halfH));
+      maxY=Math.max(50,Math.min(94,100-halfH));
+    }
+    const tx=Number($('overlay-title-x')?.value||50);
+    const ty=Number($('overlay-title-y')?.value||14);
+    titleBox.style.left=`${Math.max(minX,Math.min(maxX,tx))}%`;
+    titleBox.style.top=`${Math.max(minY,Math.min(maxY,ty))}%`;
+    document.querySelectorAll('.video-hook-chip').forEach(chip=>{
+      const chipHook=chip.dataset.videoHook||chip.dataset.videoHookTpl;
+      chip.classList.toggle('active',chipHook===tCol);
+    });
+  }
+  if(sVal&&subTxt){
+    const subKicker=$('drag-sub-kicker');
+    if(subKicker)subKicker.hidden=true;
+    const sFontKey=$('overlay-font')?.value||'sans';
+    const sFontCss=CSS_FONT_MAP[sFontKey]||CSS_FONT_MAP.sans;
+    const sScalePct=Math.max(50,Math.min(200,Number($('overlay-scale-pct')?.value||100)));
+    const rawSubSizePx=Number($('overlay-size')?.value||42)*(sScalePct/100);
+    const subPx=resolvePreviewFontSizePx(rawSubSizePx,42,stageW);
+    const sBoxRadRaw=Math.max(0,Math.min(80,Number($('overlay-box-radius')?.value??22)));
+    const sBoxRadCss=`${Math.round(sBoxRadRaw*stageScale*1.15)}px`;
+    const sStrokeW=Math.max(0,Math.min(24,Number($('overlay-stroke-width')?.value??3)));
+    const sStrokeC=$('overlay-stroke-color')?.value||'#000000';
+    const sDStrokeW=Math.max(0,Math.min(24,Number($('overlay-double-stroke-width')?.value??0)));
+    const sDStrokeC=$('overlay-double-stroke-color')?.value||'#facc15';
+    const sStrokeShadow=buildLiveDoubleStrokeTextShadow(sStrokeW,sStrokeC,sDStrokeW,sDStrokeC,stageW,'');
+
+    const sBold=($('overlay-bold')?.value!=='0');
+    const sItalic=($('overlay-italic')?.value==='1');
+    const sUnderline=($('overlay-underline')?.value==='1');
+    const sTextColor=$('overlay-text-color')?.value||'';
+    const sBgColor=$('overlay-bg-color')?.value||'#0e1018';
+    const sBgOpacity=Math.max(0,Math.min(100,Number($('overlay-bg-opacity')?.value??88)));
+    const sLetterSpacing=Math.max(-4,Math.min(24,Number($('overlay-letter-spacing')?.value||0)));
+    const sLineSpacing=Math.max(0.85,Math.min(2.2,Number($('overlay-line-spacing')?.value||1.22)));
+    const sAlign=$('overlay-align')?.value||'center';
+    const sOpacity=Math.max(15,Math.min(100,Number($('overlay-opacity')?.value??100)));
+
+    subBox.style.fontFamily=sFontCss;
+    subBox.style.textAlign=sAlign;
+    subBox.style.opacity=String(sOpacity/100);
+    subTxt.style.fontFamily=sFontCss;
+    subTxt.style.fontSize=`${subPx}px`;
+    subTxt.style.fontWeight=sBold?'800':'400';
+    subTxt.style.fontStyle=sItalic?'italic':'normal';
+    subTxt.style.textDecoration=sUnderline?'underline':'none';
+    subTxt.style.letterSpacing=`${(sLetterSpacing*stageScale).toFixed(1)}px`;
+    subTxt.style.lineHeight=String(sLineSpacing);
+    subTxt.style.textAlign=sAlign;
+    subTxt.style.textShadow=sStrokeShadow;
+    subTxt.innerHTML=formatHighlightPreviewHtml(sVal);
+    subBox.style.borderRadius=sBoxRadCss;
+    const sBoxW=Number($('overlay-sub-box-w')?.value||0);
+    const sBoxH=Number($('overlay-sub-box-h')?.value||0);
+    if(sBoxW>=20&&sBoxW<=98){
+      subBox.style.width=`${sBoxW}%`;
+      subBox.style.maxWidth=`${sBoxW}%`;
+    }else{
+      subBox.style.width='';
+      subBox.style.maxWidth='92%';
+    }
+    if(sBoxH>=6&&sBoxH<=65){
+      subBox.style.minHeight=`${sBoxH}%`;
+    }else{
+      subBox.style.minHeight='';
+    }
+    const sRect=subBox.getBoundingClientRect();
+    let minX=8,maxX=92,minY=8,maxY=92;
+    if(cRect&&cRect.width>20&&sRect.width>0){
+      const halfW=((sRect.width/2+6)/cRect.width)*100;
+      minX=Math.min(50,Math.max(6,halfW));
+      maxX=Math.max(50,Math.min(94,100-halfW));
+    }
+    if(cRect&&cRect.height>20&&sRect.height>0){
+      const halfH=((sRect.height/2+6)/cRect.height)*100;
+      minY=Math.min(50,Math.max(6,halfH));
+      maxY=Math.max(50,Math.min(94,100-halfH));
+    }
+    const rawSx=$('overlay-sub-x')?.value;
+    const rawSy=$('overlay-sub-y')?.value;
+    const pos=$('overlay-position')?.value||'bottom';
+    const defaultY=pos==='top'?14:(pos==='center'?50:82);
+    const sx=(rawSx!==''&&rawSx!==undefined)?Number(rawSx):50;
+    const sy=(rawSy!==''&&rawSy!==undefined)?Number(rawSy):defaultY;
+    subBox.style.left=`${Math.max(minX,Math.min(maxX,sx))}%`;
+    subBox.style.top=`${Math.max(minY,Math.min(maxY,sy))}%`;
+    const sStyle=$('overlay-style')?.value||'box';
+    const resolvedSubCol=sTextColor||(sStyle==='highlight'?'#141418':'#ffffff');
+    subBox.style.color=resolvedSubCol;
+    subTxt.style.color=resolvedSubCol;
+    subBox.style.background=sStyle==='outline'?'rgba(0,0,0,0.18)':(sStyle==='highlight'&&(!sBgColor||sBgColor==='#0e1018')?'rgba(255,255,255,0.95)':hexToRgbaCss(sBgColor||'#0e1018',sBgOpacity/100));
+  }
+  syncCapcutInspectorFromBacking(activeTextLayer);
+  if($('overlay-coord-readout')){
+    const parts=[];
+    if(showMaskBox){
+      parts.push(`마스크 영역 (${Math.round(mx)}%, ${Math.round(my)}% · ${Math.round(mw)}×${Math.round(mh)}%)`);
+    }
+    if(zoomScalePct>100.4){
+      parts.push(`화면 확대 ${Math.round(zoomScalePct)}%`);
+    }
+    if(tVal){
+      const tPx=Math.round(Number($('overlay-title-size')?.value||54));
+      const tSc=Math.round(Number($('overlay-title-scale-pct')?.value||100));
+      const tOp=Math.round(Number($('overlay-title-opacity')?.value||100));
+      parts.push(`상단 타이틀 (${Math.round(Number($('overlay-title-x')?.value||50))}%, ${Math.round(Number($('overlay-title-y')?.value||14))}% · ${tPx}px · 확대 ${tSc}% · 불투명도 ${tOp}%)`);
+    }
+    if(sVal){
+      const sy=$('overlay-sub-y')?.value||($('overlay-position')?.value==='top'?14:($('overlay-position')?.value==='center'?50:82));
+      const sPx=Math.round(Number($('overlay-size')?.value||42));
+      const sSc=Math.round(Number($('overlay-scale-pct')?.value||100));
+      const sOp=Math.round(Number($('overlay-opacity')?.value||100));
+      parts.push(`하단 자막 (${Math.round(Number($('overlay-sub-x')?.value||50))}%, ${Math.round(Number(sy))}% · ${sPx}px · 확대 ${sSc}% · 불투명도 ${sOp}%)`);
+    }
+    $('overlay-coord-readout').textContent=parts.length?`현재 배치: ${parts.join(' · ')} (텍스트 클릭=편집창 열기, 드래그=이동, 모서리 핸들=크기 조절, Ctrl+Z=실행 취소)`:'영상 위 텍스트를 클릭하거나 우측 텍스트 편집창에서 문구를 입력하면 실시간 표시됩니다.';
+  }
+}
+window.syncDraggableOverlayCanvas=syncDraggableOverlayCanvas;
 let activeEditTab='subtitle';
+try{const savedTab=localStorage.getItem('takoh-active-edit-tab');if(savedTab&&['subtitle','erase','hook','bundle'].includes(savedTab))activeEditTab=savedTab;}catch{}
 function selectEditTab(tabName){
+  if(tabName==='carousel'){
+    document.querySelector('[data-production-stage="carousel"]')?.click();
+    return;
+  }
   activeEditTab=tabName||'subtitle';
+  try{localStorage.setItem('takoh-active-edit-tab',activeEditTab);}catch{}
   document.querySelectorAll('[data-edit-tab]').forEach(btn=>{
     const isMatch=btn.dataset.editTab===activeEditTab;
     btn.classList.toggle('active',isMatch);
@@ -197,14 +1978,16 @@ document.querySelectorAll('[data-goto-stage]').forEach(btn=>{
     const stageBtn=document.querySelector(`[data-production-stage="${stage}"]`);
     if(stageBtn&&!document.body.classList.contains('quick-sidebar-mode')){
       stageBtn.click();
-    }else{
-      const sec=document.querySelector(`[data-production-section="${stage}"]`);
-      if(sec)sec.scrollIntoView({behavior:'smooth',block:'start'});
+    }else if(window.selectStage){
+      window.selectStage(stage);
     }
   });
 });
 
 function render(){
+  if(job?.id){
+    try{localStorage.setItem('takoh-active-job-id',job.id);}catch{}
+  }
   if($('publish-job-summary'))$('publish-job-summary').textContent=job?'현재 작업: '+(job.name||job.id)+' · '+(names[job.status]||job.status):'콘텐츠 제작에서 작업을 선택해 주세요. 작업 없이도 게시 화면을 살펴볼 수 있습니다.';
   if($('production-job-summary'))$('production-job-summary').textContent=job?'현재 작업 · '+(job.name||job.id)+' · '+(names[job.status]||job.status):'먼저 레퍼런스를 고르거나 원본 파일을 불러오세요.';
   productDirty=false;
@@ -212,9 +1995,13 @@ function render(){
   updateProductionStepBadges();
   $('media').hidden=!job;
   const carouselTabBtn=document.querySelector('[data-edit-tab="carousel"]');
+  const hookTabBtn=document.querySelector('[data-edit-tab="hook"]');
   if(carouselTabBtn){
-    carouselTabBtn.disabled=!job||job.kind==='image';
-    if(job?.kind==='image'&&activeEditTab==='carousel')activeEditTab='subtitle';
+    carouselTabBtn.disabled=!job;
+  }
+  if(hookTabBtn){
+    hookTabBtn.disabled=!job||job.kind==='image';
+    if(job?.kind==='image'&&activeEditTab==='hook')activeEditTab='subtitle';
   }
   selectEditTab(activeEditTab);
   if($('analysis-empty-state'))$('analysis-empty-state').hidden=Boolean(job);
@@ -232,9 +2019,168 @@ function render(){
     $('ocr-original-text').value=ocrCombined;
   }
   const ocrTrans=job?.media_ocr?.translated_text||job?.media_ocr?.korean_translation||'';
-  if($('overlay-korean-text')&&ocrTrans){
-    $('overlay-korean-text').value=ocrTrans;
+  if($('overlay-korean-text')){
+    if(job?.text_edit?.overlay_text!==undefined){
+      $('overlay-korean-text').value=job.text_edit.overlay_text||'';
+    }else if(ocrTrans){
+      $('overlay-korean-text').value=ocrTrans;
+    }
   }
+  if($('overlay-title-text')){
+    $('overlay-title-text').value=job?.text_edit?.title_text||'';
+  }
+  if($('overlay-title-badge')){
+    $('overlay-title-badge').value=job?.text_edit?.title_badge||'';
+  }
+  if($('overlay-title-x'))$('overlay-title-x').value=job?.text_edit?.title_x??50;
+  if($('overlay-title-y'))$('overlay-title-y').value=job?.text_edit?.title_y??14;
+  if($('overlay-sub-x'))$('overlay-sub-x').value=job?.text_edit?.overlay_x??'';
+  if($('overlay-sub-y'))$('overlay-sub-y').value=job?.text_edit?.overlay_y??'';
+  if($('overlay-title-box-w')){
+    const bw=job?.text_edit?.title_box_w??84;
+    $('overlay-title-box-w').value=String(bw);
+    if($('overlay-title-box-w-val'))$('overlay-title-box-w-val').textContent=`${Math.round(Number(bw))}%`;
+  }
+  if($('overlay-title-box-h')){
+    const bh=job?.text_edit?.title_box_h??0;
+    $('overlay-title-box-h').value=String(bh||0);
+    if($('overlay-title-box-h-val'))$('overlay-title-box-h-val').textContent=Number(bh)>=6?`${Math.round(Number(bh))}%`:'자동';
+  }
+  if($('overlay-sub-box-w'))$('overlay-sub-box-w').value=job?.text_edit?.overlay_box_w??'';
+  if($('overlay-sub-box-h'))$('overlay-sub-box-h').value=job?.text_edit?.overlay_box_h??'';
+  if(job?.carousel){
+    if($('carousel-erase-mode'))$('carousel-erase-mode').value=job.carousel.erase_mode==='keep'?'none':(job.carousel.erase_mode||'cover_box');
+    if($('carousel-ratio')&&job.carousel.aspect)$('carousel-ratio').value=job.carousel.aspect;
+    if($('carousel-count')&&job.carousel.count)$('carousel-count').value=String(job.carousel.count);
+    if($('carousel-text-pos')&&job.carousel.overlay_position)$('carousel-text-pos').value=job.carousel.overlay_position==='middle'?'center':job.carousel.overlay_position;
+    if($('carousel-template')&&job.carousel.template){
+      $('carousel-template').value=job.carousel.template;
+      document.querySelectorAll('.carousel-tpl-chip').forEach(c=>c.classList.toggle('active',c.dataset.carouselTpl===job.carousel.template));
+    }
+    if($('carousel-font')&&job.carousel.font_family)$('carousel-font').value=job.carousel.font_family;
+    if($('carousel-stroke-width')&&job.carousel.stroke_width!==undefined){
+      $('carousel-stroke-width').value=String(job.carousel.stroke_width);
+      if($('carousel-stroke-width-range'))$('carousel-stroke-width-range').value=String(job.carousel.stroke_width);
+    }
+    if($('carousel-stroke-color')&&job.carousel.stroke_color)$('carousel-stroke-color').value=job.carousel.stroke_color;
+    if($('carousel-double-stroke-width')&&job.carousel.double_stroke_width!==undefined){
+      $('carousel-double-stroke-width').value=String(job.carousel.double_stroke_width);
+      if($('carousel-double-stroke-width-range'))$('carousel-double-stroke-width-range').value=String(job.carousel.double_stroke_width);
+    }
+    if($('carousel-double-stroke-color')&&job.carousel.double_stroke_color)$('carousel-double-stroke-color').value=job.carousel.double_stroke_color;
+    if($('carousel-cover-title')&&job.carousel.cover_title){
+      $('carousel-cover-title').value=job.carousel.cover_title.replace(/\n/g,' | ');
+    }
+    if(Array.isArray(job.carousel.slides)&&job.carousel.slides.length>1){
+      const allAfterCover=job.carousel.slides.slice(1).map(s=>(s.text||'').replace(/\n/g,' | ')).filter(Boolean);
+      if($('carousel-custom-texts')&&allAfterCover.length)$('carousel-custom-texts').value=allAfterCover.join('\n');
+      if(job.carousel.slides.length>=3){
+        if($('carousel-body-texts'))$('carousel-body-texts').value=allAfterCover.slice(0,-1).join('\n');
+        if($('carousel-cta-text'))$('carousel-cta-text').value=allAfterCover[allAfterCover.length-1]||'';
+      }else if(allAfterCover.length){
+        if($('carousel-cta-text'))$('carousel-cta-text').value=allAfterCover[0]||'';
+      }
+    }
+  }
+  ensureCarouselStoryAutoPopulated(false);
+  if(job?.text_edit){
+    if($('text-erase-mode')&&job.text_edit.erase_mode){
+      const rawEm=job.text_edit.erase_mode;
+      const emMap={keep:'none',cover_box:'none',blur_mask:'blur_subtitles',cover_mask:'cover_subtitles',inpaint_subtitles:'auto_subtitles',inpaint_all:'auto_text',inpaint_mask:'local_fill'};
+      $('text-erase-mode').value=emMap[rawEm]||rawEm||'none';
+    }
+    if(job.text_edit.rectangle&&typeof job.text_edit.rectangle==='object'){
+      const r=job.text_edit.rectangle;
+      if($('mask-x')&&Number(r.w||0)>0)$('mask-x').value=String(Math.round(Number(r.x??6)));
+      if($('mask-y')&&Number(r.h||0)>0)$('mask-y').value=String(Math.round(Number(r.y??72)));
+      if($('mask-w')&&Number(r.w||0)>0)$('mask-w').value=String(Math.round(Number(r.w??88)));
+      if($('mask-h')&&Number(r.h||0)>0)$('mask-h').value=String(Math.round(Number(r.h??18)));
+    }
+    if($('erase-mask-color')&&job.text_edit.mask_color)$('erase-mask-color').value=job.text_edit.mask_color;
+    if($('erase-mask-opacity')&&job.text_edit.mask_opacity!==undefined){
+      const opPct=Number(job.text_edit.mask_opacity)<=1?Math.round(Number(job.text_edit.mask_opacity)*100):Math.round(Number(job.text_edit.mask_opacity));
+      $('erase-mask-opacity').value=String(opPct);
+      if($('erase-mask-opacity-range'))$('erase-mask-opacity-range').value=String(opPct);
+    }
+    if($('video-zoom-scale')&&job.text_edit.video_zoom!==undefined){
+      const vz=Math.round(Number(job.text_edit.video_zoom||100));
+      $('video-zoom-scale').value=String(vz);
+      if($('video-zoom-scale-range'))$('video-zoom-scale-range').value=String(vz);
+    }
+    if($('video-zoom-focus-x')&&job.text_edit.focus_x!==undefined)$('video-zoom-focus-x').value=String(Math.round(Number(job.text_edit.focus_x??50)));
+    if($('video-zoom-focus-y')&&job.text_edit.focus_y!==undefined)$('video-zoom-focus-y').value=String(Math.round(Number(job.text_edit.focus_y??50)));
+    if($('overlay-position')&&job.text_edit.overlay_position)$('overlay-position').value=job.text_edit.overlay_position==='middle'?'center':job.text_edit.overlay_position;
+    if($('overlay-title-color')&&job.text_edit.title_color){
+      $('overlay-title-color').value=job.text_edit.title_color;
+      document.querySelectorAll('.video-hook-chip').forEach(c=>{
+        const chipHook=c.dataset.videoHook||c.dataset.videoHookTpl;
+        c.classList.toggle('active',chipHook===job.text_edit.title_color);
+      });
+    }
+    if($('overlay-title-size')&&job.text_edit.title_size){
+      const ts=Number(job.text_edit.title_size);
+      $('overlay-title-size').value=String(ts<15?Math.round((ts/100)*1080):Math.round(ts));
+    }
+    if($('overlay-size')&&job.text_edit.overlay_size){
+      const os=Number(job.text_edit.overlay_size);
+      $('overlay-size').value=String(os<15?Math.round((os/100)*1080):Math.round(os));
+    }
+    if($('overlay-title-font')&&job.text_edit.title_font)$('overlay-title-font').value=job.text_edit.title_font;
+    if($('overlay-font')&&job.text_edit.overlay_font)$('overlay-font').value=job.text_edit.overlay_font;
+    if($('overlay-title-box-radius')&&job.text_edit.title_box_radius!==undefined&&job.text_edit.title_box_radius!==null){
+      $('overlay-title-box-radius').value=String(job.text_edit.title_box_radius);
+      if($('overlay-title-box-radius-range'))$('overlay-title-box-radius-range').value=String(job.text_edit.title_box_radius);
+    }
+    if($('overlay-box-radius')&&job.text_edit.overlay_box_radius!==undefined&&job.text_edit.overlay_box_radius!==null){
+      $('overlay-box-radius').value=String(job.text_edit.overlay_box_radius);
+      if($('overlay-box-radius-range'))$('overlay-box-radius-range').value=String(job.text_edit.overlay_box_radius);
+    }
+    if($('overlay-title-stroke-width')&&job.text_edit.title_stroke_width!==undefined&&job.text_edit.title_stroke_width!==null){
+      $('overlay-title-stroke-width').value=String(job.text_edit.title_stroke_width);
+      if($('overlay-title-stroke-width-range'))$('overlay-title-stroke-width-range').value=String(job.text_edit.title_stroke_width);
+    }
+    if($('overlay-title-stroke-color')&&job.text_edit.title_stroke_color)$('overlay-title-stroke-color').value=job.text_edit.title_stroke_color;
+    if($('overlay-title-double-stroke-width')&&job.text_edit.title_double_stroke_width!==undefined){
+      $('overlay-title-double-stroke-width').value=String(job.text_edit.title_double_stroke_width);
+      if($('overlay-title-double-stroke-width-range'))$('overlay-title-double-stroke-width-range').value=String(job.text_edit.title_double_stroke_width);
+    }
+    if($('overlay-title-double-stroke-color')&&job.text_edit.title_double_stroke_color)$('overlay-title-double-stroke-color').value=job.text_edit.title_double_stroke_color;
+    if($('overlay-stroke-width')&&job.text_edit.overlay_stroke_width!==undefined&&job.text_edit.overlay_stroke_width!==null){
+      $('overlay-stroke-width').value=String(job.text_edit.overlay_stroke_width);
+      if($('overlay-stroke-width-range'))$('overlay-stroke-width-range').value=String(job.text_edit.overlay_stroke_width);
+    }
+    if($('overlay-stroke-color')&&job.text_edit.overlay_stroke_color)$('overlay-stroke-color').value=job.text_edit.overlay_stroke_color;
+    if($('overlay-double-stroke-width')&&job.text_edit.overlay_double_stroke_width!==undefined){
+      $('overlay-double-stroke-width').value=String(job.text_edit.overlay_double_stroke_width);
+      if($('overlay-double-stroke-width-range'))$('overlay-double-stroke-width-range').value=String(job.text_edit.overlay_double_stroke_width);
+    }
+    if($('overlay-double-stroke-color')&&job.text_edit.overlay_double_stroke_color)$('overlay-double-stroke-color').value=job.text_edit.overlay_double_stroke_color;
+    if($('overlay-title-bold')&&job.text_edit.title_bold!==undefined)$('overlay-title-bold').value=job.text_edit.title_bold?'1':'0';
+    if($('overlay-title-italic')&&job.text_edit.title_italic!==undefined)$('overlay-title-italic').value=job.text_edit.title_italic?'1':'0';
+    if($('overlay-title-underline')&&job.text_edit.title_underline!==undefined)$('overlay-title-underline').value=job.text_edit.title_underline?'1':'0';
+    if($('overlay-title-text-color')&&job.text_edit.title_text_color)$('overlay-title-text-color').value=job.text_edit.title_text_color;
+    if($('overlay-title-bg-color')&&job.text_edit.title_bg_color)$('overlay-title-bg-color').value=job.text_edit.title_bg_color;
+    if($('overlay-title-bg-opacity')&&job.text_edit.title_bg_opacity!==undefined)$('overlay-title-bg-opacity').value=String(Math.round(Number(job.text_edit.title_bg_opacity)));
+    if($('overlay-title-letter-spacing')&&job.text_edit.title_letter_spacing!==undefined)$('overlay-title-letter-spacing').value=String(job.text_edit.title_letter_spacing);
+    if($('overlay-title-line-spacing')&&job.text_edit.title_line_spacing!==undefined)$('overlay-title-line-spacing').value=String(job.text_edit.title_line_spacing);
+    if($('overlay-title-align')&&job.text_edit.title_align)$('overlay-title-align').value=job.text_edit.title_align;
+    if($('overlay-title-scale-pct')&&job.text_edit.title_scale_pct!==undefined)$('overlay-title-scale-pct').value=String(Math.round(Number(job.text_edit.title_scale_pct)));
+    if($('overlay-title-opacity')&&job.text_edit.title_opacity!==undefined)$('overlay-title-opacity').value=String(Math.round(Number(job.text_edit.title_opacity)));
+    if($('overlay-bold')&&job.text_edit.overlay_bold!==undefined)$('overlay-bold').value=job.text_edit.overlay_bold?'1':'0';
+    if($('overlay-italic')&&job.text_edit.overlay_italic!==undefined)$('overlay-italic').value=job.text_edit.overlay_italic?'1':'0';
+    if($('overlay-underline')&&job.text_edit.overlay_underline!==undefined)$('overlay-underline').value=job.text_edit.overlay_underline?'1':'0';
+    if($('overlay-text-color')&&job.text_edit.overlay_text_color)$('overlay-text-color').value=job.text_edit.overlay_text_color;
+    if($('overlay-bg-color')&&job.text_edit.overlay_bg_color)$('overlay-bg-color').value=job.text_edit.overlay_bg_color;
+    if($('overlay-bg-opacity')&&job.text_edit.overlay_bg_opacity!==undefined)$('overlay-bg-opacity').value=String(Math.round(Number(job.text_edit.overlay_bg_opacity)));
+    if($('overlay-letter-spacing')&&job.text_edit.overlay_letter_spacing!==undefined)$('overlay-letter-spacing').value=String(job.text_edit.overlay_letter_spacing);
+    if($('overlay-line-spacing')&&job.text_edit.overlay_line_spacing!==undefined)$('overlay-line-spacing').value=String(job.text_edit.overlay_line_spacing);
+    if($('overlay-align')&&job.text_edit.overlay_align)$('overlay-align').value=job.text_edit.overlay_align;
+    if($('overlay-scale-pct')&&job.text_edit.overlay_scale_pct!==undefined)$('overlay-scale-pct').value=String(Math.round(Number(job.text_edit.overlay_scale_pct)));
+    if($('overlay-opacity')&&job.text_edit.overlay_opacity!==undefined)$('overlay-opacity').value=String(Math.round(Number(job.text_edit.overlay_opacity)));
+  }
+  if(job?.id)restoreActiveJobLocalDraft(job.id);
+  lastUndoSnapshotJson=job?JSON.stringify(captureEditorStateSnapshot()):'';
+  syncDraggableOverlayCanvas();
   renderAttachmentsPreview();
   renderCarouselPreview();
   if($('writing-context-text')){
@@ -242,11 +2188,11 @@ function render(){
       const sum=job.analysis.result?.summary||job.name||'분석 완료';
       const srcNote=job.source_text?` · 원본 글: "${job.source_text.slice(0,60)}${job.source_text.length>60?'…':''}"`:'';
       const prod=job.product?.name?` · 연결 상품: ${job.product.name}`:'';
-      $('writing-context-text').textContent=`📌 분석 요약: ${sum}${srcNote}${prod}`;
+      $('writing-context-text').textContent=`분석 요약: ${sum}${srcNote}${prod}`;
     }else if(job&&job.source_text){
-      $('writing-context-text').textContent=`📌 원본 게시물 본문: "${job.source_text.slice(0,90)}${job.source_text.length>90?'…':''}" · 바로 한국 스타일 3안 작성이 가능합니다.`;
+      $('writing-context-text').textContent=`원본 게시물 본문: "${job.source_text.slice(0,90)}${job.source_text.length>90?'…':''}" · 바로 한국 스타일 3안 작성이 가능합니다.`;
     }else if(job){
-      $('writing-context-text').textContent=`현재 미디어: ${job.name} · 원본 글을 입력하거나 [✦ 한국 스타일 초안 3안 작성]을 누르면 화면과 내용을 바탕으로 3안을 작성합니다.`;
+      $('writing-context-text').textContent=`현재 미디어: ${job.name} · 원본 글을 입력하거나 [한국 스타일 초안 3안 작성]을 누르면 화면과 내용을 바탕으로 3안을 작성합니다.`;
     }else{
       $('writing-context-text').textContent='원본 분석이나 원본 게시물 본문이 준비되면 여기에 요약이 표시됩니다.';
     }
@@ -264,6 +2210,7 @@ function render(){
     select.type='button';
     select.className=index===selectedIdx?'secondary btn-variant-selected':'secondary';
     select.onclick=()=>{
+      pushEditorUndoSnapshot();
       $('script').value=value;$('body').value=value;job.draft.selected=index;
       document.querySelectorAll('#draft-variants .draft-variant').forEach((el,i)=>{
         el.classList.toggle('selected',i===index);
@@ -271,24 +2218,53 @@ function render(){
         if(btn){btn.textContent=i===index?'✓ 현재 선택된 초안':'이 초안으로 편집하기';btn.className=i===index?'secondary btn-variant-selected':'secondary';}
       });
       writingCounts();$('extension-upload').disabled=true;if($('extension-batch-upload'))$('extension-batch-upload').disabled=true;
+      saveActiveJobLocalDraft();
       message(`${index+1}안을 편집창에 불러왔습니다. 내용을 다듬은 뒤 [게시·예약]에서 확정하세요.`);
     };
     card.append(head,bodyP,select);
     $('draft-variants').append(card);
   }
-  $('script').value=job?.draft?.script||'';$('body').value=job?.draft?.body||'';
+  if(!isApplyingDraftOrUndo){
+    const draftScript=job?.draft?.script||'';
+    if(draftScript||!$('script').value){
+      $('script').value=draftScript;$('body').value=job?.draft?.body||'';
+    }
+  }
   const product=job?.product;
   $('platform').value=product?.platform||'coupang';$('product-name').value=product?.name||'';
   $('product-url').value=product?.url||'';$('affiliate-url').value=product?.affiliate_url||'';
   $('confirmed').checked=['user_confirmed','api_issued'].includes(product?.attribution);if($('affiliate-entry-mode'))$('affiliate-entry-mode').value=product?.link_entry_mode||(product?.affiliate_method==='coupang_api'||product?.url&&!product?.affiliate_url?'api':'manual');
   $('disclosure').value=job?.disclosure||(product?.affiliate_url?(disclosureDefaults[product?.platform]||''):'');
   $('comment').value=job?.comment||buildDefaultComment();
+  productDirty=false;
+  if(window.syncJobScriptHistory)window.syncJobScriptHistory(job);
   writingCounts();
+  updateProductionStepBadges();
   $('draft-style').value=job?.draft?.style||$('draft-style').value||'two_line';
   fillStyle();
-  const qNotes=(job?.draft?.quality_notes||[]).join(' · ');
-  $('draft-quality').textContent=qNotes;
-  $('draft-quality').hidden=!qNotes;
+  const qEl = $('draft-quality');
+  if(qEl){
+    if(job?.draft?.needs_review){
+      qEl.hidden = false;
+      qEl.style.display = 'block';
+      qEl.style.background = '#fff3cd';
+      qEl.style.color = '#856404';
+      qEl.style.border = '1px solid #ffeeba';
+      qEl.style.padding = '8px 12px';
+      qEl.style.borderRadius = '4px';
+      qEl.textContent = `${job.draft.review_reason || '연결된 상품 정보가 변경되었습니다. 초안 내용 및 상품명을 재검토해 주세요.'}`;
+    }else{
+      const qNotes=(job?.draft?.quality_notes||[]).join(' · ');
+      qEl.textContent=qNotes;
+      qEl.style.display = '';
+      qEl.style.background = '';
+      qEl.style.color = '';
+      qEl.style.border = '';
+      qEl.style.padding = '';
+      qEl.style.borderRadius = '';
+      qEl.hidden=!qNotes;
+    }
+  }
   $('publication').textContent=job?.status==='publish_ready'?'게시 준비 완료 · 원하는 플랫폼으로 바로 업로드하세요.':'아직 게시하지 않았습니다.';
   renderIntegrations();
   renderVisual();
@@ -298,6 +2274,7 @@ function render(){
     $('preview').removeAttribute('poster');
     $('preview').load();
     if($('source-link'))$('source-link').hidden=true;
+    if($('video-timeline-scrubber-bar'))$('video-timeline-scrubber-bar').hidden=true;
     return;
   }
   $('source').value=job.source||'';
@@ -312,20 +2289,45 @@ function render(){
   }
   const base=`/studio/jobs/${job.id}/media/`;
   const isImage=job.kind==='image';
+  const stageFrame=$('analysis-player-stage');
+  if(stageFrame){
+    const mw=Number(job.media?.width||0),mh=Number(job.media?.height||0);
+    stageFrame.style.aspectRatio=(mw>0&&mh>0)?`${mw}/${mh}`:'';
+  }
   $('preview').hidden=isImage;$('image-preview').hidden=!isImage;
+  if($('video-timeline-scrubber-bar'))$('video-timeline-scrubber-bar').hidden=isImage;
   if(isImage){
     $('preview').pause();
     $('preview').removeAttribute('src');
     $('preview').removeAttribute('poster');
+    $('image-preview').onload=()=>syncDraggableOverlayCanvas();
     $('image-preview').src=base+'frame-0.jpg?t='+encodeURIComponent(job.sha256||'1');
   }else{
     const firstFrame=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
-    $('preview').poster=base+firstFrame;
-    const nextSrc=base+'video';
+    $('preview').poster=base+firstFrame+(job.text_edit?.updated_at?'?t='+Math.floor(job.text_edit.updated_at*1000):'');
+    const nextSrc=base+'video'+(job.text_edit?.updated_at?'?t='+Math.floor(job.text_edit.updated_at*1000):'');
+    const dur=Math.max(0.5,Number(job.media?.duration||10));
+    if($('timeline-scrubber-range')){
+      $('timeline-scrubber-range').max=String(dur);
+    }
+    const curT=Number($('preview')?.currentTime||0);
+    if(typeof renderNleScrubberTrack==='function')renderNleScrubberTrack(job,base);
+    if(typeof syncNleScrubberPlayhead==='function')syncNleScrubberPlayhead(curT,dur);
+    $('preview').onloadedmetadata=()=>{
+      const realDur=Number($('preview').duration||job.media?.duration||10);
+      if($('timeline-scrubber-range')&&Number.isFinite(realDur)&&realDur>0){
+        $('timeline-scrubber-range').max=String(realDur);
+      }
+      if(typeof syncNleScrubberPlayhead==='function')syncNleScrubberPlayhead(Number($('preview').currentTime||0),realDur);
+      syncDraggableOverlayCanvas();
+    };
     if($('preview').getAttribute('src')!==nextSrc){
       $('preview').src=nextSrc;
       $('preview').load();
     }
+  }
+  if($('btn-capture-scrubber-carousel')){
+    $('btn-capture-scrubber-carousel').hidden=(window.currentProductionStage!=='carousel');
   }
   $('video-download').href=base+(isImage?'original':'video');$('video-download').download=job.name;
   const kindBadge=isImage?'이미지':'영상';
@@ -344,12 +2346,47 @@ function render(){
     const img=document.createElement('img');
     img.src=base+frame.file+'?t='+encodeURIComponent(job.sha256||'1');
     img.alt=`${frame.timestamp}초 추출 프레임`;
-    figure.append(img,text('figcaption',isImage?'원본':`${frame.timestamp}초 ▶`));
+    const cap=text('figcaption',isImage?'원본':`${frame.timestamp}초 ▶`);
+    figure.append(img,cap);
     if(!isImage){
-      figure.onclick=()=>{
-        $('preview').currentTime=Number(frame.timestamp||0);
+      img.onclick=()=>{
+        const tsNum=Number(frame.timestamp||0);
+        $('preview').currentTime=tsNum;
+        if($('timeline-scrubber-range'))$('timeline-scrubber-range').value=String(tsNum);
+        const durNow=Number($('preview')?.duration||job?.media?.duration||10);
+        if(typeof syncNleScrubberPlayhead==='function')syncNleScrubberPlayhead(tsNum,durNow);
         $('preview').play().catch(()=>{});
       };
+      const frameBtnRow=document.createElement('div');
+      frameBtnRow.className='frame-action-stack';
+      const addBtn=text('button','+ 첨부 추가');
+      addBtn.type='button';
+      addBtn.className='secondary btn-xs frame-add-bundle-btn';
+      addBtn.title='쓰레드 [영상 1 + 이미지 1] 등 다중 미디어 첨부에 이 장면을 이미지로 추가합니다';
+      addBtn.onclick=e=>{
+        e.stopPropagation();
+        act(`${frame.timestamp}초 장면을 동반 첨부 이미지로 추가 중…`,async()=>{
+          await update('attachments-config',{action:'add_frame',file:frame.file,label:`${frame.timestamp}초 추출 장면`});
+          if($('upload-format'))$('upload-format').value='combo';
+        },`${frame.timestamp}초 장면을 영상 옆 동반 이미지로 추가했습니다.`);
+      };
+      frameBtnRow.append(addBtn);
+      if((job.carousel?.slides||[]).length>0){
+        const replaceSlideBtn=text('button','슬라이드 배경');
+        replaceSlideBtn.type='button';
+        replaceSlideBtn.className='secondary btn-xs frame-add-bundle-btn frame-replace-slide-btn';
+        replaceSlideBtn.hidden=(window.currentProductionStage!=='carousel');
+        replaceSlideBtn.title='현재 선택된 캐러셀 슬라이드의 배경 사진을 이 프레임 시점으로 즉시 교체합니다';
+        replaceSlideBtn.onclick=e=>{
+          e.stopPropagation();
+          const targetIdx=activeCarouselSlideIndex||1;
+          act(`슬라이드 #${targetIdx} 배경을 ${frame.timestamp}초 장면으로 교체 중…`,async()=>{
+            await update('carousel-slide-update',{index:targetIdx,timestamp:Number(frame.timestamp||0)});
+          },`슬라이드 #${targetIdx} 배경 장면을 ${frame.timestamp}초 화면으로 교체했습니다.`);
+        };
+        frameBtnRow.append(replaceSlideBtn);
+      }
+      figure.append(frameBtnRow);
     }
     $('frames').append(figure);
   }
@@ -410,7 +2447,7 @@ function render(){
       const chips=document.createElement('div');
       chips.className='analysis-term-chips';
       for(const term of data.search_terms){
-        const chip=text('button',`🔍 ${term}`);
+        const chip=text('button',`${term}`);
         chip.type='button';
         chip.className='analysis-term-chip';
         chip.onclick=()=>{
@@ -427,10 +2464,38 @@ function render(){
     const placeholder=document.createElement('div');
     placeholder.className='analysis-placeholder';
     placeholder.append(
-      text('strong','아직 AI 장면 분석을 실행하지 않았습니다'),
-      text('p','[✦ AI 장면 분석 시작]을 누르면 영상 프레임·음성을 분석해 대본 작성 근거와 릴스 후킹 추천 구간을 찾아줍니다.')
+      text('strong','아직 AI 장면·음성 분석을 실행하지 않았습니다'),
+      text('p','위 [STEP 0]에서 사용할 AI 모델을 고른 뒤 [선택한 AI 모델로 장면·음성 분석 시작]을 누르면 시간대별 주요 장면, 내레이션 요약, 후킹 구간, 상품 검색 키워드를 추출합니다.')
     );
     $('analysis').append(placeholder);
+  }
+  const hasSceneAnalysis=Boolean(job?.analysis?.result);
+  const hasOcr=Boolean(job?.media_ocr?.translated_text||job?.media_ocr?.raw_text||($('ocr-original-text')?.value||'').trim());
+  const hasCaption=Boolean((job?.source_text||$('source-post-text')?.value||'').trim());
+  if($('badge-status-scene')){
+    $('badge-status-scene').textContent=hasSceneAnalysis?'✓ 분석 완료':'분석 대기';
+    $('badge-status-scene').className='analysis-state-badge'+(hasSceneAnalysis?' done':'');
+  }
+  if($('badge-status-ocr')){
+    $('badge-status-ocr').textContent=hasOcr?'✓ 인식·번역됨':'선택 실행';
+    $('badge-status-ocr').className='analysis-state-badge'+(hasOcr?' done':'');
+  }
+  if($('badge-status-caption')){
+    $('badge-status-caption').textContent=hasCaption?'✓ 본문 준비됨':'입력 대기';
+    $('badge-status-caption').className='analysis-state-badge'+(hasCaption?' done':'');
+  }
+  if($('overview-step-scene'))$('overview-step-scene').classList.toggle('done',hasSceneAnalysis);
+  if($('overview-scene-status')){
+    const obsCount=(job?.analysis?.result?.observations||[]).length;
+    $('overview-scene-status').textContent=hasSceneAnalysis?`완료 · 주요 장면 ${obsCount}개 & 키워드 추출됨`:'실행 전 · 타임라인·내레이션·키워드 추출';
+  }
+  if($('overview-step-ocr'))$('overview-step-ocr').classList.toggle('done',hasOcr);
+  if($('overview-ocr-status')){
+    $('overview-ocr-status').textContent=hasOcr?'완료 · 화면 글자 추출 및 번역 완료':'선택 실행 · 외국어 자막 추출 및 한국어 번역';
+  }
+  if($('overview-step-caption'))$('overview-step-caption').classList.toggle('done',hasCaption);
+  if($('overview-caption-status')){
+    $('overview-caption-status').textContent=hasCaption?`준비됨 · 원문 ${Array.from((job?.source_text||$('source-post-text')?.value||'').trim()).length}자 보관 중`:'대본·게시문 3안 리라이팅 재료';
   }
 }
 async function update(path,data){const targetId=job?.id;if(!targetId)return;const next=await api(`jobs/${targetId}/${path}`,data);if(job?.id!==targetId)return;job=next;render();await refreshJobs();}
@@ -438,11 +2503,1105 @@ if($('url-fetch-form'))$('url-fetch-form').onsubmit=event=>{event.preventDefault
 $('upload-form').onsubmit=event=>{event.preventDefault();const file=$('video-file').files[0];if(!file){message('영상 파일을 선택하거나 URL로 불러오기를 사용하세요.',true);return;}act('영상과 음성·프레임을 추출하는 중…',async()=>{const data=new FormData();data.append('video',file);data.append('source',$('source').value);job=await api('jobs',data);render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();});};
 $('image-form').onsubmit=event=>{event.preventDefault();const file=$('image-file').files[0];if(!file){message('이미지 파일을 선택하거나 URL로 불러오기를 사용하세요.',true);return;}act('원본 이미지 불러오는 중…',async()=>{const data=new FormData();data.append('image',file);data.append('source',$('source').value);job=await api('images',data);render();await refreshJobs();document.querySelector('[data-production-stage="analysis"]')?.click();});};
 if($('btn-save-source-text'))$('btn-save-source-text').onclick=()=>act('원본 게시물 본문 저장 중…',()=>update('repost-meta',{source_text:$('source-post-text').value}),'원본 게시물 글을 저장했습니다. 이제 [2 대본·게시문]에서 한국 스타일로 번역·재작성할 수 있습니다.');
+
+// --- Media Bundle Presets (Threads Video 1 + Image 1, etc.) ---
+if($('btn-preset-threads-1v1i'))$('btn-preset-threads-1v1i').onclick=()=>act('쓰레드 [영상 1 + 이미지 1] 조합을 구성하는 중…',async()=>{
+  await update('attachments-config',{action:'preset_video_plus_images',image_count:1});
+  if($('upload-platform'))$('upload-platform').value='threads';
+  if($('upload-format'))$('upload-format').value='combo';
+},'쓰레드 추천 [영상 1개 + 동반 이미지 1장] 구성을 완료했습니다!');
+if($('btn-preset-threads-1v2i'))$('btn-preset-threads-1v2i').onclick=()=>act('쓰레드 [영상 1 + 이미지 2장] 조합을 구성하는 중…',async()=>{
+  await update('attachments-config',{action:'preset_video_plus_images',image_count:2});
+  if($('upload-platform'))$('upload-platform').value='threads';
+  if($('upload-format'))$('upload-format').value='combo';
+},'[영상 1개 + 동반 이미지 2장] 구성을 완료했습니다!');
+if($('btn-preset-video-only'))$('btn-preset-video-only').onclick=()=>act('동반 이미지를 비우고 단독 미디어로 전환 중…',async()=>{
+  await update('attachments-config',{action:'clear'});
+  if($('upload-format'))$('upload-format').value='video';
+},'영상 1개 단독 구성으로 변경했습니다.');
+
+// --- Interactive Draggable Title & Subtitle Overlay on Preview Canvas ---
+function extractBestHookLines(){
+  const pool=[];
+  const prod=($('product-name')?.value||job?.product?.name||'').trim();
+  const body=($('script')?.value||job?.draft?.body||$('source-post-text')?.value||job?.source_text||'').trim();
+  const summary=(job?.analysis?.result?.summary||'').trim();
+  const audioSum=(job?.analysis?.result?.audio_summary||'').trim();
+  const ocrTxt=(job?.media_ocr?.translated_text||job?.media_ocr?.raw_text||$('ocr-original-text')?.value||'').trim();
+
+  const pushClean=raw=>{
+    const clean=String(raw||'').replace(/^(#광고|\[광고\]|\[자세한 정보.*?\])\s*/,'').replace(/https?:\/\/\S+/g,'').replace(/(?:^|\s)#[0-9A-Za-z가-힣_]+/g,'').trim();
+    if(clean.length>=4&&!pool.includes(clean))pool.push(clean.slice(0,84));
+  };
+
+  for(const chunk of [body,summary,ocrTxt,audioSum]){
+    if(!chunk)continue;
+    for(const raw of chunk.split(/[\r\n]+|(?<=[.!?])\s+/)){
+      pushClean(raw);
+    }
+  }
+  for(const o of (job?.analysis?.result?.observations||[])){
+    pushClean(o?.description||o);
+  }
+  if(!pool.length&&prod)pool.push(`[${prod}] 실사용 핵심 포인트 완벽 정리`);
+  if(!pool.length)pool.push('[핵심 요약] 놓치면 아쉬운 실사용 체크 포인트');
+  return pool;
+}
+function buildEditorialStoryboardLines(count){
+  const total=Math.max(2,Math.min(10,Number(count||5)));
+  const lines=extractBestHookLines();
+  const prod=($('product-name')?.value||job?.product?.name||'').trim();
+  const summary=(job?.analysis?.result?.summary||'').trim();
+  const toTwoTier=(head,sub)=>{
+    head=String(head||'').trim();
+    sub=String(sub||'').trim();
+    if(head.includes('|'))return head;
+    if(!sub&&head.length>26){
+      const parts=head.split(/[,·—\-]\s*|\s+(?=그래서|특히|실제로|덕분에|비결은|핵심은)/);
+      if(parts.length>=2&&parts[0].trim().length>=5&&parts.slice(1).join(' ').trim().length>=5){
+        return `${parts[0].trim()} | ${parts.slice(1).join(' ').trim()}`;
+      }
+    }
+    return sub?`${head} | ${sub}`:head;
+  };
+
+  const firstRaw=lines[0]||'핵심 포인트 한눈에 보기';
+  const secondRaw=lines[1]||(summary?summary.slice(0,60):'잘 되는 캐러셀에는 공식이 있습니다! 슬라이드를 넘겨 확인하세요');
+  const hookFormula=($('carousel-cover-hook-formula')?.value||job?.carousel?.hook_formula||'number').trim();
+  const formattedCover=formatCoverHookByFormula(hookFormula,firstRaw,lines.length>1?secondRaw:'잘 되는 캐러셀에는 공식이 있습니다!',prod,total);
+  const coverOut=formattedCover.combined;
+
+  const bodyFallbacks=[
+    ['첫눈에 체감되는 [핵심 차별점]','기존 방식과 비교했을 때 가장 먼저 느껴지는 변화'],
+    ['실사용에서 검증된 *디테일 포인트*','매일 직접 써보며 확인한 실용성과 편의성 체크'],
+    ['만족도를 높이는 [활용 꿀팁]','알아두면 200% 더 편리하게 쓰는 실전 노하우'],
+    ['놓치기 쉬운 [실전 체크리스트]','구매 전 미리 확인하면 실패 없는 선택 포인트']
+  ];
+  const bodyTargetCount=total>=3?(total-2):0;
+  const bodySlidesOut=[];
+  let cursor=1;
+  for(let i=0;i<bodyTargetCount;i++){
+    const primary=lines[cursor]||'';
+    cursor++;
+    const secondary=(cursor<lines.length&&lines.length-cursor>=bodyTargetCount-i)?lines[cursor++]:'';
+    if(primary){
+      bodySlidesOut.push(toTwoTier(primary,secondary||bodyFallbacks[i%bodyFallbacks.length][1]));
+    }else{
+      const fb=bodyFallbacks[i%bodyFallbacks.length];
+      bodySlidesOut.push(`${prod?prod+' · ':''}${fb[0]} | ${fb[1]}`);
+    }
+  }
+
+  const lastObservation=lines[cursor]||summary||'';
+  let ctaHead=prod?`[${prod}] 핵심 요약 · 추천 정리`:'[핵심 요약] 꼭 기억할 체크 포인트 총정리';
+  let ctaSub=lastObservation?lastObservation.slice(0,68):'실사용 검증 포인트 요약 완료 · 첫 댓글에서 상세 정보를 확인하세요';
+  if(lastObservation&&lastObservation.includes('|')){
+    const parts=lastObservation.split('|');
+    ctaHead=parts[0].trim()||ctaHead;
+    ctaSub=parts.slice(1).join(' ').trim()||ctaSub;
+  }
+  const ctaOut=toTwoTier(ctaHead,ctaSub);
+  const allBodyAndCta=[...bodySlidesOut,ctaOut];
+  return {
+    cover:coverOut,
+    bodySlides:bodySlidesOut,
+    cta:ctaOut,
+    body:allBodyAndCta
+  };
+}
+function updateCarouselStorySlotLabels(countVal){
+  const total=Math.max(2,Math.min(10,Number(countVal||$('carousel-count')?.value||5)));
+  const bodyLbl=$('carousel-body-slot-label');
+  const ctaLbl=$('carousel-cta-slot-label');
+  const bodyBox=$('carousel-body-texts')?.closest('.carousel-story-slot');
+  if(total<=2){
+    if(bodyBox)bodyBox.hidden=true;
+    if(ctaLbl)ctaLbl.textContent='02 마지막장 (CTA · 핵심 요약·결론)';
+  }else{
+    if(bodyBox)bodyBox.hidden=false;
+    const endBodyIdx=total-1;
+    if(bodyLbl){
+      bodyLbl.textContent=endBodyIdx===2?'02 본문 (Body · 핵심 포인트 1장)':`02~0${endBodyIdx} 본문 (Body · 핵심 포인트 ${endBodyIdx-1}장)`;
+    }
+    if(ctaLbl){
+      const padTotal=total<10?`0${total}`:String(total);
+      ctaLbl.textContent=`${padTotal} 마지막장 (CTA · 핵심 요약·결론)`;
+    }
+  }
+}
+function syncCombinedCarouselCustomTexts(){
+  const bodyRaw=($('carousel-body-texts')?.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const ctaRaw=($('carousel-cta-text')?.value||'').trim();
+  const total=Math.max(2,Math.min(10,Number($('carousel-count')?.value||5)));
+  const combined=total<=2?(ctaRaw?[ctaRaw]:bodyRaw):[...bodyRaw,...(ctaRaw?[ctaRaw]:[])];
+  if($('carousel-custom-texts')){
+    $('carousel-custom-texts').value=combined.join('\n');
+  }
+  return combined;
+}
+function applyCarouselStoryPlanToInputs(story,statusLabel='영상 분석 내용 자동 반영됨'){
+  if(!story)return;
+  const count=Math.max(2,Math.min(10,Number($('carousel-count')?.value||5)));
+  updateCarouselStorySlotLabels(count);
+  if($('carousel-cover-title')&&story.cover!==undefined){
+    $('carousel-cover-title').value=story.cover;
+  }
+  if($('carousel-body-texts')&&Array.isArray(story.bodySlides)){
+    $('carousel-body-texts').value=story.bodySlides.join('\n');
+  }
+  if($('carousel-cta-text')&&story.cta!==undefined){
+    $('carousel-cta-text').value=story.cta;
+  }
+  syncCombinedCarouselCustomTexts();
+  const badge=$('carousel-story-auto-status');
+  if(badge&&statusLabel){
+    badge.textContent=statusLabel;
+    badge.className='analysis-state-badge done';
+  }
+}
+let lastAutoPopulatedCarouselSignature='';
+function ensureCarouselStoryAutoPopulated(force=false){
+  const count=Math.max(2,Math.min(10,Number($('carousel-count')?.value||5)));
+  updateCarouselStorySlotLabels(count);
+  if(!job)return;
+  const hasExistingSlides=Array.isArray(job.carousel?.slides)&&job.carousel.slides.length>0;
+  if(!force&&hasExistingSlides){
+    const slides=job.carousel.slides;
+    const coverStr=(slides[0]?.text||job.carousel.cover_title||'').replace(/\n/g,' | ');
+    const middleSlides=slides.length>=3?slides.slice(1,-1):[];
+    const lastSlide=slides.length>=2?slides[slides.length-1]:null;
+    if($('carousel-cover-title')&&coverStr)$('carousel-cover-title').value=coverStr;
+    if($('carousel-body-texts'))$('carousel-body-texts').value=middleSlides.map(s=>(s.text||'').replace(/\n/g,' | ')).filter(Boolean).join('\n');
+    if($('carousel-cta-text')&&lastSlide)$('carousel-cta-text').value=(lastSlide.text||'').replace(/\n/g,' | ');
+    syncCombinedCarouselCustomTexts();
+    const badge=$('carousel-story-auto-status');
+    if(badge){
+      badge.textContent=`현재 슬라이드(${slides.length}장) 대본 연동됨`;
+      badge.className='analysis-state-badge done';
+    }
+    return;
+  }
+  const savedDraft=job.carousel_story_draft;
+  if(!force&&savedDraft&&Number(savedDraft.count)===count&&savedDraft.cover_title){
+    const bLines=Array.isArray(savedDraft.body_lines)?savedDraft.body_lines:[];
+    const bodySlides=count>=3?bLines.slice(0,-1):[];
+    const ctaLine=bLines.length?bLines[bLines.length-1]:'';
+    applyCarouselStoryPlanToInputs({
+      cover:savedDraft.cover_title,
+      bodySlides,
+      cta:ctaLine,
+      body:bLines
+    },savedDraft.ai_used?`AI(${savedDraft.model||'모델'}) 구성 완료`:'영상 분석 내용 자동 반영됨');
+    return;
+  }
+  const analysisSig=`${job.id}:${count}:${job.analysis?.result?.summary||''}:${(job.analysis?.result?.observations||[]).length}:${job.media_ocr?.translated_text||''}:${job.source_text||''}:${job.product?.name||''}`;
+  const coverEmpty=!($('carousel-cover-title')?.value||'').trim();
+  const bodyEmpty=!($('carousel-body-texts')?.value||'').trim();
+  const ctaEmpty=!($('carousel-cta-text')?.value||'').trim();
+  if(force||coverEmpty||bodyEmpty||ctaEmpty||lastAutoPopulatedCarouselSignature!==analysisSig){
+    lastAutoPopulatedCarouselSignature=analysisSig;
+    const story=buildEditorialStoryboardLines(count);
+    const hasAnalysis=Boolean(job.analysis?.result||job.media_ocr?.translated_text||job.source_text);
+    applyCarouselStoryPlanToInputs(story,hasAnalysis?'✓ 영상 소재 분석 내용 자동 반영됨':'기본 스토리 구성됨');
+  }
+}
+window.ensureCarouselStoryAutoPopulated=ensureCarouselStoryAutoPopulated;
+
+if($('toggle-safe-zone-guide'))$('toggle-safe-zone-guide').addEventListener('change',e=>{
+  const guide=$('player-safe-zone-guide');
+  if(guide)guide.hidden=!e.target.checked;
+});
+if($('btn-overlay-undo'))$('btn-overlay-undo').addEventListener('click',()=>{
+  performEditorUndo();
+});
+window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&(e.key==='z'||e.key==='Z')){
+    const activeEl=document.activeElement;
+    const isNativeInput=activeEl&&(activeEl.tagName==='INPUT'||activeEl.tagName==='TEXTAREA');
+    if(editorUndoStack.length&&job){
+      e.preventDefault();
+      performEditorUndo();
+    }else if(!isNativeInput&&job){
+      e.preventDefault();
+      performEditorUndo();
+    }
+  }
+});
+document.querySelectorAll('[data-px-step]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const targetId=btn.dataset.pxTarget;
+    const step=Number(btn.dataset.pxStep||0);
+    const input=$(targetId);
+    if(!input)return;
+    pushEditorUndoSnapshot();
+    const min=Number(input.min||18),max=Number(input.max||140);
+    const cur=Number(input.value||48);
+    const next=Math.max(min,Math.min(max,cur+step));
+    input.value=String(next);
+    const rangeEl=$(targetId+'-range');
+    if(rangeEl)rangeEl.value=String(next);
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+for(const [rangeId,numId] of [
+  ['overlay-title-size-range','overlay-title-size'],
+  ['overlay-size-range','overlay-size'],
+  ['overlay-title-box-radius-range','overlay-title-box-radius'],
+  ['overlay-box-radius-range','overlay-box-radius'],
+  ['overlay-title-stroke-width-range','overlay-title-stroke-width'],
+  ['overlay-title-double-stroke-width-range','overlay-title-double-stroke-width'],
+  ['overlay-stroke-width-range','overlay-stroke-width'],
+  ['overlay-double-stroke-width-range','overlay-double-stroke-width'],
+  ['carousel-stroke-width-range','carousel-stroke-width'],
+  ['carousel-double-stroke-width-range','carousel-double-stroke-width'],
+  ['erase-mask-opacity-range','erase-mask-opacity'],
+  ['video-zoom-scale-range','video-zoom-scale']
+]){
+  const rEl=$(rangeId),nEl=$(numId);
+  if(rEl&&nEl){
+    rEl.addEventListener('focus',()=>{if(job&&!lastUndoSnapshotJson)lastUndoSnapshotJson=JSON.stringify(captureEditorStateSnapshot());});
+    rEl.addEventListener('input',()=>{
+      pushEditorUndoSnapshot();
+      nEl.value=rEl.value;
+      syncDraggableOverlayCanvas();
+      saveActiveJobLocalDraft();
+    });
+    rEl.addEventListener('change',()=>{
+      pushEditorUndoSnapshot();
+      nEl.value=rEl.value;
+      syncDraggableOverlayCanvas();
+      saveActiveJobLocalDraft();
+    });
+  }
+}
+if($('btn-reset-title-box-dim'))$('btn-reset-title-box-dim').addEventListener('click',()=>{
+  pushEditorUndoSnapshot();
+  if($('overlay-title-box-w'))$('overlay-title-box-w').value='84';
+  if($('overlay-title-box-h'))$('overlay-title-box-h').value='0';
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+  message('타이틀 박스 가로·세로 크기를 자동 맞춤으로 초기화했습니다.');
+});
+// Video Timeline Scrubber Bar & Capture Handlers
+function formatNleTimecode(seconds,fps=30){
+  const s=Math.max(0,Number(seconds||0));
+  const totalFrames=Math.floor(s*fps);
+  const ff=totalFrames%fps;
+  const totalSec=Math.floor(s);
+  const ss=totalSec%60;
+  const mm=Math.floor(totalSec/60)%60;
+  const hh=Math.floor(totalSec/3600);
+  const pad=n=>String(n).padStart(2,'0');
+  return `${pad(hh)}:${pad(mm)}:${pad(ss)}:${pad(ff)}`;
+}
+
+function syncNleScrubberPlayhead(curSec,durSec){
+  const cur=Math.max(0,Number(curSec||0));
+  const dur=Math.max(0.1,Number(durSec||job?.media?.duration||10));
+  const pct=Math.max(0,Math.min(100,(cur/dur)*100));
+  const line=$('scrubber-playhead-line');
+  if(line)line.style.left=`${pct.toFixed(2)}%`;
+  const tc=$('scrubber-clip-timecode');
+  if(tc)tc.textContent=formatNleTimecode(cur,30);
+  const tm=$('timeline-scrubber-time');
+  if(tm)tm.textContent=`${cur.toFixed(2)}초 / ${dur.toFixed(2)}초`;
+}
+
+function renderNleScrubberTrack(currentJob,basePath){
+  if(!currentJob)return;
+  const clipNameEl=$('scrubber-clip-name');
+  if(clipNameEl){
+    clipNameEl.textContent=currentJob.name||currentJob.id||'video_clip.mp4';
+  }
+  const filmstripRow=$('scrubber-filmstrip-row');
+  if(filmstripRow){
+    const frames=Array.isArray(currentJob.evidence?.frames)&&currentJob.evidence.frames.length
+      ?currentJob.evidence.frames
+      :[{file:'frame-0.jpg',timestamp:0}];
+    const signature=`${currentJob.id||''}:${currentJob.sha256||''}:${frames.length}:${currentJob.text_edit?.updated_at||''}`;
+    if(filmstripRow.dataset.renderSig!==signature){
+      filmstripRow.dataset.renderSig=signature;
+      filmstripRow.replaceChildren();
+      const cellCount=16;
+      const cacheBust=encodeURIComponent(currentJob.sha256||'1')+(currentJob.text_edit?.updated_at?'_'+Math.floor(currentJob.text_edit.updated_at*1000):'');
+      for(let i=0;i<cellCount;i++){
+        const fIdx=Math.min(frames.length-1,Math.floor((i/cellCount)*frames.length));
+        const frameObj=frames[fIdx]||frames[0];
+        const cell=document.createElement('div');
+        cell.className='nle-filmstrip-cell';
+        const img=document.createElement('img');
+        img.src=`${basePath}${frameObj.file}?t=${cacheBust}`;
+        img.alt='';
+        img.loading='eager';
+        cell.appendChild(img);
+        filmstripRow.appendChild(cell);
+      }
+    }
+  }
+  const canvas=$('scrubber-waveform-canvas');
+  if(canvas&&canvas.getContext){
+    const w=canvas.width||960;
+    const h=canvas.height||36;
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#042930';
+    ctx.fillRect(0,0,w,h);
+    const seedStr=String(currentJob.sha256||currentJob.id||currentJob.name||'takoh');
+    let seed=2166136261;
+    for(let i=0;i<seedStr.length;i++){
+      seed^=seedStr.charCodeAt(i);
+      seed=Math.imul(seed,16777619);
+    }
+    const nextRand=()=>{
+      seed^=seed<<13;
+      seed^=seed>>>17;
+      seed^=seed<<5;
+      return ((seed>>>0)%1000)/1000;
+    };
+    const hasAudio=currentJob.media?.has_audio!==false;
+    const barStep=3;
+    const barWidth=2;
+    for(let x=2;x<w-2;x+=barStep){
+      const r1=nextRand();
+      const r2=nextRand();
+      const env=0.35+0.65*Math.abs(Math.sin((x/w)*Math.PI*6.5+r2*1.4));
+      const amp=hasAudio?Math.max(0.12,Math.min(0.96,(r1*0.75+0.25)*env)):0.12;
+      const barH=Math.max(3,Math.round(amp*(h-6)));
+      const y=h-barH-1;
+      ctx.fillStyle='#2dd4bf';
+      ctx.fillRect(x,y,barWidth,barH);
+      if(hasAudio&&amp>0.72){
+        ctx.fillStyle='#fb923c';
+        ctx.fillRect(x,Math.max(1,y-2),barWidth,2);
+      }
+    }
+  }
+}
+
+if($('preview')){
+  $('preview').addEventListener('timeupdate',()=>{
+    const v=$('preview');
+    if(!v||v.hidden)return;
+    const cur=Number(v.currentTime||0);
+    const dur=Number(v.duration||job?.media?.duration||0);
+    if($('timeline-scrubber-range')&&document.activeElement!==$('timeline-scrubber-range')){
+      $('timeline-scrubber-range').value=String(cur);
+    }
+    syncNleScrubberPlayhead(cur,dur);
+  });
+}
+if($('timeline-scrubber-range')){
+  $('timeline-scrubber-range').addEventListener('input',e=>{
+    const val=Number(e.target.value||0);
+    const v=$('preview');
+    if(v&&!v.hidden&&Number.isFinite(val)){
+      v.pause();
+      v.currentTime=val;
+    }
+    const dur=Number(v?.duration||job?.media?.duration||0);
+    syncNleScrubberPlayhead(val,dur);
+  });
+}
+if($('btn-capture-scrubber-bundle'))$('btn-capture-scrubber-bundle').onclick=()=>act('현재 영상 시점을 고화질 캡처해 동반 첨부 이미지 및 프레임에 추가하는 중…',async()=>{
+  if(!job||job.kind==='image')throw new Error('영상이 불러와진 상태에서 캡처할 수 있습니다.');
+  const ts=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
+  await update('attachments-config',{action:'capture_time',timestamp:ts,add_to_bundle:true,label:`영상 캡처 (${ts.toFixed(2)}초)`});
+  if($('upload-format'))$('upload-format').value='combo';
+},'현재 시점 장면을 캡처하여 동반 첨부 이미지 및 추출 프레임에 추가했습니다!');
+if($('btn-capture-scrubber-carousel'))$('btn-capture-scrubber-carousel').onclick=()=>act('현재 영상 시점으로 활성 캐러셀 슬라이드 배경을 교체하는 중…',async()=>{
+  if(!job||job.kind==='image')throw new Error('영상이 불러와진 상태에서 사용할 수 있습니다.');
+  const ts=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
+  if((job.carousel?.slides||[]).length>0){
+    const targetIdx=activeCarouselSlideIndex||1;
+    await update('carousel-slide-update',{index:targetIdx,timestamp:ts});
+  }else{
+    await update('attachments-config',{action:'capture_time',timestamp:ts,add_to_bundle:false,label:`캐러셀용 캡처 (${ts.toFixed(2)}초)`});
+  }
+},'선택한 영상 시점으로 장면을 캡처·적용했습니다!');
+
+document.querySelectorAll('[data-snap-target]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const target=btn.dataset.snapTarget;
+    const y=Number(btn.dataset.snapY||50);
+    if(target==='title'){
+      if($('overlay-title-x'))$('overlay-title-x').value='50';
+      if($('overlay-title-y'))$('overlay-title-y').value=String(y);
+    }else{
+      if($('overlay-sub-x'))$('overlay-sub-x').value='50';
+      if($('overlay-sub-y'))$('overlay-sub-y').value=String(y);
+    }
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+document.querySelectorAll('[data-insert-syntax]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const targetId=btn.dataset.targetInput;
+    const mode=btn.dataset.insertSyntax;
+    const el=$(targetId);
+    if(!el)return;
+    pushEditorUndoSnapshot();
+    const start=el.selectionStart??el.value.length;
+    const end=el.selectionEnd??el.value.length;
+    const selected=el.value.slice(start,end)||'핵심포인트';
+    const wrapped=mode==='box'?`[${selected}]`:`*${selected}*`;
+    el.value=el.value.slice(0,start)+wrapped+el.value.slice(end);
+    el.focus();
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+if($('btn-pull-analysis-subtitle'))$('btn-pull-analysis-subtitle').onclick=()=>{
+  pushEditorUndoSnapshot();
+  const lines=extractBestHookLines();
+  const chosen=lines.slice(0,2).join('\n');
+  if($('overlay-korean-text'))$('overlay-korean-text').value=chosen;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+  message('AI 분석·OCR·본문에서 핵심 요약 자막을 가져왔습니다.');
+};
+if($('btn-fill-hook-title'))$('btn-fill-hook-title').onclick=()=>{
+  pushEditorUndoSnapshot();
+  const lines=extractBestHookLines();
+  const prod=($('product-name')?.value||job?.product?.name||'').trim();
+  let raw=lines[0]||'';
+  if(raw&&!raw.includes('|')){
+    const words=raw.replace(/\[|\]|\*/g,'').trim().split(/\s+/);
+    if(words.length>=3){
+      const mid=Math.max(1,Math.min(3,Math.ceil(words.length/2)));
+      raw=`${words.slice(0,mid).join(' ')} | ${words.slice(mid).join(' ')}`;
+    }else if(prod){
+      raw=`${prod} | ${raw}`;
+    }
+  }
+  if($('overlay-title-text'))$('overlay-title-text').value=raw;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+  message('분석·본문·상품 정보에서 2줄 바이럴 후킹 타이틀을 자동으로 채웠습니다!');
+};
+document.querySelectorAll('.video-hook-chip').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const hookId=btn.dataset.videoHook||btn.dataset.videoHookTpl||'reels_giant_yellow_impact';
+    const posY=btn.dataset.hookPosY||'18';
+    if($('overlay-title-color'))$('overlay-title-color').value=hookId;
+    if($('overlay-title-x'))$('overlay-title-x').value='50';
+    if($('overlay-title-y'))$('overlay-title-y').value=String(posY);
+    document.querySelectorAll('.video-hook-chip').forEach(c=>c.classList.toggle('active',c===btn));
+    if($('overlay-title-text')&&!$('overlay-title-text').value.trim()){
+      $('btn-fill-hook-title')?.click();
+    }else{
+      syncDraggableOverlayCanvas();
+      saveActiveJobLocalDraft();
+    }
+    message(`영상 후킹 템플릿 [${btn.querySelector('strong')?.textContent||hookId}] 스타일을 적용했습니다!`);
+  });
+});
+if($('btn-reset-overlay-pos'))$('btn-reset-overlay-pos').onclick=()=>{
+  pushEditorUndoSnapshot();
+  if($('overlay-title-x'))$('overlay-title-x').value='50';
+  if($('overlay-title-y'))$('overlay-title-y').value='18';
+  if($('overlay-sub-x'))$('overlay-sub-x').value='50';
+  const pos=$('overlay-position')?.value||'bottom';
+  if($('overlay-sub-y'))$('overlay-sub-y').value=String(pos==='top'?14:(pos==='center'?50:82));
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+};
+let boxWidthDragBase={w:84,font:54};
+if($('overlay-title-box-w')){
+  const startBoxWTrack=()=>{
+    boxWidthDragBase={
+      w:Math.max(25,Number($('overlay-title-box-w')?.value||84)),
+      font:Math.max(18,Number($('overlay-title-size')?.value||54))
+    };
+  };
+  $('overlay-title-box-w').addEventListener('pointerdown',startBoxWTrack);
+  $('overlay-title-box-w').addEventListener('focus',startBoxWTrack);
+  $('overlay-title-box-w').addEventListener('input',()=>{
+    const nextW=Math.max(25,Number($('overlay-title-box-w').value||84));
+    if(boxWidthDragBase.w>0&&$('overlay-title-size')){
+      const scaled=Math.round(Math.max(18,Math.min(140,boxWidthDragBase.font*(nextW/boxWidthDragBase.w))));
+      $('overlay-title-size').value=String(scaled);
+      if($('overlay-title-size-range'))$('overlay-title-size-range').value=String(scaled);
+    }
+  });
+}
+for(const id of [
+  'overlay-title-text','overlay-title-badge','overlay-title-color','overlay-title-size','overlay-title-font',
+  'overlay-title-box-w','overlay-title-box-h','overlay-title-box-radius',
+  'overlay-title-stroke-width','overlay-title-stroke-color','overlay-title-double-stroke-width','overlay-title-double-stroke-color',
+  'overlay-korean-text','overlay-size','overlay-font','overlay-style','overlay-box-radius',
+  'overlay-stroke-width','overlay-stroke-color','overlay-double-stroke-width','overlay-double-stroke-color',
+  'carousel-font','carousel-stroke-width','carousel-stroke-color','carousel-double-stroke-width','carousel-double-stroke-color',
+  'text-erase-mode','mask-x','mask-y','mask-w','mask-h','erase-mask-color','erase-mask-opacity','toggle-mask-box',
+  'video-zoom-scale','video-zoom-focus-x','video-zoom-focus-y','script'
+]){
+  $(id)?.addEventListener('focus',()=>{if(job&&!lastUndoSnapshotJson)lastUndoSnapshotJson=JSON.stringify(captureEditorStateSnapshot());});
+  $(id)?.addEventListener('input',()=>{
+    pushEditorUndoSnapshot();
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+  $(id)?.addEventListener('change',()=>{
+    pushEditorUndoSnapshot();
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+}
+document.querySelectorAll('.erase-mode-chip').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const pick=btn.dataset.eraseModePick||'none';
+    if($('text-erase-mode'))$('text-erase-mode').value=pick;
+    if(pick!=='none'&&$('toggle-mask-box'))$('toggle-mask-box').checked=true;
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+    const modeNames={
+      none:'원본 유지 (자막 지우기 안 함)',
+      blur_subtitles:'흐림 (블러) — 자막·마스크 영역을 자연스럽게 흐림 처리',
+      cover_subtitles:'덮어씌우기 — 지정 마스크 영역을 배경 박스로 가림',
+      auto_subtitles:'완전 삭제 (AI 인페인팅) — 프레임별 자막을 감지해 배경으로 복원'
+    };
+    message(`자막 지우기 모드를 [${modeNames[pick]||pick}](으)로 설정했습니다.`);
+  });
+});
+document.querySelectorAll('[data-mask-preset]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const preset=btn.dataset.maskPreset;
+    const presets={
+      bottom_sub:{x:6,y:72,w:88,h:18,label:'하단 자막줄 맞춤'},
+      bottom_wide:{x:4,y:66,w:92,h:24,label:'하단 2줄 와이드 자막'},
+      top_logo:{x:6,y:4,w:42,h:12,label:'상단 워터마크 영역'},
+      corner_br:{x:62,y:78,w:34,h:16,label:'우측 하단 로고 영역'},
+      center_banner:{x:8,y:40,w:84,h:20,label:'중앙 배너 영역'}
+    };
+    const p=presets[preset]||presets.bottom_sub;
+    if($('mask-x'))$('mask-x').value=String(p.x);
+    if($('mask-y'))$('mask-y').value=String(p.y);
+    if($('mask-w'))$('mask-w').value=String(p.w);
+    if($('mask-h'))$('mask-h').value=String(p.h);
+    if($('toggle-mask-box'))$('toggle-mask-box').checked=true;
+    if($('text-erase-mode')&&$('text-erase-mode').value==='none'){
+      $('text-erase-mode').value='blur_subtitles';
+    }
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+    message(`마스크 영역을 [${p.label}] 위치(${p.x}%, ${p.y}% · ${p.w}×${p.h}%)로 맞췄습니다. 좌측 화면에서 직접 드래그해 미세 조정하세요.`);
+  });
+});
+document.querySelectorAll('[data-zoom-preset]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const z=Math.max(100,Math.min(160,Number(btn.dataset.zoomPreset||100)));
+    if($('video-zoom-scale'))$('video-zoom-scale').value=String(z);
+    if($('video-zoom-scale-range'))$('video-zoom-scale-range').value=String(z);
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+    message(z===100?'화면 배율을 100% 원본 크기로 되돌렸습니다.':`화면을 ${z}%로 확대했습니다. 상하좌우 테두리 워터마크·자막 크롭 효과가 즉시 적용됩니다.`);
+  });
+});
+document.querySelectorAll('[data-zoom-step]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const step=Number(btn.dataset.zoomStep||0);
+    const cur=Number($('video-zoom-scale')?.value||100);
+    const next=Math.max(100,Math.min(160,cur+step));
+    if($('video-zoom-scale'))$('video-zoom-scale').value=String(next);
+    if($('video-zoom-scale-range'))$('video-zoom-scale-range').value=String(next);
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+if($('btn-reset-erase-mask-zoom'))$('btn-reset-erase-mask-zoom').addEventListener('click',()=>{
+  pushEditorUndoSnapshot();
+  if($('text-erase-mode'))$('text-erase-mode').value='none';
+  if($('toggle-mask-box'))$('toggle-mask-box').checked=false;
+  if($('mask-x'))$('mask-x').value='6';
+  if($('mask-y'))$('mask-y').value='72';
+  if($('mask-w'))$('mask-w').value='88';
+  if($('mask-h'))$('mask-h').value='18';
+  if($('erase-mask-color'))$('erase-mask-color').value='#0f172a';
+  if($('erase-mask-opacity'))$('erase-mask-opacity').value='92';
+  if($('erase-mask-opacity-range'))$('erase-mask-opacity-range').value='92';
+  if($('video-zoom-scale'))$('video-zoom-scale').value='100';
+  if($('video-zoom-scale-range'))$('video-zoom-scale-range').value='100';
+  if($('video-zoom-focus-x'))$('video-zoom-focus-x').value='50';
+  if($('video-zoom-focus-y'))$('video-zoom-focus-y').value='50';
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+  message('자막 지우기·마스크·화면 확대 설정을 모두 원본 상태로 초기화했습니다.');
+});
+if($('overlay-position'))$('overlay-position').addEventListener('change',()=>{
+  pushEditorUndoSnapshot();
+  const pos=$('overlay-position').value;
+  if($('overlay-sub-x'))$('overlay-sub-x').value='50';
+  if($('overlay-sub-y'))$('overlay-sub-y').value=String(pos==='top'?14:(pos==='center'?50:82));
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+function bindDraggableChip(chipId,xInputId,yInputId,wInputId,hInputId,fontSizeInputId,fontSizeRangeId,defaultFontPx,maxFontPx,layerName){
+  const chip=$(chipId),canvas=$('player-overlay-canvas');
+  if(!chip||!canvas)return;
+  let mode=null,resizeDir='',grabOffsetX=0,grabOffsetY=0;
+  let startClientX=0,startClientY=0,startW=84,startH=16,startFontPx=defaultFontPx||54;
+  let movedDistance=0;
+  const updateFromEvent=e=>{
+    const rect=canvas.getBoundingClientRect();
+    if(rect.width<=10||rect.height<=10)return;
+    movedDistance+=Math.hypot(e.clientX-startClientX,e.clientY-startClientY);
+    if(mode==='resize'){
+      const dxPct=((e.clientX-startClientX)/rect.width)*100;
+      const dyPct=((e.clientY-startClientY)/rect.height)*100;
+      let nextW=startW,nextH=startH;
+      if(resizeDir.includes('e'))nextW=startW+dxPct*2;
+      if(resizeDir.includes('w'))nextW=startW-dxPct*2;
+      if(resizeDir.includes('s'))nextH=startH+dyPct*2;
+      if(resizeDir.includes('n'))nextH=startH-dyPct*2;
+      const hasHoriz=resizeDir.includes('e')||resizeDir.includes('w');
+      const hasVert=resizeDir.includes('n')||resizeDir.includes('s');
+      let clampedW=startW,clampedH=startH;
+      if(hasHoriz){
+        clampedW=Math.round(Math.max(25,Math.min(96,nextW)));
+        if($(wInputId))$(wInputId).value=String(clampedW);
+      }
+      if(hasVert){
+        clampedH=Math.round(Math.max(8,Math.min(55,nextH)));
+        if($(hInputId))$(hInputId).value=String(clampedH);
+      }
+      if(fontSizeInputId&&$(fontSizeInputId)){
+        const ratioW=startW>0?(clampedW/startW):1;
+        const ratioH=startH>0?(clampedH/startH):1;
+        let scaleRatio=1;
+        if(hasHoriz&&hasVert)scaleRatio=(ratioW*0.65)+(ratioH*0.35);
+        else if(hasHoriz)scaleRatio=ratioW;
+        else if(hasVert)scaleRatio=ratioH;
+        const nextFont=Math.round(Math.max(18,Math.min(maxFontPx||140,startFontPx*scaleRatio)));
+        $(fontSizeInputId).value=String(nextFont);
+        if(fontSizeRangeId&&$(fontSizeRangeId))$(fontSizeRangeId).value=String(nextFont);
+      }
+      syncDraggableOverlayCanvas();
+      return;
+    }
+    const cRect=chip.getBoundingClientRect();
+    let minX=8,maxX=92,minY=8,maxY=92;
+    if(cRect.width>0){
+      const halfW=((cRect.width/2+6)/rect.width)*100;
+      minX=Math.min(50,Math.max(6,halfW));
+      maxX=Math.max(50,Math.min(94,100-halfW));
+    }
+    if(cRect.height>0){
+      const halfH=((cRect.height/2+6)/rect.height)*100;
+      minY=Math.min(50,Math.max(6,halfH));
+      maxY=Math.max(50,Math.min(94,100-halfH));
+    }
+    const xPct=Math.max(minX,Math.min(maxX,((e.clientX-grabOffsetX-rect.left)/rect.width)*100));
+    const yPct=Math.max(minY,Math.min(maxY,((e.clientY-grabOffsetY-rect.top)/rect.height)*100));
+    if($(xInputId))$(xInputId).value=String(Math.round(xPct*10)/10);
+    if($(yInputId))$(yInputId).value=String(Math.round(yPct*10)/10);
+    syncDraggableOverlayCanvas();
+  };
+  chip.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    pushEditorUndoSnapshot();
+    movedDistance=0;
+    if(layerName){
+      selectVideoTextLayer(layerName,{openInspectorTab:true,focusInput:false});
+    }
+    const handle=e.target.closest('.resize-handle');
+    const rect=canvas.getBoundingClientRect();
+    const chipRect=chip.getBoundingClientRect();
+    startClientX=e.clientX;
+    startClientY=e.clientY;
+    if(handle&&rect.width>10&&rect.height>10){
+      mode='resize';
+      resizeDir=handle.dataset.resizeDir||'se';
+      startW=Number($(wInputId)?.value)||((chipRect.width/rect.width)*100)||80;
+      startH=Number($(hInputId)?.value)>0?Number($(hInputId)?.value):((chipRect.height/rect.height)*100)||16;
+      startFontPx=Number($(fontSizeInputId)?.value||defaultFontPx||54);
+      chip.classList.add('resizing');
+    }else{
+      mode='move';
+      const chipCenterX=chipRect.left+chipRect.width/2;
+      const chipCenterY=chipRect.top+chipRect.height/2;
+      grabOffsetX=e.clientX-chipCenterX;
+      grabOffsetY=e.clientY-chipCenterY;
+      chip.classList.add('dragging');
+    }
+    try{chip.setPointerCapture(e.pointerId);}catch{}
+    updateFromEvent(e);
+  });
+  chip.addEventListener('pointermove',e=>{
+    if(!mode)return;
+    e.preventDefault();
+    updateFromEvent(e);
+  });
+  const stopDrag=e=>{
+    if(!mode)return;
+    const wasTap=(movedDistance<6);
+    mode=null;
+    chip.classList.remove('dragging','resizing');
+    try{chip.releasePointerCapture(e.pointerId);}catch{}
+    saveActiveJobLocalDraft();
+    if(wasTap&&layerName){
+      selectVideoTextLayer(layerName,{openInspectorTab:true,focusInput:true});
+      message(layerName==='title'?'[상단 후킹 타이틀] 텍스트 편집창이 열렸습니다. 우측에서 문구·글꼴·패턴·색상·획을 바로 수정하세요.':'[하단 한글 자막] 텍스트 편집창이 열렸습니다. 우측에서 문구·글꼴·패턴·색상·획을 바로 수정하세요.');
+    }
+  };
+  chip.addEventListener('pointerup',stopDrag);
+  chip.addEventListener('pointercancel',stopDrag);
+  chip.addEventListener('dblclick',e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(layerName){
+      selectVideoTextLayer(layerName,{openInspectorTab:true,focusInput:true});
+    }
+  });
+}
+bindDraggableChip('drag-title-box','overlay-title-x','overlay-title-y','overlay-title-box-w','overlay-title-box-h','overlay-title-size','overlay-title-size-range',54,140,'title');
+bindDraggableChip('drag-subtitle-box','overlay-sub-x','overlay-sub-y','overlay-sub-box-w','overlay-sub-box-h','overlay-size','overlay-size-range',42,110,'subtitle');
+
+// --- CapCut-Style Unified Video Text Inspector Event Bindings ---
+document.querySelectorAll('[data-select-text-layer]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const layer=btn.dataset.selectTextLayer||'title';
+    selectVideoTextLayer(layer,{openInspectorTab:true,focusInput:true});
+  });
+});
+if($('btn-canvas-select-title'))$('btn-canvas-select-title').addEventListener('click',()=>{
+  selectVideoTextLayer('title',{openInspectorTab:true,focusInput:true});
+});
+if($('btn-canvas-select-sub'))$('btn-canvas-select-sub').addEventListener('click',()=>{
+  selectVideoTextLayer('subtitle',{openInspectorTab:true,focusInput:true});
+});
+if($('btn-canvas-select-mask'))$('btn-canvas-select-mask').addEventListener('click',()=>{
+  const curStage=window.currentProductionStage||'analysis';
+  if(curStage!=='editing')document.querySelector('[data-production-stage="editing"]')?.click();
+  selectEditTab('erase');
+  if($('toggle-mask-box'))$('toggle-mask-box').checked=true;
+  syncDraggableOverlayCanvas();
+});
+if($('btn-inspector-upload-font'))$('btn-inspector-upload-font').addEventListener('click',()=>{
+  triggerCustomFontUpload('inspector-font-select');
+});
+if($('inspector-text-input'))$('inspector-text-input').addEventListener('input',e=>{
+  pushEditorUndoSnapshot();
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
+  if(target)target.value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('inspector-badge-input'))$('inspector-badge-input').addEventListener('input',e=>{
+  pushEditorUndoSnapshot();
+  if($('overlay-title-badge'))$('overlay-title-badge').value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('inspector-duration-select'))$('inspector-duration-select').addEventListener('change',e=>{
+  pushEditorUndoSnapshot();
+  if($('overlay-title-duration'))$('overlay-title-duration').value=e.target.value;
+  saveActiveJobLocalDraft();
+});
+if($('btn-inspector-insert-box'))$('btn-inspector-insert-box').addEventListener('click',()=>{
+  const el=$('inspector-text-input');
+  if(!el)return;
+  pushEditorUndoSnapshot();
+  const start=el.selectionStart??el.value.length;
+  const end=el.selectionEnd??el.value.length;
+  const selected=el.value.slice(start,end)||'핵심강조';
+  el.value=el.value.slice(0,start)+`[${selected}]`+el.value.slice(end);
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
+  if(target)target.value=el.value;
+  el.focus();
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('btn-inspector-insert-star'))$('btn-inspector-insert-star').addEventListener('click',()=>{
+  const el=$('inspector-text-input');
+  if(!el)return;
+  pushEditorUndoSnapshot();
+  const start=el.selectionStart??el.value.length;
+  const end=el.selectionEnd??el.value.length;
+  const selected=el.value.slice(start,end)||'포인트';
+  el.value=el.value.slice(0,start)+`*${selected}*`+el.value.slice(end);
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-text':'overlay-korean-text');
+  if(target)target.value=el.value;
+  el.focus();
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('btn-inspector-autofill'))$('btn-inspector-autofill').addEventListener('click',()=>{
+  if(activeTextLayer==='title'){
+    $('btn-fill-hook-title')?.click();
+  }else{
+    $('btn-pull-analysis-subtitle')?.click();
+  }
+  syncCapcutInspectorFromBacking(activeTextLayer);
+});
+document.querySelectorAll('[data-inspector-preset]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const preset=btn.dataset.inspectorPreset||'reels_giant_yellow_impact';
+    const isTitle=(activeTextLayer==='title');
+    if(isTitle){
+      if($('overlay-title-color'))$('overlay-title-color').value=preset;
+      const presetTextColors={
+        reels_giant_yellow_impact:'#ffea18',
+        reels_rounded_black:'#ffffff',
+        reels_top_banner_pink:'#111114',
+        reels_3d_pop_shadow:'#ffffff',
+        reels_neon_green_glow:'#52ff5c',
+        reels_editorial_split:'#ffea18',
+        black:'#141418',
+        outline:'#ffffff'
+      };
+      if(presetTextColors[preset]&&$('overlay-title-text-color')){
+        $('overlay-title-text-color').value=presetTextColors[preset];
+      }
+      if($('overlay-title-text')&&!$('overlay-title-text').value.trim()){
+        $('btn-fill-hook-title')?.click();
+      }
+    }else{
+      if($('overlay-style')){
+        $('overlay-style').value=preset==='black'?'highlight':(preset==='outline'?'outline':'box');
+      }
+      const subPresetColors={
+        reels_giant_yellow_impact:'#ffea18',
+        reels_rounded_black:'#ffffff',
+        reels_top_banner_pink:'#eab0d5',
+        reels_3d_pop_shadow:'#ffffff',
+        reels_neon_green_glow:'#52ff5c',
+        reels_editorial_split:'#ffea18',
+        black:'#141418',
+        outline:'#ffffff'
+      };
+      if(subPresetColors[preset]&&$('overlay-text-color')){
+        $('overlay-text-color').value=subPresetColors[preset];
+      }
+      if($('overlay-korean-text')&&!$('overlay-korean-text').value.trim()){
+        $('btn-pull-analysis-subtitle')?.click();
+      }
+    }
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+if($('inspector-font-select'))$('inspector-font-select').addEventListener('change',e=>{
+  pushEditorUndoSnapshot();
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-font':'overlay-font');
+  if(target)target.value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+for(const [btnId,titleId,subId] of [
+  ['inspector-btn-bold','overlay-title-bold','overlay-bold'],
+  ['inspector-btn-italic','overlay-title-italic','overlay-italic'],
+  ['inspector-btn-underline','overlay-title-underline','overlay-underline']
+]){
+  if($(btnId))$(btnId).addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const isTitle=(activeTextLayer==='title');
+    const target=$(isTitle?titleId:subId);
+    if(target){
+      target.value=(target.value==='1')?'0':'1';
+    }
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+}
+document.querySelectorAll('[data-inspector-align]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const align=btn.dataset.inspectorAlign||'center';
+    const isTitle=(activeTextLayer==='title');
+    const target=$(isTitle?'overlay-title-align':'overlay-align');
+    if(target)target.value=align;
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+for(const [rangeId,numId,titleId,subId] of [
+  ['inspector-font-size-range','inspector-font-size','overlay-title-size','overlay-size'],
+  ['inspector-scale-pct-range','inspector-scale-pct','overlay-title-scale-pct','overlay-scale-pct'],
+  ['inspector-opacity-range','inspector-opacity','overlay-title-opacity','overlay-opacity'],
+  ['inspector-letter-spacing-range','inspector-letter-spacing','overlay-title-letter-spacing','overlay-letter-spacing'],
+  ['inspector-line-spacing-range','inspector-line-spacing','overlay-title-line-spacing','overlay-line-spacing'],
+  ['inspector-box-radius-range','inspector-box-radius','overlay-title-box-radius','overlay-box-radius'],
+  ['inspector-bg-opacity-range','inspector-bg-opacity','overlay-title-bg-opacity','overlay-bg-opacity'],
+  ['inspector-stroke-width-range','inspector-stroke-width','overlay-title-stroke-width','overlay-stroke-width'],
+  ['inspector-double-stroke-width-range','inspector-double-stroke-width','overlay-title-double-stroke-width','overlay-double-stroke-width']
+]){
+  const syncPair=val=>{
+    pushEditorUndoSnapshot();
+    if($(rangeId))$(rangeId).value=String(val);
+    if($(numId))$(numId).value=String(val);
+    const isTitle=(activeTextLayer==='title');
+    const target=$(isTitle?titleId:subId);
+    if(target)target.value=String(val);
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  };
+  if($(rangeId))$(rangeId).addEventListener('input',e=>syncPair(e.target.value));
+  if($(numId))$(numId).addEventListener('input',e=>syncPair(e.target.value));
+}
+if($('inspector-text-color'))$('inspector-text-color').addEventListener('input',e=>{
+  pushEditorUndoSnapshot();
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-text-color':'overlay-text-color');
+  if(target)target.value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+document.querySelectorAll('[data-swatch-target="text"] .swatch-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const col=btn.dataset.color||'#ffea18';
+    if($('inspector-text-color')){
+      $('inspector-text-color').value=col;
+      $('inspector-text-color').dispatchEvent(new Event('input'));
+    }
+  });
+});
+if($('inspector-bg-enabled'))$('inspector-bg-enabled').addEventListener('change',e=>{
+  pushEditorUndoSnapshot();
+  const enabled=Boolean(e.target.checked);
+  const isTitle=(activeTextLayer==='title');
+  if(isTitle&&$('overlay-title-color')){
+    $('overlay-title-color').value=enabled?($('overlay-title-color').value==='outline'?'reels_rounded_black':$('overlay-title-color').value):'outline';
+  }else if(!isTitle&&$('overlay-style')){
+    $('overlay-style').value=enabled?'box':'outline';
+  }
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('inspector-bg-color'))$('inspector-bg-color').addEventListener('input',e=>{
+  pushEditorUndoSnapshot();
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-bg-color':'overlay-bg-color');
+  if(target)target.value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('inspector-stroke-color'))$('inspector-stroke-color').addEventListener('input',e=>{
+  pushEditorUndoSnapshot();
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-stroke-color':'overlay-stroke-color');
+  if(target)target.value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+if($('inspector-double-stroke-color'))$('inspector-double-stroke-color').addEventListener('input',e=>{
+  pushEditorUndoSnapshot();
+  const isTitle=(activeTextLayer==='title');
+  const target=$(isTitle?'overlay-title-double-stroke-color':'overlay-double-stroke-color');
+  if(target)target.value=e.target.value;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
+document.querySelectorAll('[data-snap-active]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pushEditorUndoSnapshot();
+    const y=Number(btn.dataset.snapActive||50);
+    const isTitle=(activeTextLayer==='title');
+    if(isTitle){
+      if($('overlay-title-x'))$('overlay-title-x').value='50';
+      if($('overlay-title-y'))$('overlay-title-y').value=String(y);
+    }else{
+      if($('overlay-sub-x'))$('overlay-sub-x').value='50';
+      if($('overlay-sub-y'))$('overlay-sub-y').value=String(y);
+    }
+    syncDraggableOverlayCanvas();
+    saveActiveJobLocalDraft();
+  });
+});
+
+function bindDraggableMaskBox(){
+  const chip=$('drag-mask-box'),canvas=$('player-overlay-canvas');
+  if(!chip||!canvas)return;
+  let mode=null,resizeDir='',startClientX=0,startClientY=0;
+  let startX=6,startY=72,startW=88,startH=18;
+  const updateMaskFromEvent=e=>{
+    const rect=canvas.getBoundingClientRect();
+    if(rect.width<=10||rect.height<=10)return;
+    const dxPct=((e.clientX-startClientX)/rect.width)*100;
+    const dyPct=((e.clientY-startClientY)/rect.height)*100;
+    let nx=startX,ny=startY,nw=startW,nh=startH;
+    if(mode==='move'){
+      nx=Math.max(0,Math.min(100-nw,startX+dxPct));
+      ny=Math.max(0,Math.min(100-nh,startY+dyPct));
+    }else if(mode==='resize'){
+      if(resizeDir.includes('e'))nw=Math.max(6,Math.min(100-startX,startW+dxPct));
+      if(resizeDir.includes('s'))nh=Math.max(5,Math.min(100-startY,startH+dyPct));
+      if(resizeDir.includes('w')){
+        const maxDelta=startW-6;
+        const clampedDx=Math.max(-startX,Math.min(maxDelta,dxPct));
+        nx=startX+clampedDx;
+        nw=startW-clampedDx;
+      }
+      if(resizeDir.includes('n')){
+        const maxDelta=startH-5;
+        const clampedDy=Math.max(-startY,Math.min(maxDelta,dyPct));
+        ny=startY+clampedDy;
+        nh=startH-clampedDy;
+      }
+    }
+    if($('mask-x'))$('mask-x').value=String(Math.round(nx));
+    if($('mask-y'))$('mask-y').value=String(Math.round(ny));
+    if($('mask-w'))$('mask-w').value=String(Math.round(nw));
+    if($('mask-h'))$('mask-h').value=String(Math.round(nh));
+    syncDraggableOverlayCanvas();
+  };
+  chip.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    pushEditorUndoSnapshot();
+    const handle=e.target.closest('.resize-handle');
+    startClientX=e.clientX;
+    startClientY=e.clientY;
+    startX=Number($('mask-x')?.value??6);
+    startY=Number($('mask-y')?.value??72);
+    startW=Number($('mask-w')?.value??88);
+    startH=Number($('mask-h')?.value??18);
+    if(handle){
+      mode='resize';
+      resizeDir=handle.dataset.resizeDir||'se';
+      chip.classList.add('resizing');
+    }else{
+      mode='move';
+      chip.classList.add('dragging');
+    }
+    try{chip.setPointerCapture(e.pointerId);}catch{}
+    updateMaskFromEvent(e);
+  });
+  chip.addEventListener('pointermove',e=>{
+    if(!mode)return;
+    e.preventDefault();
+    updateMaskFromEvent(e);
+  });
+  const stopMaskDrag=e=>{
+    if(!mode)return;
+    mode=null;
+    chip.classList.remove('dragging','resizing');
+    try{chip.releasePointerCapture(e.pointerId);}catch{}
+    saveActiveJobLocalDraft();
+  };
+  chip.addEventListener('pointerup',stopMaskDrag);
+  chip.addEventListener('pointercancel',stopMaskDrag);
+}
+bindDraggableMaskBox();
+
 if($('btn-ocr-media-text'))$('btn-ocr-media-text').onclick=()=>act('화면 속 글자(OCR)를 인식하고 자연스러운 한국어로 번역하는 중…',async()=>{
   const tone=$('ocr-translate-tone')?.value||'natural';
   await update('media-text-ocr',{...credentials('analysis'),tone});
   const trans=job?.media_ocr?.translated_text||job?.media_ocr?.korean_translation||'';
   if(trans)$('overlay-korean-text').value=trans;
+  syncDraggableOverlayCanvas();
 },'화면 속 글자 인식 및 한국어 번역이 완료되었습니다!');
 if($('btn-ocr-retranslate'))$('btn-ocr-retranslate').onclick=()=>act('인식된 기존 글자를 AI로 자연스럽게 한국어 번역하는 중…',async()=>{
   if(!job)throw new Error('먼저 원본 미디어를 불러와 주세요.');
@@ -455,47 +3614,383 @@ if($('btn-ocr-retranslate'))$('btn-ocr-retranslate').onclick=()=>act('인식된 
   }
   const trans=job?.media_ocr?.translated_text||job?.media_ocr?.korean_translation||'';
   if(trans)$('overlay-korean-text').value=trans;
+  syncDraggableOverlayCanvas();
 },'선택한 말투로 자연스러운 한국어 자막 번역을 완료했습니다!');
-if($('btn-apply-media-text-edit'))$('btn-apply-media-text-edit').onclick=()=>act('기존 자막을 덮어쓰고 한글 자막을 입히는 중…',async()=>{
+if($('btn-send-ocr-to-editor'))$('btn-send-ocr-to-editor').onclick=()=>{
+  const trans=job?.media_ocr?.translated_text||job?.media_ocr?.korean_translation||$('ocr-original-text')?.value||'';
+  if(trans&&$('overlay-korean-text')&&!$('overlay-korean-text').value.trim()){
+    $('overlay-korean-text').value=trans;
+  }
+  document.querySelector('[data-production-stage="editing"]')?.click();
+  selectVideoTextLayer('subtitle',{openInspectorTab:true,focusInput:true});
+  syncDraggableOverlayCanvas();
+  message('02-A 미디어 편집 스튜디오로 이동했습니다! 좌측 화면에서 텍스트를 클릭하거나 드래그해 배치하고 합성하세요.');
+};
+if($('btn-send-ocr-to-carousel'))$('btn-send-ocr-to-carousel').onclick=()=>{
+  document.querySelector('[data-production-stage="carousel"]')?.click();
+  if($('carousel-cover-title')&&!$('carousel-cover-title').value.trim()){
+    $('btn-autofill-carousel-texts')?.click();
+  }
+  message('02-B 매거진 캐러셀·뉴스카드 스튜디오로 이동했습니다! 표지·본문·요약 스토리를 확인하고 세트를 생성하세요.');
+};
+if($('btn-apply-media-text-edit'))$('btn-apply-media-text-edit').onclick=()=>act('텍스트 스타일(글꼴·패턴·색상·자간/행간·정렬·확대·불투명도·2중 획) 및 자막 지우기·마스크·확대를 영상/이미지에 합성하는 중…',async()=>{
   const sourceId=job.id;
-  const eraseMode=$('text-erase-mode').value;
+  const eraseMode=$('text-erase-mode')?.value||'none';
   const styleVal=$('overlay-style').value;
-  const sizeVal=$('overlay-size').value;
-  const numericSize=sizeVal==='small'?3.5:(sizeVal==='large'?6.0:4.5);
+  const sizeVal=Number($('overlay-size')?.value||42);
+  const numericSize=(Number.isFinite(sizeVal)&&sizeVal>=16)?sizeVal:42;
+  const overlayFont=$('overlay-font')?.value||'sans';
   const overlayColor=styleVal==='highlight'?'black':'white';
   const overlayBg=styleVal!=='outline';
-  const rectangle={};for(const key of ['x','y','w','h'])rectangle[key]=Number($('subtitle-'+key)?.value||0);
-  const timer=(job.kind!=='image'&&(eraseMode.startsWith('auto_')||eraseMode==='cover_box'))?setInterval(async()=>{try{const progress=await api(`jobs/${sourceId}/text-clean-progress`);if(progress.stage==='detecting')message(`자막 처리 중… ${progress.total>0?Math.min(100,Math.floor(progress.frame/progress.total*100)):0}% (${progress.frame} / ${progress.total} 프레임)`);else if(progress.stage==='encoding')message('한글 자막 합성 및 인코딩 중…');}catch{}},2000):null;
+  const overlayBoxRadius=Math.max(0,Math.min(80,Number($('overlay-box-radius')?.value??22)));
+  const overlayStrokeW=Math.max(0,Math.min(24,Number($('overlay-stroke-width')?.value??3)));
+  const overlayStrokeC=$('overlay-stroke-color')?.value||'#000000';
+  const overlayDStrokeW=Math.max(0,Math.min(24,Number($('overlay-double-stroke-width')?.value??0)));
+  const overlayDStrokeC=$('overlay-double-stroke-color')?.value||'#facc15';
+  const overlayBold=($('overlay-bold')?.value!=='0');
+  const overlayItalic=($('overlay-italic')?.value==='1');
+  const overlayUnderline=($('overlay-underline')?.value==='1');
+  const overlayTextColor=$('overlay-text-color')?.value||'';
+  const overlayBgColor=$('overlay-bg-color')?.value||'#0e1018';
+  const overlayBgOpacity=Math.max(0,Math.min(100,Number($('overlay-bg-opacity')?.value??88)));
+  const overlayLetterSpacing=Math.max(-4,Math.min(24,Number($('overlay-letter-spacing')?.value||0)));
+  const overlayLineSpacing=Math.max(0.85,Math.min(2.2,Number($('overlay-line-spacing')?.value||1.22)));
+  const overlayAlign=$('overlay-align')?.value||'center';
+  const overlayScalePct=Math.max(50,Math.min(200,Number($('overlay-scale-pct')?.value||100)));
+  const overlayOpacity=Math.max(15,Math.min(100,Number($('overlay-opacity')?.value??100)));
+
+  const titleText=($('overlay-title-text')?.value||'').trim();
+  const titleBadge=($('overlay-title-badge')?.value||'').trim();
+  const titleColorRaw=$('overlay-title-color')?.value||'yellow';
+  const titleColor=titleColorRaw==='outline'?'white':titleColorRaw;
+  const titleBg=titleColorRaw!=='outline';
+  const rawTitleSize=Number($('overlay-title-size')?.value||54);
+  const titleSize=(Number.isFinite(rawTitleSize)&&rawTitleSize>=16)?rawTitleSize:54;
+  const titleFont=$('overlay-title-font')?.value||'heavy_kr';
+  const titleBoxW=Number($('overlay-title-box-w')?.value||84);
+  const titleBoxH=Number($('overlay-title-box-h')?.value||0);
+  const titleBoxRadius=Math.max(0,Math.min(80,Number($('overlay-title-box-radius')?.value??18)));
+  const titleStrokeW=Math.max(0,Math.min(24,Number($('overlay-title-stroke-width')?.value??4)));
+  const titleStrokeC=$('overlay-title-stroke-color')?.value||'#000000';
+  const titleDStrokeW=Math.max(0,Math.min(24,Number($('overlay-title-double-stroke-width')?.value??0)));
+  const titleDStrokeC=$('overlay-title-double-stroke-color')?.value||'#facc15';
+  const titleBold=($('overlay-title-bold')?.value!=='0');
+  const titleItalic=($('overlay-title-italic')?.value==='1');
+  const titleUnderline=($('overlay-title-underline')?.value==='1');
+  const titleTextColor=$('overlay-title-text-color')?.value||'';
+  const titleBgColor=$('overlay-title-bg-color')?.value||'#0e1018';
+  const titleBgOpacity=Math.max(0,Math.min(100,Number($('overlay-title-bg-opacity')?.value??88)));
+  const titleLetterSpacing=Math.max(-4,Math.min(24,Number($('overlay-title-letter-spacing')?.value||0)));
+  const titleLineSpacing=Math.max(0.85,Math.min(2.2,Number($('overlay-title-line-spacing')?.value||1.18)));
+  const titleAlign=$('overlay-title-align')?.value||'center';
+  const titleScalePct=Math.max(50,Math.min(200,Number($('overlay-title-scale-pct')?.value||100)));
+  const titleOpacity=Math.max(15,Math.min(100,Number($('overlay-title-opacity')?.value??100)));
+  const titleDur=Number($('overlay-title-duration')?.value||0);
+  const titleX=($('overlay-title-x')?.value||'').trim();
+  const titleY=($('overlay-title-y')?.value||'').trim();
+  const subX=($('overlay-sub-x')?.value||'').trim();
+  const subY=($('overlay-sub-y')?.value||'').trim();
+  const subBoxW=Number($('overlay-sub-box-w')?.value||0);
+  const subBoxH=Number($('overlay-sub-box-h')?.value||0);
+  const rectangle={
+    x:Math.max(0,Math.min(95,Number($('mask-x')?.value??6))),
+    y:Math.max(0,Math.min(95,Number($('mask-y')?.value??72))),
+    w:Math.max(5,Math.min(100,Number($('mask-w')?.value??88))),
+    h:Math.max(4,Math.min(100,Number($('mask-h')?.value??18)))
+  };
+  const maskColor=$('erase-mask-color')?.value||'#0f172a';
+  const maskOpacity=Math.max(0.2,Math.min(1,Number($('erase-mask-opacity')?.value??92)/100));
+  const videoZoom=Math.max(100,Math.min(160,Number($('video-zoom-scale')?.value||100)));
+  const focusX=Math.max(0,Math.min(100,Number($('video-zoom-focus-x')?.value??50)));
+  const focusY=Math.max(0,Math.min(100,Number($('video-zoom-focus-y')?.value??50)));
+  const timer=(job.kind!=='image'&&(eraseMode.startsWith('auto_')||eraseMode==='local_fill'))?setInterval(async()=>{try{const progress=await api(`jobs/${sourceId}/text-clean-progress`);if(progress.stage==='detecting')message(`자막 처리 중… ${progress.total>0?Math.min(100,Math.floor(progress.frame/progress.total*100)):0}% (${progress.frame} / ${progress.total} 프레임)`);else if(progress.stage==='encoding')message('자막 지우기·화면 확대·타이포그래피 합성 인코딩 중…');}catch{}},2000):null;
   try{
     job=await api(`jobs/${sourceId}/media-text-edit`,{
       erase_mode:eraseMode,
       overlay_text:$('overlay-korean-text').value,
       overlay_position:$('overlay-position').value,
       overlay_size:numericSize,
+      overlay_font:overlayFont,
       overlay_color:overlayColor,
       overlay_bg:overlayBg,
-      rectangle
+      overlay_x:subX!==''?Number(subX):null,
+      overlay_y:subY!==''?Number(subY):null,
+      overlay_box_w:subBoxW>=20?subBoxW:null,
+      overlay_box_h:subBoxH>=6?subBoxH:null,
+      overlay_box_radius:overlayBoxRadius,
+      overlay_stroke_width:overlayStrokeW,
+      overlay_stroke_color:overlayStrokeC,
+      overlay_double_stroke_width:overlayDStrokeW,
+      overlay_double_stroke_color:overlayDStrokeC,
+      overlay_bold:overlayBold,
+      overlay_italic:overlayItalic,
+      overlay_underline:overlayUnderline,
+      overlay_text_color:overlayTextColor,
+      overlay_bg_color:overlayBgColor,
+      overlay_bg_opacity:overlayBgOpacity,
+      overlay_letter_spacing:overlayLetterSpacing,
+      overlay_line_spacing:overlayLineSpacing,
+      overlay_align:overlayAlign,
+      overlay_scale_pct:overlayScalePct,
+      overlay_opacity:overlayOpacity,
+      title_text:titleText,
+      title_badge:titleBadge,
+      title_position:'top',
+      title_size:titleSize,
+      title_font:titleFont,
+      title_box_w:titleBoxW>=20?titleBoxW:84,
+      title_box_h:titleBoxH>=6?titleBoxH:null,
+      title_box_radius:titleBoxRadius,
+      title_stroke_width:titleStrokeW,
+      title_stroke_color:titleStrokeC,
+      title_double_stroke_width:titleDStrokeW,
+      title_double_stroke_color:titleDStrokeC,
+      title_bold:titleBold,
+      title_italic:titleItalic,
+      title_underline:titleUnderline,
+      title_text_color:titleTextColor,
+      title_bg_color:titleBgColor,
+      title_bg_opacity:titleBgOpacity,
+      title_letter_spacing:titleLetterSpacing,
+      title_line_spacing:titleLineSpacing,
+      title_align:titleAlign,
+      title_scale_pct:titleScalePct,
+      title_opacity:titleOpacity,
+      title_color:titleColor,
+      title_bg:titleBg,
+      title_x:titleX!==''?Number(titleX):50,
+      title_y:titleY!==''?Number(titleY):14,
+      title_start:0,
+      title_end:titleDur>0?titleDur:0,
+      rectangle,
+      mask_color:maskColor,
+      mask_opacity:maskOpacity,
+      video_zoom:videoZoom,
+      focus_x:focusX,
+      focus_y:focusY
     });
+    saveActiveJobLocalDraft();
     render();await refreshJobs();
   }finally{if(timer)clearInterval(timer);}
-},'자막·글자 편집본을 새 작업으로 생성했습니다! 좌측 미리보기에서 결과를 확인하세요.');
-if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('영상에서 핵심 장면을 추출해 캐러셀 이미지를 생성하는 중…',async()=>{
-  const customLines=($('carousel-custom-texts')?.value||'').split(/\r?\n/).map(s=>s.trim());
-  const hasCustom=customLines.some(Boolean);
+},'텍스트 스타일(글꼴·패턴·색상·자간/행간·정렬·확대·불투명도·2중 획) 및 자막 지우기·마스크·확대 합성이 완료되었습니다!');
+if($('btn-apply-media-text-edit-from-erase')&&$('btn-apply-media-text-edit')){
+  $('btn-apply-media-text-edit-from-erase').addEventListener('click',()=>$('btn-apply-media-text-edit').click());
+}
+
+// --- Carousel Template Selector, 90% Cover Hook Formula & Cover/Body Storyboard Auto-Fill ---
+document.querySelectorAll('.carousel-tpl-chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    const tpl=chip.dataset.carouselTpl||'editorial_dark';
+    if($('carousel-template'))$('carousel-template').value=tpl;
+    document.querySelectorAll('.carousel-tpl-chip').forEach(c=>c.classList.toggle('active',c===chip));
+    message(`캐러셀 테마를 [${carouselTemplateNames[tpl]||tpl}](으)로 선택했습니다.`);
+  });
+});
+document.querySelectorAll('[data-cover-hook-formula]').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    const formulaKey=chip.dataset.coverHookFormula||'number';
+    if($('carousel-cover-hook-formula'))$('carousel-cover-hook-formula').value=formulaKey;
+    document.querySelectorAll('[data-cover-hook-formula]').forEach(c=>c.classList.toggle('active',c===chip));
+    const count=Number($('carousel-count')?.value||5);
+    const prod=($('product-name')?.value||job?.product?.name||'').trim();
+    const lines=extractBestHookLines();
+    const curCover=($('carousel-cover-title')?.value||'').trim();
+    const curParts=curCover.split('|').map(s=>s.trim());
+    const seedTopic=curParts[0]||lines[0]||'핵심 포인트';
+    const seedSub=curParts.slice(1).join(' ').trim()||lines[1]||'';
+    const formatted=formatCoverHookByFormula(formulaKey,seedTopic,seedSub,prod,count);
+    if($('carousel-cover-title'))$('carousel-cover-title').value=formatted.combined;
+    // If slides are already generated and Slide 1 is present, also update Slide 1 in the workbench inputs or trigger update
+    if($('wb-active-head-input')&&(activeCarouselSlideIndex===1||!activeCarouselSlideIndex)){
+      $('wb-active-head-input').value=formatted.title;
+      if($('wb-active-subtitle-input'))$('wb-active-subtitle-input').value=formatted.subtitle;
+      if($('wb-active-badge-input'))$('wb-active-badge-input').value=formatted.badge;
+    }
+    const metaName=coverHookFormulaMeta[formulaKey]?.name||formulaKey;
+    message(`첫 장(표지) 90% 후킹 공식을 [${metaName}](으)로 적용했습니다: "${formatted.title}"`);
+  });
+});
+if($('carousel-count')){
+  $('carousel-count').addEventListener('change',()=>{
+    const count=Number($('carousel-count')?.value||5);
+    updateCarouselStorySlotLabels(count);
+    const story=buildEditorialStoryboardLines(count);
+    applyCarouselStoryPlanToInputs(story,`✓ ${count}장 구조(표지·본문·마지막장) 자동 반영됨`);
+  });
+}
+if($('carousel-body-texts')){
+  $('carousel-body-texts').addEventListener('input',()=>syncCombinedCarouselCustomTexts());
+}
+if($('carousel-cta-text')){
+  $('carousel-cta-text').addEventListener('input',()=>syncCombinedCarouselCustomTexts());
+}
+if($('btn-autofill-carousel-texts'))$('btn-autofill-carousel-texts').onclick=()=>{
+  const count=Number($('carousel-count')?.value||5);
+  const story=buildEditorialStoryboardLines(count);
+  applyCarouselStoryPlanToInputs(story,'✓ 영상 소재 분석 + 첫장 90% 후킹 자동 반영됨');
+  if($('carousel-erase-mode')&&$('carousel-erase-mode').value==='none'){
+    $('carousel-erase-mode').value='cover_box';
+  }
+  message(`영상 소재 분석 내용과 첫 장 90% 후킹 공식을 토대로 1번 표지(Cover), 본문(Body), 마지막장 요약(CTA) ${count}장 대본을 자동 완성했습니다!`);
+};
+if($('btn-ai-compose-carousel-story'))$('btn-ai-compose-carousel-story').onclick=()=>act('선택한 AI 모델로 영상 분석 내용과 첫장 90% 후킹 공식을 바탕으로 표지·본문·마지막장 대본을 구성하는 중…',async()=>{
+  if(!job)throw new Error('먼저 영상·소재를 불러와 주세요.');
+  const count=Number($('carousel-count')?.value||5);
+  const hookFormula=$('carousel-cover-hook-formula')?.value||'number';
+  let aiCreds={};
+  try{aiCreds=credentials('analysis');}catch{aiCreds={};}
+  await update('carousel-story-draft',{
+    ...aiCreds,
+    count,
+    hook_formula:hookFormula,
+    use_ai:true
+  });
+  const draft=job?.carousel_story_draft;
+  if(draft&&draft.cover_title){
+    const bLines=Array.isArray(draft.body_lines)?draft.body_lines:[];
+    const bodySlides=count>=3?bLines.slice(0,-1):[];
+    const ctaLine=bLines.length?bLines[bLines.length-1]:'';
+    applyCarouselStoryPlanToInputs({
+      cover:draft.cover_title,
+      bodySlides,
+      cta:ctaLine,
+      body:bLines
+    },draft.ai_used?`✓ AI(${draft.model||'선택 모델'}) 구성 완료`:'✓ 영상 분석 내용 자동 반영됨');
+  }else{
+    ensureCarouselStoryAutoPopulated(true);
+  }
+},'선택한 AI 모델과 첫 장 90% 후킹 공식으로 표지·본문·마지막장 대본 구성을 완료했습니다!');
+if($('carousel-erase-mode')){
+  $('carousel-erase-mode').addEventListener('change',()=>{
+    const isNone=$('carousel-erase-mode').value==='none';
+    if($('carousel-auto-caption')){
+      $('carousel-auto-caption').checked=!isNone;
+    }
+  });
+}
+if($('btn-generate-carousel'))$('btn-generate-carousel').onclick=()=>act('매거진 디자인 테마와 첫장 90% 후킹 표지·본문·마지막장 대본을 적용해 캐러셀 카드뉴스를 생성하는 중…',async()=>{
+  if(!($('carousel-cover-title')?.value||'').trim()||(!($('carousel-body-texts')?.value||'').trim()&&!($('carousel-cta-text')?.value||'').trim())){
+    ensureCarouselStoryAutoPopulated(true);
+  }
+  syncCombinedCarouselCustomTexts();
+  const normalizeTwoTier=str=>String(str||'').split('|').map(p=>p.trim()).filter(Boolean).join('\n');
+  const count=Number($('carousel-count')?.value||5);
+  const hookFormula=$('carousel-cover-hook-formula')?.value||'number';
+  const bodyLinesRaw=($('carousel-body-texts')?.value||'').split(/\r?\n/).map(s=>normalizeTwoTier(s)).filter(Boolean);
+  const ctaLineRaw=normalizeTwoTier($('carousel-cta-text')?.value||'');
+  let customLines=[];
+  if(count<=2){
+    customLines=ctaLineRaw?[ctaLineRaw]:bodyLinesRaw.slice(0,1);
+  }else{
+    const targetBodyCount=count-2;
+    const fallbackStory=buildEditorialStoryboardLines(count);
+    const paddedBody=[...bodyLinesRaw];
+    while(paddedBody.length<targetBodyCount){
+      const fbLine=fallbackStory.bodySlides[paddedBody.length]||fallbackStory.bodySlides[0]||'핵심 체크 포인트';
+      paddedBody.push(normalizeTwoTier(fbLine));
+    }
+    const finalBody=paddedBody.slice(0,targetBodyCount);
+    const finalCta=ctaLineRaw||normalizeTwoTier(fallbackStory.cta);
+    customLines=[...finalBody,finalCta];
+  }
+  if($('carousel-custom-texts')){
+    $('carousel-custom-texts').value=customLines.map(s=>s.replace(/\n/g,' | ')).join('\n');
+  }
+  const coverTitle=normalizeTwoTier($('carousel-cover-title')?.value||'');
+  const eraseMode=$('carousel-erase-mode')?.value||'cover_box';
+  const template=$('carousel-template')?.value||'editorial_dark';
+  const carouselFont=$('carousel-font')?.value||'heavy_kr';
+  const carouselStrokeW=Math.max(0,Math.min(24,Number($('carousel-stroke-width')?.value??0)));
+  const carouselStrokeC=$('carousel-stroke-color')?.value||'#000000';
+  const carouselDStrokeW=Math.max(0,Math.min(24,Number($('carousel-double-stroke-width')?.value??0)));
+  const carouselDStrokeC=$('carousel-double-stroke-color')?.value||'#facc15';
+  let aiCreds={};
+  try{aiCreds=credentials('analysis');}catch{aiCreds={};}
   await update('carousel-generate',{
-    count:Number($('carousel-count').value||5),
+    ...aiCreds,
+    count,
+    hook_formula:hookFormula,
     aspect:$('carousel-ratio').value||'4:5',
-    erase_mode:$('carousel-erase-mode').value||'cover_box',
+    erase_mode:eraseMode,
+    template,
+    cover_title:coverTitle,
     overlay_position:$('carousel-text-pos').value||'bottom',
-    overlay_size:4.5,
+    overlay_size:4.6,
     overlay_color:'white',
     overlay_bg:true,
-    auto_caption:$('carousel-auto-caption').checked,
-    slide_texts:hasCustom?customLines:[]
+    font_family:carouselFont,
+    stroke_width:carouselStrokeW,
+    stroke_color:carouselStrokeC,
+    double_stroke_width:carouselDStrokeW,
+    double_stroke_color:carouselDStrokeC,
+    auto_caption:(eraseMode==='none'&&!coverTitle&&!customLines.length)?false:Boolean($('carousel-auto-caption')?.checked??true),
+    slide_texts:customLines
   });
   if($('upload-platform'))$('upload-platform').value='instagram_carousel';
   if($('upload-format'))$('upload-format').value='carousel';
-},'캐러셀 이미지 세트를 생성했습니다! 아래 슬라이드 미리보기를 확인하고 인스타 캐러셀·쓰레드로 바로 업로드하세요.');
+},'매거진 에디토리얼 캐러셀 세트를 생성했습니다! 하단 워크벤치에서 사진 수정(이미지 추가·Ctrl+V 붙여넣기)·제목·부제목·본문 텍스트 추가를 자유롭게 편집하세요.');
+if($('btn-carousel-upload-photo'))$('btn-carousel-upload-photo').onclick=()=>{
+  pendingCarouselPhotoMode='replace';
+  $('carousel-slide-photo-input')?.click();
+};
+if($('btn-carousel-paste-photo'))$('btn-carousel-paste-photo').onclick=async()=>{
+  try{
+    const dataUrl=await readClipboardImageAsDataUrl();
+    await applyCarouselCustomPhotoDataUrl(dataUrl,'replace','클립보드 붙여넣기 이미지');
+  }catch(err){
+    message(err.message,true);
+  }
+};
+if($('carousel-slide-photo-input')){
+  $('carousel-slide-photo-input').addEventListener('change',async e=>{
+    const file=e.target.files?.[0];
+    e.target.value='';
+    if(!file)return;
+    try{
+      const dataUrl=await readImageFileAsDataUrl(file);
+      await applyCarouselCustomPhotoDataUrl(dataUrl,pendingCarouselPhotoMode,`불러온 이미지(${file.name})`);
+    }catch(err){
+      message(err.message,true);
+    }
+  });
+}
+window.addEventListener('paste',async e=>{
+  if(!job)return;
+  const isCarouselStage=(window.currentProductionStage==='carousel')||(!$('stage-carousel-panel')?.hidden);
+  if(!isCarouselStage)return;
+  const items=e.clipboardData?.items||[];
+  let imgFile=null;
+  for(const item of items){
+    if(item.type&&item.type.startsWith('image/')){
+      imgFile=item.getAsFile();
+      break;
+    }
+  }
+  if(!imgFile)return;
+  e.preventDefault();
+  try{
+    const dataUrl=await readImageFileAsDataUrl(imgFile);
+    await applyCarouselCustomPhotoDataUrl(dataUrl,'replace','Ctrl+V 클립보드 붙여넣기 이미지');
+  }catch(err){
+    message(err.message,true);
+  }
+});
+if($('btn-carousel-add-slide'))$('btn-carousel-add-slide').onclick=()=>act('현재 재생 화면으로 새 슬라이드를 추가하는 중…',async()=>{
+  const cur=$('preview')?.currentTime;
+  const ts=(typeof cur==='number'&&Number.isFinite(cur))?cur:null;
+  await update('carousel-slide-action',{
+    action:'add',
+    timestamp:ts,
+    title:'[추가 체크 포인트]',
+    subtitle:'이 장면에서 주목해야 할 핵심 디테일',
+    body_text:''
+  });
+},'새 슬라이드를 추가하고 슬라이드 번호를 갱신했습니다!');
+if($('btn-carousel-attach-all'))$('btn-carousel-attach-all').onclick=()=>act('캐러셀 슬라이드를 게시 첨부 묶음으로 구성하는 중…',async()=>{
+  const slideCount=(job?.carousel?.slides||[]).length||1;
+  await update('attachments-config',{action:'preset_video_plus_images',image_count:Math.min(9,slideCount)});
+  if($('upload-format'))$('upload-format').value='combo';
+},'캐러셀 슬라이드를 멀티미디어 게시 첨부 목록에 반영했습니다!');
 $('analyze').onclick=()=>act('선택한 영상 데이터를 분석하는 중…',()=>update('analyze',credentials('analysis')));
 $('product-form').onsubmit=event=>{event.preventDefault();const mode=$('affiliate-entry-mode')?.value||'manual';act('상품 저장 중…',()=>{if(mode==='manual'&&!$('affiliate-url').value.trim())throw Error('직접 발급한 제휴 링크를 입력하세요.');return update('product',{platform:$('platform').value,name:$('product-name').value,url:mode==='api'?$('product-url').value:'',link_entry_mode:mode,affiliate_url:$('affiliate-url').value,confirmed:$('confirmed').checked});},'상품과 제휴 링크를 저장했습니다.');};
 $('draft').onclick=()=>act('내 스타일로 한국어 게시글 3안을 작성하는 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('draft',{...credentials('writing'),style:$('draft-style').value,include_ad_tag:Boolean($('include-ad-tag')?.checked),source_text:$('source-post-text')?.value||job?.source_text||''});});
@@ -503,13 +3998,13 @@ $('writing-save-final').onclick=()=>{$('prepare').click();};
 $('prepare').onclick=()=>act('본문과 첫 댓글 확정 저장 중…',()=>{if(productDirty) throw new Error('변경한 상품을 먼저 저장해 주세요.');return update('prepare',{body:$('script').value,script:$('script').value,disclosure:$('disclosure').value,comment:$('comment').value,selected:job?.draft?.selected||0});},'본문과 첫 댓글을 확정 저장했습니다. 이제 원하는 플랫폼(쓰레드·인스타·네이버 클립·틱톡)으로 바로 업로드할 수 있습니다.');
 for(const target of ['body','comment']) $('copy-'+target).onclick=()=>act('복사 중…',async()=>{await navigator.clipboard.writeText($(target).value);}, '복사했습니다. 원하는 채널에 붙여 넣어 주세요.');
 $('new-job').onclick=()=>{job=null;editJobId=null;render();$('upload-form').reset();if($('fetch-url')){$('fetch-url').value='';$('fetch-url').focus();}refreshJobs().catch(e=>message(e.message,true));};
-if($('btn-goto-reference'))$('btn-goto-reference').onclick=()=>document.querySelector('[data-production-stage="reference"]')?.click();
+if($('btn-goto-reference'))$('btn-goto-reference').onclick=()=>document.querySelector('[data-workspace="reference"]')?.click();
 if($('btn-toggle-style-drawer')&&$('writing-style-drawer')){
   $('btn-toggle-style-drawer').onclick=()=>{
     const open=$('writing-style-drawer').hidden;
     $('writing-style-drawer').hidden=!open;
     $('btn-toggle-style-drawer').setAttribute('aria-expanded',String(open));
-    $('btn-toggle-style-drawer').textContent=`✎ 내 스타일 추가·수정 ${open?'▴':'▾'}`;
+    $('btn-toggle-style-drawer').textContent=`내 스타일 추가·수정 ${open?'▴':'▾'}`;
   };
 }
 document.querySelectorAll('[data-disclosure-preset]').forEach(btn=>{
@@ -520,7 +4015,7 @@ document.querySelectorAll('[data-disclosure-preset]').forEach(btn=>{
       $('comment').value=buildDefaultComment();
       $('copy-body').disabled=true;$('copy-comment').disabled=true;
       $('publish-api').disabled=true;$('extension-upload').disabled=true;if($('extension-batch-upload'))$('extension-batch-upload').disabled=true;
-      message(`${btn.textContent} 고지 문구를 첫 댓글에 반영했습니다. [✦ 본문 · 첫 댓글 최종 확정 저장]을 눌러 저장하세요.`);
+      message(`${btn.textContent} 고지 문구를 첫 댓글에 반영했습니다. [본문 · 첫 댓글 최종 확정 저장]을 눌러 저장하세요.`);
     }
   };
 });
@@ -551,7 +4046,7 @@ function renderIntegrations(){
   $('product-keyword-chips').replaceChildren();
   $('product-keyword-bar').hidden=!terms.length;
   for(const term of terms){
-   const chip=text('button',`🔍 ${term}`);
+   const chip=text('button',`${term}`);
    chip.type='button';
    chip.className='analysis-term-chip';
    chip.onclick=()=>{
@@ -702,15 +4197,36 @@ async function refreshReferences(requestedCollection=referenceCollection){
     };
     checkLabel.append(checkInput,text('span','선택'));
     thumbBox.append(checkLabel);
-    const thumbUrl=ref.previewUrl||ref.thumbnailUrl||ref.poster||ref.imageUrls?.[0]||'';
-    const img=document.createElement('img');img.alt='콘텐츠 썸네일';img.className='ref-thumb-img';img.loading='lazy';img.referrerPolicy='no-referrer';
-    const fallback=document.createElement('div');fallback.className='ref-thumb-fallback';
+    const thumbCandidates=[ref.thumbnailDataUrl,ref.previewUrl,ref.thumbnailUrl,ref.poster,ref.imageUrls?.[0]].filter(u=>typeof u==='string'&&u.trim());
+    const uniqueCandidates=[...new Set(thumbCandidates)];
+    let candidateIdx=0;
+    const thumbUrl=uniqueCandidates[0]||'';
+    const cardIdx=list.children.length;
+    const img=document.createElement('img');img.alt='콘텐츠 썸네일';img.className='ref-thumb-img';img.loading=cardIdx<16?'eager':'lazy';img.decoding='async';img.referrerPolicy='no-referrer';
+    const fallback=document.createElement('div');fallback.className='ref-thumb-fallback';fallback.hidden=Boolean(thumbUrl);
     const fallbackText=document.createElement('span');fallbackText.textContent=thumbUrl?'썸네일 로드 실패':'썸네일 없음';
     const retryBtn=document.createElement('button');retryBtn.type='button';retryBtn.className='btn-retry-thumb secondary';retryBtn.textContent='다시 가져오기';
-    retryBtn.onclick=e=>{e.stopPropagation();fallback.hidden=true;img.hidden=false;img.src=thumbUrl+(thumbUrl.includes('?')?'&':'?')+'_t='+Date.now();};
+    retryBtn.onclick=e=>{
+      e.stopPropagation();
+      candidateIdx=0;
+      const first=uniqueCandidates[0];
+      if(!first)return;
+      fallback.hidden=true;img.hidden=false;
+      img.src=first.startsWith('data:')?first:(first+(first.includes('?')?'&':'?')+'_t='+Date.now());
+    };
     fallback.append(fallbackText);if(thumbUrl)fallback.append(retryBtn);
-    if(thumbUrl){img.src=thumbUrl;img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};}
-    else{img.hidden=true;fallback.hidden=false;}
+    if(thumbUrl){
+      img.onload=()=>{img.hidden=false;fallback.hidden=true;};
+      img.onerror=()=>{
+        candidateIdx++;
+        if(candidateIdx<uniqueCandidates.length){
+          img.src=uniqueCandidates[candidateIdx];
+        }else{
+          img.hidden=true;fallback.hidden=false;
+        }
+      };
+      img.src=thumbUrl;
+    }else{img.hidden=true;fallback.hidden=false;}
     thumbBox.append(img,fallback);
 
     const badge=document.createElement('span');badge.className='media-badge';
@@ -791,8 +4307,9 @@ async function refreshReferences(requestedCollection=referenceCollection){
           try{job=await api('acquire',payload);}catch(err){statusText.textContent='획득 실패: '+err.message;referenceStates.set(ref.permalink,statusText.textContent);throw err;}
           statusText.textContent='준비 완료!';referenceStates.set(ref.permalink,statusText.textContent);
           render();await refreshJobs();
+          document.querySelector('[data-workspace="create"]')?.click();
           document.querySelector('[data-production-stage="analysis"]')?.click();
-        },'원본을 획득하여 분석 준비를 마쳤습니다.');
+        },'원본을 획득하여 [콘텐츠 제작 › 01 영상·소재 분석] 준비를 마쳤습니다.');
       }catch(err){
         statusText.textContent='획득 실패: '+err.message;
         message('미디어 획득 실패: '+err.message+' (원본 주소는 유지되었습니다. 직접 파일을 선택할 수도 있습니다.)',true);
@@ -1161,7 +4678,101 @@ if($('clear-coupang-keys'))$('clear-coupang-keys').onclick=()=>act('쿠팡파트
 $('platform').addEventListener('change',()=>{if(!job?.disclosure)$('disclosure').value=disclosureDefaults[$('platform').value]||'';});
 
 function uploadBridge(kind,packet){return new Promise((resolve,reject)=>{const requestId=crypto.randomUUID();const timer=setTimeout(()=>{window.removeEventListener('message',receive);reject(new Error('브라우저 브리지 또는 확장 프로그램을 새로고침한 뒤 다시 연결하세요.'));},5000);function receive(event){if(event.source!==window||event.origin!==location.origin||event.data?.source!=='takoh-studio-bridge'||event.data.requestId!==requestId)return;clearTimeout(timer);window.removeEventListener('message',receive);event.data.success?resolve(event.data.data):reject(new Error(event.data.error));}window.addEventListener('message',receive);window.postMessage({source:'takoh-studio-ui',kind,packet,requestId},location.origin);});}
-async function refreshUploadQueue(){const queue=await uploadBridge('upload-status');document.dispatchEvent(new CustomEvent('studio-upload-queue',{detail:queue}));$('upload-queue').replaceChildren();const states={queued:'예약 대기',running:'휴먼터치 업로드 중',awaiting_confirmation:'휴먼터치 본문 입력 완료 · 직접 게시 확인',posted:'휴먼터치 본문·댓글 게시 확인',partial_success:'본문 게시 · 댓글 확인 필요',uncertain:'결과 확인 필요 · 자동 재시도 중지',missed:'예약 시각 경과 · 실행 안 함',cancelled:'예약 취소'};for(const item of queue){const row=document.createElement('div');const platLabel=platformNames[item.platform]||item.platform||'Threads';row.append(text('p',`[${platLabel}] ${item.name} · ${new Date(item.when).toLocaleString()} · ${states[item.state]||item.state}${item.error?' · '+item.error:''}`));if(item.state==='queued'){const cancel=text('button','예약 취소');cancel.onclick=()=>act('예약 취소 중…',async()=>{await uploadBridge('upload-cancel',{id:item.id});await refreshUploadQueue();});row.append(cancel);}if(item.permalink){const link=text('a','게시물 확인');link.href=item.permalink;link.target='_blank';link.rel='noopener';row.append(link);}$('upload-queue').append(row);}if(!queue.length)$('upload-queue').append(text('p','등록된 휴먼터치 업로드 작업이 없습니다.'));}
+async function refreshUploadQueue(){
+  const queue=await uploadBridge('upload-status');
+  document.dispatchEvent(new CustomEvent('studio-upload-queue',{detail:queue}));
+  const container=$('upload-queue');
+  container.replaceChildren();
+  const states={
+    queued:'예약 대기',
+    running:'휴먼터치 업로드 중',
+    awaiting_confirmation:'본문 입력 완료 · 직접 게시 확인 대기',
+    posted:'게시 완료 확인됨',
+    partial_success:'본문 게시 완료 · 첫 댓글 확인 필요',
+    uncertain:'결과 확인 필요 · 자동 재시도 중지',
+    missed:'예약 시각 경과 · 실행 안 함',
+    cancelled:'예약 취소됨'
+  };
+  const platformDefaultUrls={
+    threads:'https://www.threads.com/',
+    instagram:'https://www.instagram.com/',
+    instagram_reels:'https://www.instagram.com/reels/',
+    instagram_carousel:'https://www.instagram.com/',
+    naver_clip:'https://m.blog.naver.com/GoClipWrite.naver',
+    tiktok:'https://www.tiktok.com/tiktokstudio/upload'
+  };
+  for(const item of queue){
+    const card=document.createElement('div');
+    card.className='upload-verify-card';
+    card.dataset.state=item.state||'queued';
+    const top=document.createElement('div');
+    top.className='upload-verify-top';
+    const titleRow=document.createElement('div');
+    titleRow.className='upload-verify-title';
+    const platBadge=text('span',platformNames[item.platform]||item.platform||'Threads');
+    platBadge.className='upload-verify-plat-badge';
+    const nameEl=text('strong',item.name||'제목 없음');
+    const stateBadge=text('span',states[item.state]||item.state||'대기');
+    stateBadge.className='upload-verify-state-badge';
+    stateBadge.dataset.state=item.state||'queued';
+    titleRow.append(platBadge,nameEl,stateBadge);
+    const timeEl=text('span',item.when?new Date(item.when).toLocaleString():'방금');
+    timeEl.className='upload-verify-meta';
+    top.append(titleRow,timeEl);
+    card.append(top);
+    if(item.error){
+      const errEl=text('div',''+item.error);
+      errEl.className='upload-verify-error';
+      card.append(errEl);
+    }
+    const actions=document.createElement('div');
+    actions.className='upload-verify-actions';
+    if(item.permalink&&/^https?:\/\//i.test(item.permalink)){
+      const openLink=document.createElement('a');
+      openLink.className='btn-verify-open';
+      openLink.href=item.permalink;
+      openLink.target='_blank';
+      openLink.rel='noopener';
+      openLink.textContent='↗ 게시물 바로 열기';
+      const copyBtn=text('button','링크 복사');
+      copyBtn.type='button';
+      copyBtn.className='secondary btn-xs';
+      copyBtn.onclick=()=>act('게시물 링크 복사 중…',async()=>{
+        await navigator.clipboard.writeText(item.permalink);
+      },'게시물 링크를 클립보드에 복사했습니다.');
+      actions.append(openLink,copyBtn);
+    }
+    const openTabBtn=text('button','앱 내 플랫폼 화면으로 이동');
+    openTabBtn.type='button';
+    openTabBtn.className='secondary btn-xs';
+    openTabBtn.onclick=()=>act('플랫폼 화면으로 이동 중…',async()=>{
+      try{
+        await uploadBridge('open-platform',{platform:item.platform||'threads',url:item.permalink||''});
+      }catch{
+        window.open(item.permalink||platformDefaultUrls[item.platform]||'https://www.threads.com/','_blank','noopener');
+      }
+    },'플랫폼 화면을 열었습니다.');
+    actions.append(openTabBtn);
+    if(item.state==='queued'){
+      const cancel=text('button','예약 취소');
+      cancel.type='button';
+      cancel.className='secondary btn-xs btn-subtle-danger';
+      cancel.onclick=()=>act('예약 취소 중…',async()=>{
+        await uploadBridge('upload-cancel',{id:item.id});
+        await refreshUploadQueue();
+      },'예약을 취소했습니다.');
+      actions.append(cancel);
+    }
+    card.append(actions);
+    container.append(card);
+  }
+  if(!queue.length){
+    const empty=text('p','아직 등록된 업로드·예약 내역이 없습니다. 위에서 업로드를 시작하면 진행 상태와 게시물 바로가기 버튼이 여기에 카드 형태로 표시됩니다.');
+    empty.className='hint';
+    empty.style.margin='0';
+    container.append(empty);
+  }
+}
 $('upload-queue-refresh').onclick=()=>act('휴먼터치 업로드·예약 상태 확인 중…',refreshUploadQueue,'업로드 상태를 확인했습니다.');
 
 const apiClearPayloads={
@@ -1236,9 +4847,10 @@ async function refreshConnectionsStatus(){
       vCard.style.opacity='0.85';
       const vHead=document.createElement('div');
       vHead.className='conn-card-head';
-      vHead.append(text('span','시스템 빌드 정보'),text('span',`앱 v${vi.app_version}`));
-      const vDesc=text('div',`커밋: ${vi.commit_id}${vi.is_dirty?' (로컬 변경 있음)':''} · 스키마: ${vi.schema_version} · 도우미 포트: ${vi.helper_port}`);
+      const dirtyLabel=vi.is_dirty===true?' (로컬 변경 있음)':(vi.is_dirty===false?' (클린)':` (${vi.is_dirty})`);
+      const vDesc=text('div',`커밋: ${vi.commit_id}${dirtyLabel} · 스키마: ${vi.schema_version} · 도우미 포트: ${vi.helper_port}`);
       vDesc.className='conn-detail-note';
+
       vCard.append(vHead,vDesc);
       grid.append(vCard);
     }
@@ -1277,7 +4889,6 @@ function setQuickSidebarMode(enabled){
     applySidebarWidth(savedW,false);
     document.querySelector('[data-workspace="create"]')?.click();
     const sections={
-      reference:false,
       analysis:true,
       writing:true,
       product:false,
@@ -1289,12 +4900,20 @@ function setQuickSidebarMode(enabled){
       sec.hidden=!show;
       sec.dataset.stageHidden=String(!show);
     });
+    document.querySelectorAll('#create-workspace [data-stage-view]').forEach(panel=>{
+      panel.hidden=false;
+    });
   }else{
     const activeStage=document.querySelector('[data-production-stage][aria-pressed="true"]')?.getAttribute('data-production-stage')||'analysis';
     document.querySelectorAll('#create-workspace [data-production-section]').forEach(sec=>{
-      const show=(sec.getAttribute('data-production-section')===activeStage);
+      const key=sec.getAttribute('data-production-section');
+      const show=(activeStage==='editing'?key==='analysis':key===activeStage);
       sec.hidden=!show;
       sec.dataset.stageHidden=String(!show);
+    });
+    document.querySelectorAll('#create-workspace [data-stage-view]').forEach(panel=>{
+      const v=panel.getAttribute('data-stage-view');
+      panel.hidden=(activeStage==='editing'?v!=='editing':v!=='analysis');
     });
   }
 }
@@ -1362,10 +4981,9 @@ window.addEventListener('message',event=>{
   if(event.data?.type!=='native-create-direct')return;
   const ref=event.data.reference;
   if(!ref||!ref.permalink)return;
-  const quickSidebar=Boolean(event.data.quickSidebar||ref.quickSidebar);
+  setQuickSidebarMode(false);
   document.querySelector('[data-workspace="create"]')?.click();
   document.querySelector('[data-production-stage="analysis"]')?.click();
-  setQuickSidebarMode(quickSidebar);
   if($('source'))$('source').value=ref.permalink;
   if($('fetch-url'))$('fetch-url').value=ref.permalink;
   act('선택한 게시물에서 미디어와 본문을 바로 가져오는 중…',async()=>{
@@ -1384,9 +5002,9 @@ window.addEventListener('message',event=>{
     render();
     await refreshJobs();
     await refreshReferences().catch(()=>{});
-    if(quickSidebar)setQuickSidebarMode(true);
-    else document.querySelector('[data-production-stage="analysis"]')?.click();
-  },'게시물 미디어와 본문을 불러왔습니다! 우측 사이드바에서 자막·본문·첫 댓글을 편집해 바로 업로드하세요.');
+    document.querySelector('[data-workspace="create"]')?.click();
+    document.querySelector('[data-production-stage="analysis"]')?.click();
+  },'게시물 미디어와 본문을 불러왔습니다! [콘텐츠 제작] 화면에서 자막·캐러셀·본문을 편집해 업로드하세요.');
 });
 
 /* Reorganize existing controls without replacing handlers or saved settings. */
@@ -1517,11 +5135,146 @@ window.addEventListener('message',event=>{
   root.querySelector('.workspace-heading p').textContent='연결을 등록하고 작업별로 배정하세요. 글 작성·분석·검색에 사용하는 연결을 위에서 바로 확인할 수 있습니다.';
   document.querySelector('.settings-provider-picker h2').textContent='연결 등록·모델 선택';
   document.querySelector('.settings-provider-picker p').textContent='등록할 서비스를 선택하세요. 선택만으로 저장된 작업 배정은 바뀌지 않습니다. 연결·모델을 정한 뒤 위 배정 버튼을 누르세요.';
+  let syncingAnalysisBar=false;
+  function syncSingleInlineAiBar(prefix){
+    const provSel=byId(prefix+'-ai-provider');
+    const modSel=byId(prefix+'-model-choice');
+    const custIn=byId(prefix+'-model-custom');
+    const connBadge=byId(prefix+'-ai-conn-badge');
+    const scopeBadge=byId(prefix+'-model-scope-badge');
+    const subNote=byId(prefix+'-model-sub-note');
+    if(!provSel||!modSel)return;
+    const r=routeFor('analysis');
+    const activeProv=r.provider||byId('ai-provider')?.value||'gemini_api';
+    if([...provSel.options].some(o=>o.value===activeProv)){
+      provSel.value=activeProv;
+    }
+    const providerModels=(typeof allModels!=='undefined'&&Array.isArray(allModels))?allModels.filter(m=>m.provider===activeProv):[];
+    modSel.replaceChildren();
+    for(const m of providerModels){
+      const cap=activeProv==='kie_api'?'스키마 확인':(m.has_audio?'음성+프레임':'프레임만');
+      const opt=new Option(`${m.name} (${m.model_id}) [${cap}]`,m.model_id);
+      opt.dataset.hasAudio=m.has_audio?'1':'0';
+      modSel.add(opt);
+    }
+    const custOpt=new Option(activeProv==='kie_api'?'계정 모델 목록 갱신 필요':'+ 직접 모델 ID 입력...','custom');
+    if(activeProv==='kie_api')custOpt.disabled=true;
+    modSel.add(custOpt);
+
+    const targetModel=r.model||byId('model')?.value||(providerModels[0]?.model_id||'');
+    const matched=providerModels.find(m=>m.model_id===targetModel);
+    if(matched){
+      modSel.value=matched.model_id;
+      if(custIn){custIn.value=matched.model_id;custIn.hidden=true;}
+    }else if(targetModel&&targetModel!=='custom'){
+      modSel.value='custom';
+      if(custIn){custIn.value=targetModel;custIn.hidden=false;}
+    }else if(providerModels.length){
+      modSel.value=providerModels[0].model_id;
+      if(custIn){custIn.value=providerModels[0].model_id;custIn.hidden=true;}
+    }
+    const resolvedModel=(modSel.value==='custom'?(custIn?.value?.trim()||''):modSel.value)||targetModel;
+    const modelEntry=providerModels.find(m=>m.model_id===resolvedModel);
+    if(scopeBadge){
+      const hasAudio=Boolean(modelEntry?.has_audio||activeProv==='gemini_api');
+      scopeBadge.textContent=hasAudio?'음성(내레이션) + 영상 프레임 통합 분석':'영상 핵심 프레임 시각 분석 (음성 제외)';
+    }
+    if(subNote){
+      subNote.textContent=prefix==='carousel'
+        ?`현재 캐러셀 AI 모델: ${(names[activeProv]||activeProv)} / ${resolvedModel||'모델 미선택'}`
+        :`현재 분석·번역 배정: ${(names[activeProv]||activeProv)} / ${resolvedModel||'모델 미선택'}`;
+    }
+    if(connBadge){
+      const isCli=activeProv.endsWith('_cli');
+      const st=isCli?connections.clis?.[activeProv]:connections.apis?.[activeProv];
+      const isReady=Boolean(isCli?st?.logged_in:st?.configured);
+      connBadge.textContent=isCli
+        ?(isReady?'✓ 구독 CLI 연결됨':(st?.installed?'CLI 로그인 확인 필요':'CLI 상태 확인 대기'))
+        :(isReady?'✓ API 키 등록됨':'API 키 확인/등록 필요');
+      connBadge.className='analysis-conn-pill '+(isReady?'ok':'warn');
+    }
+  }
+  function syncAnalysisBarUi(){
+    if(syncingAnalysisBar)return;
+    syncingAnalysisBar=true;
+    try{
+      syncSingleInlineAiBar('analysis');
+      syncSingleInlineAiBar('carousel');
+    }finally{
+      syncingAnalysisBar=false;
+    }
+  }
+  function applyAnalysisBarSelection(newProvider,newModel){
+    if(syncingAnalysisBar)return;
+    const prov=newProvider||byId('analysis-ai-provider')?.value||byId('carousel-ai-provider')?.value||'gemini_api';
+    if(byId('ai-provider')&&byId('ai-provider').value!==prov){
+      byId('ai-provider').value=prov;
+      if(typeof chooseProvider==='function')chooseProvider();
+    }
+    const providerModels=(typeof allModels!=='undefined'&&Array.isArray(allModels))?allModels.filter(m=>m.provider===prov):[];
+    const chosenModel=newModel!==undefined?newModel:(providerModels[0]?.model_id||byId('model')?.value||'');
+    if(chosenModel&&byId('model')){
+      byId('model').value=chosenModel;
+      if(byId('model-choice')){
+        byId('model-choice').value=[...byId('model-choice').options].some(o=>o.value===chosenModel)?chosenModel:'custom';
+        byId('model').hidden=byId('model-choice').value!=='custom';
+      }
+      try{localStorage.setItem('takoh-ai-model-'+prov,chosenModel);}catch{}
+    }
+    const fbVal=byId('fallback-model')?.value?.trim()||'';
+    const nextRoute={provider:prov,model:chosenModel||byId('model')?.value?.trim()||'',fallback_model:fbVal};
+    if(nextRoute.model){
+      routes={...routes,analysis:nextRoute};
+      try{localStorage.setItem(storageKey,JSON.stringify(routes));}catch{}
+    }
+    refresh();
+  }
+  for(const prefix of ['analysis','carousel']){
+    if(byId(prefix+'-ai-provider')){
+      byId(prefix+'-ai-provider').addEventListener('change',e=>{
+        const nextProv=e.target.value;
+        const providerModels=(typeof allModels!=='undefined'&&Array.isArray(allModels))?allModels.filter(m=>m.provider===nextProv):[];
+        const savedM=localStorage.getItem('takoh-ai-model-'+nextProv)||providerModels[0]?.model_id||'';
+        applyAnalysisBarSelection(nextProv,savedM);
+        message(`${prefix==='carousel'?'캐러셀 제작':'분석'} AI 연결 방식을 [${names[nextProv]||nextProv}](으)로 변경했습니다.`);
+      });
+    }
+    if(byId(prefix+'-model-choice')){
+      byId(prefix+'-model-choice').addEventListener('change',e=>{
+        const val=e.target.value;
+        const custIn=byId(prefix+'-model-custom');
+        if(val==='custom'){
+          if(custIn){custIn.hidden=false;custIn.focus();}
+          return;
+        }
+        if(custIn)custIn.hidden=true;
+        applyAnalysisBarSelection(byId(prefix+'-ai-provider')?.value,val);
+        message(`${prefix==='carousel'?'캐러셀 제작':'분석'} AI 모델을 [${val}](으)로 선택했습니다.`);
+      });
+    }
+    if(byId(prefix+'-model-custom')){
+      byId(prefix+'-model-custom').addEventListener('change',e=>{
+        const v=e.target.value.trim();
+        if(v){
+          applyAnalysisBarSelection(byId(prefix+'-ai-provider')?.value,v);
+          message(`${prefix==='carousel'?'캐러셀 제작':'분석'} 사용자 지정 AI 모델을 [${v}](으)로 설정했습니다.`);
+        }
+      });
+    }
+    if(byId('btn-open-ai-settings-from-'+prefix)){
+      byId('btn-open-ai-settings-from-'+prefix).addEventListener('click',()=>{
+        if(window.selectWorkspace)window.selectWorkspace('settings');
+        else byId('workspace-settings-tab')?.click();
+        byId('settings-tab-ai')?.click();
+      });
+    }
+  }
   function refresh(){
     const c=current();selected.textContent='지금 편집 중: '+describe(c);
     for(const [role,card]of Object.entries(cards)){const r=routeFor(role);card.main.textContent='메인 · '+describe(r);card.sub.textContent='서브 · '+subLabel(r);const state=r.provider.endsWith('_cli')?connections.clis?.[r.provider]:connections.apis?.[r.provider];card.connection.textContent=r.provider.endsWith('_cli')?(state?.logged_in?'구독 계정 로그인 확인됨':state?.installed?'CLI 설치됨 · 로그인 미확인':'CLI 연결 상태 미확인'):(state?.configured?'키 등록됨 · 생성 성공은 실행 시 확인':'키 등록 상태 미확인');card.mode.textContent=routes[role]?'작업별 배정 저장됨 · 연결 편집과 독립':'아직 별도 배정 없음 · 현재 공통 선택을 따릅니다';card.assign.disabled=!c.model;}
     searchDetail();
-    for(const [role,ids]of [['writing',['draft']],['analysis',['analyze','recommend-hook']]])for(const id of ids){const button=byId(id);if(!button)continue;let hint=byId(id+'-ai-route');if(!hint){hint=document.createElement('p');hint.id=id+'-ai-route';hint.className='hint ai-execution-route';button.after(hint);}hint.textContent=roles[role]+' 메인: '+describe(routeFor(role))+' · 서브: '+subLabel(routeFor(role));}
+    for(const [role,ids]of [['writing',['draft']],['analysis',['analyze','recommend-hook','btn-generate-carousel']]])for(const id of ids){const button=byId(id);if(!button)continue;let hint=byId(id+'-ai-route');if(!hint){hint=document.createElement('p');hint.id=id+'-ai-route';hint.className='hint ai-execution-route';button.after(hint);}hint.textContent=roles[role]+' 메인: '+describe(routeFor(role))+' · 서브: '+subLabel(routeFor(role));}
+    syncAnalysisBarUi();
   }
   window.refreshAITasks=refresh;
   for(const id of ['ai-provider','model-choice','model','fallback-model','gemini-search-model','antigravity-search-model'])byId(id)?.addEventListener('change',refresh);
@@ -1540,7 +5293,9 @@ window.addEventListener('message',event=>{
   const instances=[];
   function previewPanel(context){
     const panel=document.createElement('aside');panel.className='content-live-preview';panel.setAttribute('aria-label','플랫폼별 콘텐츠 미리보기');
-    panel.innerHTML='<div class="preview-heading"><h2>실시간 미리보기</h2><span>모바일 게시 화면</span></div><div class="preview-platform-tabs" role="group" aria-label="미리보기 플랫폼"></div><p class="preview-note">게시될 화면을 확인하세요. 반응 수는 게시 전이므로 표시하지 않습니다.</p><article class="platform-preview"><div class="preview-view-top"></div><header><strong class="preview-service"></strong><span class="preview-account">내 계정</span><span class="preview-follow">팔로우</span><span class="preview-more" aria-hidden="true">•••</span></header><p class="preview-body"></p><div class="preview-media"></div><span class="preview-ad-label" hidden>[광고]</span><div class="preview-player"><button type="button" class="preview-play" aria-label="미리보기 영상 재생">▶</button><button type="button" class="preview-mute" aria-label="미리보기 음소거 해제">♪</button></div><div class="preview-dots" aria-label="미디어 페이지"></div><button type="button" class="preview-expand" hidden>더 보기</button><div class="preview-media-nav"><button type="button" class="secondary preview-prev" aria-label="이전 미디어">←</button><span class="preview-media-count"></span><button type="button" class="secondary preview-next" aria-label="다음 미디어">→</button></div><footer class="preview-engagement"></footer><div class="preview-audio"><span>♫</span><span class="preview-audio-label">원본 오디오</span><i></i></div><div class="preview-bottom-nav"></div><div class="preview-comment"><strong>첫 댓글</strong><p></p></div></article><p class="preview-source-note hint"></p>';
+    panel.innerHTML='<div class="preview-heading"><h2>실시간 미리보기</h2><span>모바일 게시 화면</span></div><div class="preview-platform-tabs" role="group" aria-label="미리보기 플랫폼"></div><p class="preview-note">게시될 화면을 확인하세요. 반응 수는 게시 전이므로 표시하지 않습니다.</p><article class="platform-preview"><div class="preview-view-top"></div><header><strong class="preview-service"></strong><span class="preview-account">내 계정</span><span class="preview-follow">팔로우</span><span class="preview-more" aria-hidden="true">•••</span></header><p class="preview-body"></p><div class="preview-media"></div><span class="preview-ad-label" hidden>[광고]</span><div class="preview-player"><button type="button" class="preview-play" aria-label="미리보기 영상 재생">▶</button><button type="button" class="preview-mute" aria-label="미리보기 음소거 해제">♪</button></div><div class="preview-dots" aria-label="미디어 페이지"></div><button type="button" class="preview-expand" hidden>더 보기</button><div class="preview-media-nav"><button type="button" class="secondary preview-prev" aria-label="이전 미디어">←</button><span class="preview-media-count"></span><button type="button" class="secondary preview-next" aria-label="다음 미디어">→</button></div><footer class="preview-engagement"></footer><div class="preview-audio"><span>♫</span><span class="preview-audio-label">원본 오디오</span><i></i></div><div class="preview-bottom-nav"></div><div class="preview-comment"><strong>첫 댓글</strong><p></p></div></article><div class="preview-quick-copy-bar"><button type="button" class="secondary btn-xs preview-quick-copy-body">본문 복사</button><button type="button" class="secondary btn-xs preview-quick-copy-comment">첫 댓글 복사</button></div><p class="preview-source-note hint"></p>';
+    panel.querySelector('.preview-quick-copy-body').onclick=()=>act('본문 복사 중…',async()=>{const raw=get('script')?.value?.trim()||'';if(!raw)throw new Error('복사할 본문이 없습니다.');await navigator.clipboard.writeText(raw);},'본문을 클립보드에 복사했습니다.');
+    panel.querySelector('.preview-quick-copy-comment').onclick=()=>act('첫 댓글 복사 중…',async()=>{const raw=(get('comment')?.value?.trim()||buildDefaultComment()||'').trim();if(!raw)throw new Error('복사할 첫 댓글이 없습니다.');await navigator.clipboard.writeText(raw);},'첫 댓글을 클립보드에 복사했습니다.');
     panel.querySelector('.preview-play').onclick=async()=>{const v=panel.querySelector('video');if(!v)return;try{if(v.paused)await v.play();else v.pause();}catch{panel.querySelector('.preview-source-note').textContent='영상을 재생하지 못했습니다. 파일 상태를 확인하세요.';}};
     panel.querySelector('.preview-mute').onclick=()=>{const v=panel.querySelector('video');if(v){v.muted=!v.muted;panel.querySelector('.preview-mute').setAttribute('aria-label',v.muted?'미리보기 음소거 해제':'미리보기 음소거');panel.querySelector('.preview-mute').textContent=v.muted?'♪':'♫';}};
     panel.querySelector('.preview-expand').onclick=()=>{panel.classList.toggle('preview-expanded');panel.querySelector('.preview-expand').textContent=panel.classList.contains('preview-expanded')?'접기':'더 보기';};
@@ -1548,7 +5303,7 @@ window.addEventListener('message',event=>{
     for(const [key,label]of Object.entries(platforms)){const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.previewPlatform=key;b.setAttribute('aria-pressed',String(key==='threads'));b.onclick=()=>{state.platform=key;state.index=0;refreshPreview(state);};panel.querySelector('.preview-platform-tabs').append(b);}
     panel.querySelector('.preview-prev').onclick=()=>{state.index--;refreshPreview(state);};panel.querySelector('.preview-next').onclick=()=>{state.index++;refreshPreview(state);};instances.push(state);return panel;
   }
-  const createArticle=create.querySelector(':scope > article'),createLayout=document.createElement('div');createLayout.className='content-studio-layout';create.append(createLayout);createLayout.append(previewPanel('create'),createArticle);createArticle.classList.add('content-studio-controls');
+  const createArticle=create.querySelector(':scope > article'),createLayout=document.createElement('div');createLayout.className='content-studio-layout';create.append(createLayout);const createPrevPanel=previewPanel('create');const initMediaStage=['analysis','editing','carousel'].includes(window.currentProductionStage||'analysis');createPrevPanel.hidden=initMediaStage;createLayout.classList.toggle('full-width-studio-stage',initMediaStage);createLayout.append(createPrevPanel,createArticle);createArticle.classList.add('content-studio-controls');
   const publishLayout=document.createElement('div');publishLayout.className='content-studio-layout';const controls=document.createElement('div');controls.className='content-studio-controls';publish.append(publishLayout);publishLayout.append(previewPanel('publish'),controls);for(const section of [...publish.querySelectorAll(':scope > section')])controls.append(section);
   const prepare=publish.querySelector('.publish-prepare-col'),automation=publish.querySelector('.publish-automation-col');
   prepare.querySelector('h3').textContent='1. 본문·첫 댓글 확정';automation.querySelector('h3').textContent='2. 대상·미디어와 실행 시각';
@@ -1559,15 +5314,23 @@ window.addEventListener('message',event=>{
     if(!job)return [];
     const base='/studio/jobs/'+encodeURIComponent(job.id)+'/media/';
     const fmt=get('upload-format').value,selected=get('upload-platform').value;
-    const carousel=state.platform==='instagram'?(selected==='instagram_carousel'||fmt==='carousel'):(state.platform==='threads'&&fmt==='carousel');
-    if(carousel)return (job.carousel?.slides||[]).map(s=>({kind:'image',url:base+encodeURIComponent(s.file)}));
-    const first=job.kind==='image'?{kind:'image',url:base+'original'}:{kind:'video',url:base+'video',poster:base+encodeURIComponent(job.evidence?.frames?.[0]?.file||'frame-0.jpg')};
-    return [first,...(state.platform==='threads'||state.platform==='instagram'?(job.attachments||[]).map(a=>({kind:a.kind,url:base+encodeURIComponent(a.file)})):[])];
+    const carousel=(selected==='instagram_carousel'&&state.platform==='instagram')||fmt==='carousel';
+    const carTs=Math.floor((job.carousel?.updated_at||0)*1000);
+    if(carousel&&(job.carousel?.slides||[]).length){
+      return (job.carousel?.slides||[]).map(s=>({kind:'image',url:base+encodeURIComponent(s.file)+(carTs?'?t='+carTs:'')}));
+    }
+    const editTs=Math.floor((job.text_edit?.updated_at||0)*1000);
+    const qs=editTs?'?t='+editTs:'';
+    const first=job.kind==='image'?{kind:'image',url:base+'original'+qs}:{kind:'video',url:base+'video'+qs,poster:base+encodeURIComponent(job.evidence?.frames?.[0]?.file||'frame-0.jpg')+qs};
+    if(fmt==='video')return [first];
+    const extra=(job.attachments||[]).map(a=>({kind:a.kind,url:base+encodeURIComponent(a.file)}));
+    return [first,...extra];
   }
   function refreshPreview(state){
     const p=state.panel;p.dataset.platform=state.platform;p.dataset.adPosition=job?.edit?.ad_position==='right'?'right':'left';p.querySelector('.preview-service').textContent=platforms[state.platform];
     for(const b of p.querySelectorAll('[data-preview-platform]'))b.setAttribute('aria-pressed',String(b.dataset.previewPlatform===state.platform));
-    const shortView=['tiktok','naver_clip'].includes(state.platform)||(state.platform==='instagram'&&get('upload-platform').value!=='instagram_carousel'&&get('upload-format').value!=='carousel');p.dataset.view=shortView?'short':'feed';
+    const isCarouselMode=get('upload-format').value==='carousel'||(state.platform==='instagram'&&get('upload-platform').value==='instagram_carousel');
+    const shortView=(['tiktok','naver_clip'].includes(state.platform)&&!isCarouselMode)||(state.platform==='instagram'&&!isCarouselMode);p.dataset.view=shortView?'short':'feed';
     p.querySelector('.preview-account').textContent=state.platform==='threads'?'내 계정　· 지금':'내 계정';
     p.querySelector('.preview-follow').hidden=state.platform==='threads';
     p.querySelector('.preview-view-top').innerHTML=state.platform==='threads'?'<span class="preview-threads-mark">@</span><span>추천 <small>⌄</small></span><span>⋯</span>':state.platform==='instagram'?(shortView?'<strong>Reels</strong><span>⌕</span>':'<strong class="preview-instagram-mark">Instagram</strong><span>♡　✉</span>'):state.platform==='tiktok'?'<span>LIVE</span><strong>팔로잉　<span class="preview-active-tab">추천</span></strong><span>⌕</span>':'<strong class="preview-clip-mark">◉ Clip</strong><span>×</span>';
@@ -1578,23 +5341,23 @@ window.addEventListener('message',event=>{
     const labels=state.platform==='threads'?[[heart,'좋아요'],[commentIcon,'답글'],[repost,'리포스트'],[share,'공유']]:state.platform==='instagram'?(shortView?[[heart,'좋아요'],[commentIcon,'댓글'],[repost,'리포스트'],[share,'공유'],[save,'저장']]:[[heart,'좋아요'],[commentIcon,'댓글'],[share,'공유'],[save,'저장']]):state.platform==='naver_clip'?[[heart,'좋아요'],[commentIcon,'댓글'],[forward,'공유']]:[[heart,'좋아요'],[bubble,'댓글'],[save,'저장'],[forward,'공유']];
     const engagement=p.querySelector('.preview-engagement');engagement.replaceChildren();for(const [svg,label]of labels){const el=document.createElement('span');el.innerHTML=svg;el.append(text('small',shortView?label:''));el.setAttribute('aria-label',label+' 위치 미리보기');engagement.append(el);}
     p.querySelector('.preview-audio').hidden=!shortView;
-    p.querySelector('.preview-audio-label').textContent=job?.media?.has_audio?'원본 오디오 · 내 콘텐츠':'음성 없는 미디어';
+    p.querySelector('.preview-audio-label').textContent=job?.media?.has_audio?'원본 오디오 · 내 콘텐츠':'이미지·슬라이드 미디어';
     p.querySelector('.preview-more').hidden=shortView;
     const reelIcon=icon('<rect x="3" y="3" width="18" height="18" rx="5"/><path d="m10 8 6 4-6 4V8ZM3 7h18M8 3l3 4m4-4 3 4"/>');
     const navItems=state.platform==='threads'?[[home,'홈'],[searchIcon,'검색'],[plus,'만들기'],[heart,'활동'],[profile,'프로필']]:state.platform==='instagram'?[[home,'홈'],[reelIcon,'릴스'],[share,'메시지'],[searchIcon,'검색'],[profile,'프로필']]:[[home,'홈'],[profile,'친구'],[plus,'만들기'],[commentIcon,'받은 편지함'],[profile,'프로필']];
 
     const bottom=p.querySelector('.preview-bottom-nav');bottom.replaceChildren();bottom.hidden=state.platform==='naver_clip';for(const [svg,label]of navItems){const el=document.createElement('span');el.innerHTML=svg;el.setAttribute('aria-label',label);if(state.platform==='tiktok')el.append(text('small',label));bottom.append(el);}
     const previewBody=get('script').value.replace(/^\s*(?:(?:#광고|\[광고\])\s*)+/u,'').trim();
-    p.querySelector('.preview-body').textContent=previewBody?(state.platform==='threads'?'#광고 ':'[광고] ')+previewBody:'본문을 작성하면 여기에 바로 표시됩니다.';p.querySelector('.preview-ad-label').hidden=state.platform==='threads'||job?.kind==='image'||!job;
+    p.querySelector('.preview-body').textContent=previewBody?(state.platform==='threads'?'#광고 ':'[광고] ')+previewBody:'본문을 작성하면 여기에 바로 표시됩니다.';p.querySelector('.preview-ad-label').hidden=state.platform==='threads'||job?.kind==='image'||isCarouselMode||!job;
     p.querySelector('.preview-expand').hidden=get('script').value.length<90;
     const comment=get('comment').value||'';p.querySelector('.preview-comment p').textContent=comment||'첫 댓글 없음';
     p.querySelector('.preview-comment').hidden=state.platform!=='threads'&&state.platform!=='instagram';
     const items=mediaItems(state);state.index=Math.max(0,Math.min(state.index,items.length-1));const item=items[state.index];
-    const key=JSON.stringify([state.platform,job?.id,job?.edit,job?.carousel?.updated_at,state.platform==='threads'?items:item]);p.dataset.mediaCount=items.length;p.querySelector('.preview-media').classList.toggle('preview-thread-gallery',state.platform==='threads'&&items.length>1);
+    const key=JSON.stringify([state.platform,job?.id,job?.edit,job?.text_edit?.updated_at,job?.carousel?.updated_at,(job?.attachments||[]).length,get('upload-format').value,state.platform==='threads'?items:item]);p.dataset.mediaCount=items.length;p.querySelector('.preview-media').classList.toggle('preview-thread-gallery',state.platform==='threads'&&items.length>1);
     if(key!==state.mediaKey){state.mediaKey=key;const box=p.querySelector('.preview-media');for(const v of box.querySelectorAll('video'))v.pause();box.replaceChildren();if(item){for(const shown of (state.platform==='threads'?items:[item])){const item=shown;const el=document.createElement(item.kind==='video'?'video':'img');el.src=item.url;if(item.kind==='video'){el.controls=false;el.muted=true;el.preload='metadata';el.playsInline=true;el.onplay=()=>{p.querySelector('.preview-play').textContent='Ⅱ';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 일시 정지');};el.onpause=el.onended=()=>{p.querySelector('.preview-play').textContent='▶';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 재생');};if(item.poster)el.poster=item.poster;}else el.alt='게시 미디어 '+(state.index+1);el.onerror=()=>{p.querySelector('.preview-source-note').textContent='미디어를 표시하지 못했습니다. 원본 준비와 파일 상태를 확인하세요.';};el.onclick=()=>{if(el.tagName==='VIDEO'){if(el.paused)el.play().catch(()=>{});else el.pause();}};box.append(el);}}else box.append(text('p',job?'선택한 미디어 구성에 준비된 파일이 없습니다.':'레퍼런스를 선택하거나 원본을 불러오세요.'));}
     const currentVideo=p.querySelector('video');p.querySelector('.preview-play').textContent=currentVideo&&!currentVideo.paused?'Ⅱ':'▶';p.querySelector('.preview-player').hidden=item?.kind!=='video';p.querySelector('.preview-media-nav').hidden=items.length<2||state.platform==='threads';const dots=p.querySelector('.preview-dots');dots.replaceChildren();dots.hidden=items.length<2||state.platform==='threads';for(let i=0;i<items.length;i++){const dot=document.createElement('button');dot.type='button';dot.setAttribute('aria-label',(i+1)+'번째 미디어');dot.setAttribute('aria-pressed',String(i===state.index));dot.onclick=()=>{state.index=i;refreshPreview(state);};dots.append(dot);}
     p.querySelector('.preview-media-count').textContent=items.length?(state.index+1)+' / '+items.length:'미디어 없음';p.querySelector('.preview-prev').disabled=state.index<=0;p.querySelector('.preview-next').disabled=state.index>=items.length-1;
-    p.querySelector('.preview-source-note').textContent=job?(job.name||'선택한 작업')+(get('upload-format').value==='carousel'?' · 캐러셀 슬라이드 미리보기':' · 현재 준비된 미디어')+(['tiktok','naver_clip'].includes(state.platform)&&job.kind==='image'?' · 이 대상은 게시용 영상이 필요합니다.':''):'아직 선택한 작업이 없습니다.';
+    p.querySelector('.preview-source-note').textContent=job?(job.name||'선택한 작업')+(isCarouselMode?' · 캐러셀 슬라이드 미리보기 ('+items.length+'장)':items.length>1?' · 다중 미디어 묶음 ('+items.length+'개)':' · 현재 준비된 미디어'):'아직 선택한 작업이 없습니다.';
   }
   let reviewSignature='';
   function updateStart(){get('writing-save-final').disabled=get('prepare').disabled||!job||!get('script').value.trim()||productDirty;const signature=JSON.stringify([job?.id,job?.sha256,job?.edit,job?.carousel?.updated_at,get('script').value,get('comment').value,get('upload-platform').value,get('upload-format').value,get('extension-mode').value,get('extension-when').value,get('publish-target-mode').value,[...document.querySelectorAll('.batch-platform-cb:checked')].map(b=>b.value)]);if(signature!==reviewSignature)get('publish-final-confirm').checked=false;reviewSignature=signature;const batch=get('publish-target-mode').value==='batch';const target=batch?[...document.querySelectorAll('.batch-platform-cb:checked')].map(b=>platformNames[b.value]).join(', '):platformNames[get('upload-platform').value];const when=get('extension-when').value;get('publish-start-summary').textContent=(target||'대상 미선택')+' · '+(when?new Date(when).toLocaleString():'지금 실행')+' · '+(get('extension-mode').value==='auto'?'자동 게시':'반자동 입력');get('publish-start').textContent=when?'예약 등록 시작':'게시 준비 시작';get('publish-start').disabled=!get('publish-final-confirm').checked||originals[batch?1:0].disabled||busy;}
@@ -1626,4 +5389,184 @@ window.addEventListener('message',event=>{
   get('calendar-use-date').onclick=()=>{const target=dateKey(selected)===dateKey(new Date())?new Date(Date.now()+3600000):new Date(selected.getFullYear(),selected.getMonth(),selected.getDate(),9);get('extension-when').value=dateKey(target)+'T'+String(target.getHours()).padStart(2,'0')+':'+String(target.getMinutes()).padStart(2,'0');get('publish-final-confirm').checked=false;refreshPreviews();get('workspace-publish-tab').click();};
   const timer=setInterval(()=>{if(!document.hidden&&(!calendar.hidden||!publish.hidden))refreshCalendar();},30000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
   refreshPreviews();drawCalendar();
+
+  // 1) Per-job body undo history (up to 10 snapshots per job, backed by job.draft_history)
+  const jobScriptHistories=new Map();
+  const getJobHistory=targetJob=>{
+    const jid=targetJob?.id;
+    if(!jid)return [];
+    if(!jobScriptHistories.has(jid)){
+      const seeded=[];
+      for(const entry of (targetJob.draft_history||[])){
+        const b=String(entry?.body||'').trim();
+        if(b&&seeded[seeded.length-1]!==b)seeded.push(b);
+      }
+      const cur=String(targetJob.draft?.body||targetJob.draft?.script||'').trim();
+      if(cur&&seeded[seeded.length-1]!==cur)seeded.push(cur);
+      jobScriptHistories.set(jid,seeded.slice(-10));
+    }
+    return jobScriptHistories.get(jid);
+  };
+  const updateUndoButtonState=()=>{
+    const undoBtn=get('btn-undo-script');
+    if(!undoBtn)return;
+    const hist=getJobHistory(job);
+    undoBtn.disabled=hist.length<2;
+  };
+  const pushScriptHistory=val=>{
+    if(!job?.id)return;
+    const clean=String(val||'').trim();
+    const hist=getJobHistory(job);
+    if(!clean||hist[hist.length-1]===clean){updateUndoButtonState();return;}
+    hist.push(clean);
+    if(hist.length>10)hist.shift();
+    updateUndoButtonState();
+  };
+  window.syncJobScriptHistory=targetJob=>{
+    if(targetJob?.id){
+      const hist=getJobHistory(targetJob);
+      for(const entry of (targetJob.draft_history||[])){
+        const b=String(entry?.body||'').trim();
+        if(b&&hist[hist.length-1]!==b)hist.push(b);
+      }
+      const cur=String(targetJob.draft?.body||targetJob.draft?.script||'').trim();
+      if(cur&&hist[hist.length-1]!==cur)hist.push(cur);
+      if(hist.length>10)hist.splice(0,hist.length-10);
+    }
+    updateUndoButtonState();
+  };
+  const scriptActions=document.querySelector('.writing-editor-actions');
+  if(scriptActions&&!get('btn-undo-script')){
+    const undoBtn=text('button','↩ 이전 본문 복원');
+    undoBtn.id='btn-undo-script';
+    undoBtn.type='button';
+    undoBtn.className='secondary btn-xs';
+    undoBtn.disabled=true;
+    undoBtn.title='현재 작업의 이전 본문으로 되돌립니다';
+    undoBtn.onclick=()=>{
+      if(!job?.id)return;
+      const hist=getJobHistory(job);
+      if(hist.length<2)return;
+      hist.pop();
+      const prev=hist[hist.length-1]||'';
+      get('script').value=prev;
+      get('body').value=prev;
+      if(get('copy-body'))get('copy-body').disabled=true;
+      if(get('copy-comment'))get('copy-comment').disabled=true;
+      if(get('publish-api'))get('publish-api').disabled=true;
+      if(get('extension-upload'))get('extension-upload').disabled=true;
+      if(get('extension-batch-upload'))get('extension-batch-upload').disabled=true;
+      if(get('publish-final-confirm'))get('publish-final-confirm').checked=false;
+      if(get('prepare'))get('prepare').disabled=!prev.trim();
+      writingCounts();
+      refreshPreviews();
+      updateUndoButtonState();
+      message('현재 작업의 이전 본문으로 복원했습니다. [본문·댓글 확정 저장]을 눌러 반영하세요.');
+    };
+    scriptActions.prepend(undoBtn);
+  }
+  get('script')?.addEventListener('focus',()=>pushScriptHistory(get('script').value));
+  get('script')?.addEventListener('blur',()=>pushScriptHistory(get('script').value));
+  get('draft')?.addEventListener('click',()=>pushScriptHistory(get('script')?.value));
+  window.syncJobScriptHistory(job);
+
+  // 2) Saved Product Library (frequent affiliate products backed by /studio/saved-products)
+  const prodForm=get('product-form');
+  const prodStorageKey='takoh-saved-products-v1';
+  let savedProductList=[];
+  const readLegacyLocalProducts=()=>{try{const raw=localStorage.getItem(prodStorageKey);const arr=JSON.parse(raw||'[]');return Array.isArray(arr)?arr:[];}catch{return [];}};
+  if(prodForm&&!get('saved-product-library-bar')){
+    const libBar=document.createElement('div');
+    libBar.id='saved-product-library-bar';
+    libBar.className='saved-product-library-bar';
+    libBar.innerHTML='<label style="flex:1;margin:0;font-size:12px;font-weight:600;color:#284634;">내 주력 상품 보관함에서 빠른 불러오기<select id="saved-product-select" style="margin-top:4px;"><option value="">저장된 주력 상품 선택…</option></select></label><div style="display:flex;gap:6px;align-self:flex-end;"><button id="btn-save-product-preset" type="button" class="secondary btn-xs">+ 현재 상품 보관</button><button id="btn-delete-product-preset" type="button" class="secondary btn-xs">삭제</button></div>';
+    prodForm.querySelector('.product-block-head')?.after(libBar);
+    const sel=get('saved-product-select');
+    const renderProdPresets=(selectedId='')=>{
+      const prev=selectedId||sel.value;
+      sel.replaceChildren(new Option(savedProductList.length?`저장된 주력 상품 선택 (${savedProductList.length}개)…`:'저장된 주력 상품 없음 (+ 현재 상품 보관 클릭)',''));
+      savedProductList.forEach(item=>{
+        sel.add(new Option(`[${item.platform||'기타'}] ${item.name||'이름 없음'}`,String(item.id||'')));
+      });
+      if(prev&&savedProductList.some(x=>String(x.id)===String(prev)))sel.value=String(prev);
+      else sel.value='';
+    };
+    const loadServerProducts=async()=>{
+      try{
+        const legacy=readLegacyLocalProducts();
+        let res;
+        if(legacy.length){
+          res=await api('saved-products',{migrate:legacy});
+          try{localStorage.removeItem(prodStorageKey);}catch{}
+        }else{
+          res=await api('saved-products');
+        }
+        savedProductList=Array.isArray(res?.products)?res.products:[];
+        renderProdPresets();
+      }catch{
+        renderProdPresets();
+      }
+    };
+    sel.onchange=()=>{
+      if(sel.value==='')return;
+      const item=savedProductList.find(x=>String(x.id)===String(sel.value));
+      if(!item)return;
+      if(get('platform'))get('platform').value=item.platform||'coupang';
+      if(get('affiliate-entry-mode'))get('affiliate-entry-mode').value=item.link_entry_mode||'manual';
+      syncAffiliateEntry();
+      if(get('product-name'))get('product-name').value=item.name||'';
+      if(get('product-url'))get('product-url').value=item.url||'';
+      if(get('affiliate-url'))get('affiliate-url').value=item.affiliate_url||'';
+      // Require explicit user verification that the loaded product matches the current job's video
+      if(get('confirmed'))get('confirmed').checked=false;
+      if(get('comment'))get('comment').value=buildDefaultComment();
+      productDirty=true;
+      updateProductionStepBadges();
+      refreshPreviews();
+      message(`주력 상품 “${item.name}” 정보를 입력칸에 불러왔습니다. 현재 영상의 제품과 맞는지 확인 체크 후 [상품 및 제휴 링크 저장]을 눌러 반영하세요.`);
+    };
+    get('btn-save-product-preset').onclick=async()=>{
+      const name=get('product-name')?.value?.trim()||'';
+      const mode=get('affiliate-entry-mode')?.value||'manual';
+      const aff=get('affiliate-url')?.value?.trim()||'';
+      const url=get('product-url')?.value?.trim()||'';
+      if(!name){message('보관할 상품명을 입력해 주세요.',true);return;}
+      if(mode==='manual'&&!aff){message('보관할 제휴 링크를 입력해 주세요.',true);return;}
+      if(mode==='api'&&!url&&!aff){message('보관할 원본 상품 URL 또는 제휴 링크를 입력해 주세요.',true);return;}
+      try{
+        const res=await api('saved-products',{
+          name,
+          platform:get('platform')?.value||'coupang',
+          link_entry_mode:mode,
+          url,
+          affiliate_url:aff
+        });
+        savedProductList=Array.isArray(res?.products)?res.products:[];
+        renderProdPresets(res?.saved_id||'');
+        message(`“${name}”을(를) 내 주력 상품 보관함에 저장했습니다.`);
+      }catch(err){
+        message(err.message||'주력 상품 보관에 실패했습니다.',true);
+      }
+    };
+    get('btn-delete-product-preset').onclick=async()=>{
+      if(sel.value===''){message('삭제할 주력 상품을 먼저 선택해 주세요.',true);return;}
+      const targetId=sel.value;
+      const targetItem=savedProductList.find(x=>String(x.id)===String(targetId));
+      try{
+        const response=await fetch('/studio/saved-products',{
+          method:'DELETE',
+          headers:{'X-Studio-Token':token,'Content-Type':'application/json'},
+          body:JSON.stringify({id:targetId})
+        });
+        const res=await response.json();
+        if(!response.ok)throw new Error(res.error||`삭제 실패 (${response.status})`);
+        savedProductList=Array.isArray(res?.products)?res.products:[];
+        renderProdPresets('');
+        message(`“${targetItem?.name||'선택한 상품'}”을(를) 주력 상품 보관함에서 삭제했습니다.`);
+      }catch(err){
+        message(err.message||'주력 상품 삭제에 실패했습니다.',true);
+      }
+    };
+    loadServerProducts();
+  }
 })();

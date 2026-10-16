@@ -15,6 +15,19 @@ function uploadSource(){
   return raw.split(/\r?\n\(\(\) => \{/)[0];
 }
 
+function inspectMediaBuffer(bytes, label='미디어'){
+  if(!bytes || bytes.length === 0){
+    throw new Error(`${label} 파일이 비어 있어 게시를 차단했습니다.`);
+  }
+  if(bytes.length > 30 * 1024 * 1024){
+    throw new Error(`${label} 파일이 30MB를 넘어 게시를 차단했습니다.`);
+  }
+  const sample = String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 64))).toLowerCase();
+  if(sample.startsWith('<!doctype') || sample.startsWith('<html') || sample.startsWith('<?xml')){
+    throw new Error(`${label} 파일이 HTML 오류 응답으로 손상되어 게시를 차단했습니다.`);
+  }
+}
+
 function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch}){
   const filePath=path.join(dataDir,'upload-queue.json');
   const timers=new Map();
@@ -109,8 +122,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
           const fRes=await fetchImpl(item.url+'/'+partPath);
           if(!fRes||!fRes.ok)throw new Error(`캐러셀 ${idx+1}/${payload.files.length}번째 파일 다운로드 실패로 게시를 차단했습니다.`);
           const fBytes=new Uint8Array(await fRes.arrayBuffer());
-          if(fBytes.length===0)throw new Error(`캐러셀 ${idx+1}/${payload.files.length}번째 파일이 비어 있어 게시를 차단했습니다.`);
-          if(fBytes.length>30*1024*1024)throw new Error(`캐러셀 ${idx+1}/${payload.files.length}번째 파일이 30MB를 넘어 게시를 차단했습니다.`);
+          inspectMediaBuffer(fBytes, `캐러셀 ${idx+1}/${payload.files.length}번째`);
           loadedFiles.push({
             name:f.name||`media-${idx+1}.jpg`,
             mime:f.mime||'image/jpeg',
@@ -127,8 +139,7 @@ function createThreadsUploadManager({dataDir,ensureThreadsView,fetchImpl=fetch})
         const video=await fetchImpl(item.url+'/video');
         if(!video.ok)throw new Error('저장된 미디어를 읽지 못했습니다.');
         const bytes=new Uint8Array(await video.arrayBuffer());
-        if(bytes.length===0)throw new Error('미디어 파일이 비어 있어 게시를 차단했습니다.');
-        if(bytes.length>30*1024*1024)throw new Error('미디어가 30MB를 넘습니다.');
+        inspectMediaBuffer(bytes, '미디어');
         payload.video=Buffer.from(bytes).toString('base64');
       }
 

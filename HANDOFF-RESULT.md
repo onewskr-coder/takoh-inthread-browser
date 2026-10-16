@@ -1,362 +1,356 @@
-# 누적 발견 저장소 직접 구현 결과
+# HANDOFF-RESULT
 
-- SQLite 영구 누적 저장: video ID 단일 키, 확인된 상세 메타데이터 보존, 기존 원시 캐시 이관.
-- 새 채널 ID 자동 등록, 마지막 확인 순서로 최대 5개씩 갱신.
-- 새 영상 확인은 YouTube channels → uploads playlistItems → videos 경로. SerpAPI/search.list 미사용. 버튼 클릭 시에만 최대 11 요청.
-- 기본 진입은 누적 저장소 조회. 미열람 옵션으로 이전 표시 영상을 제외. 과거 영상은 전체 조회로 다시 확인 가능.
-- 실제 화면: 영상189개/채널165개, 최초30개 → 미열람 다음30개. 외부 호출0회.
-- 격리 테스트18개 통과: 중복 저장/재로드/미열람 제외/YouTube만 사용한 채널 갱신 포함.
-- 초기 실제 화면500 오류는 저장소 연결 수명 수정 후 소스 재로드하고 정상 조회 확인.
-- 실제 채널 공급자 갱신은 미실행. 자동 주기 갱신/백그라운드 유료 검색은 추가하지 않음.
-- 화면 증거: ../discovery-catalogue-live.png
+## Summary of Implemented Changes (1:1 Canva Card News Layouts & 6 Viral Korean Video Hook Templates)
 
-## 미열람 소진 안내 수정
-- 현재 조건에 맞는 자료가 이미 표시된 경우와 실제 필터 미달을 분리.
-- 이미 본 자료 수와 API 없는 다시 보기 버튼 추가.
-- 격리 테스트18개 통과: 미열람 소진 사유/전체 조회 복원 포함.
+### 1. Variable-Weight Korean Typography & Specialized Display Font Engine (`downloader/studio_text_clean.py`)
+- **`_load_korean_font(size_px, bold=True, style='sans')`**:
+  - Supports **Variable Font `wght` axis** on `NotoSansKR-VF.ttf` (`sans_thin=250`, `sans_light=300`, `sans_regular=400`, `sans_medium=500`, `sans_bold=700`, `sans_black=900`) and `NotoSerifKR-VF.ttf` (`serif_light=300`, `serif=600`, `serif_bold=750`, `serif_black=900`) via `font.set_variation_by_axes([wght])`.
+  - Supports **Korean Brush / Calligraphy (`brush_kr`)** using `HMKMMAG.TTF` (매직체/붓글씨) and `H2GSRB.TTF` for the torn-paper travel collage card (`warm_luxury`).
+  - Supports **Heavy Korean Viral Display (`heavy_kr`)** using `H2GTRE.TTF` (HY견고딕) and `NotoSansKR-VF.ttf` (900 Black) for Korean Reels/Shorts/Threads viral video hooks.
+  - Supports **High-Contrast English Didone Serif (`serif_en`, `serif_en_regular`)** (`BOD_B.TTF`, `BOD_R.TTF`, `georgiab.ttf`) and **Condensed Geometric Sans (`condensed_en`)** (`bahnschrift.ttf`, `impact.ttf`).
 
-## 조회수/성장률 정렬
-- 조회수 높은 순, 최신순, 시간당 조회수 증가 순, 시간당 증가율(%) 순 제공.
-- 누적 자료 정렬은 외부 조회 없음. 카드에도 성장 지표 표시.
-- 캐시 재열람은 새 실측으로 기록하지 않고 기록 시각 두 개로만 계산. 1시간 미만/기준 조회수0은 미확인 처리.
-- 채널 영상 상세 확인 시 실제 조회수를 관측 기록에 연결.
-- 격리 테스트19개 통과. 실제 화면 성장률 옵션과 측정 대기 표시 확인. 추가 공급자 호출 없음.
+### 2. 1:1 Pixel-Faithful Canva Card News Layouts (`_render_canva_editorial_card_pil` in `downloader/studio_text_clean.py`)
+Rebuilt all 8 layouts in `CAROUSEL_DESIGN_THEMES` to match the exact typography, font weights, proportions, and layout compositions of the 8 Canva Korean reference cards:
+1. **`editorial_dark` (시네마 별점 리뷰 — `라라나 영화처럼`)**:
+   - Top-center dark rounded pill (`#18181c`) with coral-orange `movie review` text (`#f26d3d`), `NotoSansKR` 900 Black headline (`width * 0.088`), 5 gold vector stars (`★★★★★`), and 2 clean regular body lines.
+2. **`magazine_gradient` (뉴욕 포스터 세리프 — `New York / 화려한 도시 속으로 | 뉴욕 여행`)**:
+   - Top `@reallygreatsite` + horizontal rule (`y = 7.8%`), giant Title-Case `Bodoni MT` (`New York`, `width * 0.168`), and bottom horizontal rule block (`y = 78%..84.5%`) with mixed-weight `Light 300 | Bold 800` Korean headline + 2 centered sub-lines.
+3. **`clean_white` (프레임 티켓 매거진 — `한국인을 위한 한국여행 / FLY TO SEOUL`)**:
+   - Blurred full-bleed photo backdrop + centered white rounded card (`64% × 84%`), inner rounded photo (`padding 4.5%`, `height 61%`) with top-left white Korean title (`한국인을 위한 / 한국여행`), and bottom `FLY TO` + giant condensed `SEOUL` + 2 Korean sub-lines.
+4. **`highlight_hook` (다이어고널 훅 썸네일 — `심플하고 깔끔한 / 카드뉴스 썸네일`)**:
+   - Top photo + bottom translucent dark gray-olive band (`y = 58%..100%`), `심플하지만 강력한!!` kicker, Line 1 `NotoSansKR` 850 ExtraBold (`심플하고 깔끔한`) + Line 2 `NotoSansKR` 300 Light (`카드뉴스 썸네일`), bottom-left neon-lime hashtag pills (`#깔끔한`, `#썸네일`), and bottom-right `자세히보기 ›`.
+5. **`mint_modern` (워크스페이스 큐레이션 — `Curator Pick / 집중과 영감을 위한 / 워크스페이스`)**:
+   - Top-left white pill (`Curator Pick`), thin Korean sub-header (`집중과 영감을 위한`, weight 300) + giant heavy header (`워크스페이스`, weight 900), bottom-left 2-line caption, and bottom-right solid white circle with black `»`.
+6. **`warm_luxury` (폴라로이드 스크랩북 — `후지산을 만나는 / 최고의 열차 여행.`)**:
+   - Full-bleed photo on the right + procedural torn cream paper edge on the left (`x ≈ 28%`) + 2 horizontal torn paper strips with Korean brush calligraphy (`HMKMMAG.TTF`) + 2 tilted mini Polaroids at the bottom (`-9°` and `+7°`).
+7. **`neon_pop` (SNS 베스트 후기창 — `구매 고객 후기 / BEST ★★★★★`)**:
+   - Blurred background + stacked macOS review window (`구매 고객 후기` + traffic-light dots + search icon), dark circular user avatar silhouette + `★★★★★` + blue `BEST` pill + `차*정  10.01 작성` + gray option line + 4-line review paragraph + 3 square product thumbnails at the bottom.
+8. **`minimal_outline` (감성 명조 에디토리얼 — `여기가 피크닉 맛집!! / 봄에 꼭 가야하는 / 피크닉 명소 / TOP 3`)**:
+   - Top-left `NotoSerifKR` Bold kicker (`여기가 피크닉 맛집!!`) + 3-line large serif headline (`봄에 꼭 가야하는 / 피크닉 명소 / TOP 3`, `width * 0.088`) with tight vertical leading and warm drop shadow.
 
-## 성장량 순위 적용 상태 점검
-- 실제 화면 상위 결과 모두 측정 대기: 총 조회수 보조순으로 표시되고 있음을 확인.
-- 실측 지표0개일 때 성장 순위 산정 불가/조회수 참고순을 명시하도록 수정.
-- 유효 기록이 있어야 실제 성장 순위가 가능. 추가 API 호출 없음.
+### 3. 6 Korean Viral Video Hook Templates (`VIDEO_HOOK_TEMPLATES` & `_render_video_hook_template_layer` in `downloader/studio_text_clean.py`)
+Modeled directly after the 5 uploaded Korean Reels/Shorts/Threads viral video screenshots + 1 editorial badge hook, rendered as high-resolution transparent PNG layers and composited onto videos via FFmpeg (`clean_and_overlay_video`) or images (`clean_and_overlay_image`):
+1. **`reels_giant_yellow_impact` (초대형 옐로우 임팩트 — `밭일하시는 부모님 / 이거면 끝`)**:
+   - Line 1 white heavy text (`width * 0.095`) with thick black stroke + Line 2 ultra-giant bright yellow (`#FFEA18`, `width * 0.148`) with heavy black stroke and drop shadow.
+2. **`reels_rounded_black` (둥근 블랙 카드 훅 — `장 볼때 누구나 / 한번쯤 하는 고민`)**:
+   - Centered pitch-black rounded rectangle card (`radius=34`) with 2 lines of bold white Korean text (`width * 0.072`).
+3. **`reels_top_banner_pink` (상단 블랙바 + 핑크 하이라이트 — `일본에서 산 껌통안에 / 종이가 들어있는 이유?!`)**:
+   - Full-width solid black top header bar (`y = 0..23%`) with Line 1 white bold text + Line 2 black text inside a pastel pink (`#EAB0D5`) highlight bar.
+4. **`reels_3d_pop_shadow` (3D 입체 팝업 외곽선 — `물집 때문에 / 힐 포기할 뻔...`)**:
+   - Upward-tilted (`3.5°`) heavy white text (`width * 0.096`) with multi-layer 3D extruded black outline shadow.
+5. **`reels_neon_green_glow` (네온그린 글로우 훅 — `손에 안 묻는 / 구리스 스프레이`)**:
+   - Line 1 white heavy text + Line 2 vivid neon green (`#52FF5C`) with heavy black stroke and soft outer green glow.
+6. **`reels_editorial_split` (매거진 배지 + 2단 훅)**:
+   - Top yellow pill badge (`추천 꿀템`) + Line 1 white bold text + Line 2 yellow text inside a dark rounded box with yellow border.
 
-## 구독자 대비 조회수 배수
-- 영상 조회수/채널 구독자 수 X배 표시, 성장량/성장률과 별도 정렬.
-- channel_statistics 영구 저장, 비공개/0/미확인 계산 불가.
-- 구독자 확인 버튼: 미확인 우선 최대200채널, YouTube channels.list 최대4회, SerpAPI0회, 자동 재시도0회.
-- 격리 테스트21개 통과: X20 계산/비공개/0명/영구저장/별도 정렬 API 포함.
-- 실제 승인 조회: YouTube4회로200채널 구독자 확인, SerpAPI0회. 등록281채널 중81채널은 미조회로 남김.
-- 실제 화면 X436 → X407.33 → X253 순 확인. 구독자 수가 작은 채널은 배수가 크게 나올 수 있어 구독자 숫자도 함께 표시.
-- 화면 증거: ../discovery-subscriber-multiple-live.png
+### 4. Studio UI & Interactive Preview (`downloader/studio_web/index.html`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`)
+- Added the 6-card `.video-hook-template-grid` gallery to `02 미디어·캐러셀 편집 스튜디오 -> 🔤 타이틀·자막 디자인 합성`.
+- Clicking any `.video-hook-chip` selects the template, snaps the Y coordinate to its optimal safe-zone position, auto-fills a 2-line viral hook (`Line 1 | Line 2`) if empty, and updates the live draggable preview on `#player-overlay-canvas`.
+- Synced `.video-hook-chip` dataset attribute checks (`data-video-hook` and `data-video-hook-tpl`) in `downloader/studio_web/studio.js`.
 
-## 콘텐츠 발견 화면 정리
-- 주요 검색행: 검색어/카테고리/길이·형식/정렬/검색.
-- 나머지 조건과 비용 설명은 상세 필터 안으로 이동.
-- 채널·구독자 갱신은 채널 관리, 긴 조회 수치는 조회 내역으로 접기.
-- 카드에 X배 강조. 성장 측정 대기는 성장 정렬일 때만 표시. 추천 설명은 접기.
-- 실제 브라우저에서 상세 필터 펼침/닫힘, 기존 X배 정렬, 카드30개 표시 확인. 추가 외부 호출 없음.
+### 5. Source Hub Sub-Navigation & Global Button Group Spacing Audit (`downloader/studio_web/studio.css`)
+- **Fixed `🔍 레퍼런스·영상소스` Sub-Nav (`#source-hub-subnav`)**:
+  - Resolved class name mismatch where `index.html` used `.source-hub-label`, `.source-hub-pills`, and `.source-subtab-btn` while `studio.css` only targeted `.source-hub-badge` and `.source-subtabs`.
+  - All 4 category pills (`📌 수집·보관 레퍼런스`, `🔥 쇼핑 쇼츠·트렌드 발굴`, `🧵 쓰레드 인기상품 탐색`, `📥 내 PC·다운로드 폴더`) now render as pill-shaped buttons (`border-radius: 999px`) with a `10px` flex gap, clear white inactive states (`#ffffff` bg, `#2c4a38` text, `#c5d8cc` border), and dark-green active highlight (`#1e4d35` bg, `#ffffff` text).
+- **Audited & Fixed All Button Containers Across All Workspaces**:
+  - Added explicit `display: flex; align-items: center; gap: 10px; flex-wrap: wrap` and margin resets to `.header-right-actions`, `.heading-actions`, `.create-top-actions`, `.create-top-bar`, `.intel-bar-actions`, `.publish-final-actions`, `.publish-final-step`, `.research-duplicates > div`, `.ref-collection-tabs` (`gap: 8px`), `.storyboard-order-btns` (`gap: 5px`), and `.storyboard-fields-row` (`gap: 6px`).
 
-## 쇼핑 카테고리 확장
-- 기존8개+신규10개=18개 쇼핑 카테고리 및 전체 카테고리 추가, 기본 전체 선택.
-- 신규: 가구·인테리어/욕실·위생/자동차·차량/여행·휴대/문구·사무/공구·DIY/원예·식물/건강·생활보조/식품·음료/취미·완구.
-- 다국어 검색어/관련성 키워드/제품군 미리보기 연결. 전체는 통합 키워드, 개별은 카테고리 일치 기준.
-- 격리22테스트 통과. 실제 UI19선택 항목 및 기본전체 확인, 외부 검색0회.
+### 6. Draggable Title & Subtitle Overlay Box Shape Lock (`downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`)
+- **Root Cause**:
+  - `.draggable-overlay-chip` previously had `position: absolute; left: X%; transform: translate(-50%, -50%); max-width: 88%` without `width: max-content`. In CSS layout, an absolutely-positioned element with `left: X%` and `width: auto` has its shrink-to-fit available width constrained by `(100% - X%)` of the parent container (`#player-overlay-canvas`). Dragging the title box toward the right (`X > 50%`) caused the browser to compress its width and wrap the text into a narrow vertical column.
+- **Fix**:
+  - Added `width: max-content; max-width: min(88%, 460px); min-width: 140px; box-sizing: border-box` to `.draggable-overlay-chip` and `white-space: nowrap` to `.drag-chip-badge` in `downloader/studio_web/studio.css` so the box width and line-breaks stay 100% constant regardless of `left`/`top` position.
+  - Updated `syncDraggableOverlayCanvas()` and `bindDraggableChip()` in `downloader/studio_web/studio.js` to preserve the initial pointer grab offset (`grabOffsetX`, `grabOffsetY`) and dynamically clamp `(minX..maxX, minY..maxY)` by half of the box's rendered dimensions (`bRect.width / 2`, `bRect.height / 2`) so the box never clips outside `#player-overlay-canvas`.
 
-## 쇼핑 쇼츠 전용 탐색
-- 길이·형식에 쇼핑 쇼츠만 (Shorts 근거 있음) 추가.
-- 길이만 짧은 일반 영상 제외. 목록/Shorts원본주소/화면비율/태그 근거 보존·카드 표시. 태그만 있으면 형식 후보로 명시.
-- YouTube 새 검색: #shorts 검색어, videoDuration=short, order=viewCount, 최대2페이지씩 한/영/일; 실제길이180초이하 및 쇼핑필터 사후적용.
-- Shorts 전용 원시캐시를 일반검색과 분리, 누적 자료는 그대로 유지.
-- 테스트24개 통과. 실제 누적 자료128후보,30카드 표시. 새 공급자 호출0회.
-- 새 고조회수 검색 승인 요청: 최대606YouTube유닛,SerpAPI0. 1억뷰영상 발견 미검증.
+### 7. Native Aspect-Ratio Player Stage & Safe-Zone Guide Alignment (`downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`)
+- **Root Cause**:
+  - `.analysis-player-frame` previously forced `width: 100%; max-height: 360px` and `.analysis-player-frame video` had `width: 100%; max-height: 356px` (and `440px` in `#create-workspace`). Inside the wide left column (`~600px` wide), this turned the `<video>` element box into a wide 16:9 rectangle with huge empty black sidebars on the left and right while vertical videos (e.g., `702×1062` / `9:16`) were squished vertically in the center (`~235px × 356px`). Furthermore, `#player-overlay-canvas` (`position: absolute; inset: 0`) stretched across the empty black sidebars instead of matching the actual video frame.
+- **Fix**:
+  - Updated `#create-workspace .analysis-player-frame, .analysis-player-frame` in `downloader/studio_web/studio.css` to `width: fit-content !important; max-width: 100% !important; margin: 0 auto !important; min-height: 0 !important; max-height: none !important;`.
+  - Updated `#create-workspace .analysis-player-frame :is(video,#image-preview,img):not([hidden])` to `width: auto !important; max-width: 100% !important; height: auto !important; max-height: 680px !important; object-fit: contain !important; display: block !important;` (and preserved `[hidden] { display: none !important; }`).
+  - Updated `render()` in `downloader/studio_web/studio.js` to dynamically set `stageFrame.style.aspectRatio = "${mw} / ${mh}"` from `job.media.width` and `job.media.height`, and attached `onloadedmetadata` / `onload` listeners on `#preview` and `#image-preview` to re-sync `syncDraggableOverlayCanvas()`.
 
-## 승인된 YouTube 고조회수 쇼핑 쇼츠 실제 검색
-- UI검색버튼1회,전체기간/전체카테고리/쇼핑쇼츠만/조회수높은순/국가ALL.
-- 반환후보96개, 조건제외31개, 쇼핑쇼츠후보65개, 상위30개화면표시.
-- YouTube검색5회+상세5회=로컬추정505유닛 (승인상한606이내),SerpAPI0회,재검색0회.
-- 최고영상 OaOp-nvbAzc 약9316.5만회. 다음KbwEjkrTDTM 약7285.1만회. 이번범위에서1억뷰미발견.
-- 누적저장완료. 제품실사용장면및Shorts실제재생검증은별도. 태그근거후보를확정영상으로표기하지않음.
-- 화면증거: ../discovery-youtube-shopping-shorts-live.png
+### 8. Separated Media Editing Studio (`02-A`) & Carousel/News Card Dedicated Studio (`02-B`) + Cover/Body/CTA Role Templates (`downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/workspace.js`, `downloader/studio_web/studio.js`, `downloader/studio_web/studio.css`)
+- **Role-Differentiated Carousel Templates (`cover` / `body` / `cta`)**:
+  - Upgraded `_render_canva_editorial_card_pil`, `draw_korean_overlay_pil`, and `clean_and_overlay_image` in `downloader/studio_text_clean.py` to support explicit or automatic `slide_role` (`cover`, `body`, `cta`):
+    - **Slide 1 (`cover` — ★ 메인 표지)**: Full-bleed high-impact editorial cover poster with theme-specific typography (`editorial_dark`, `magazine_gradient`, `clean_white`, `highlight_hook`, `mint_modern`, `warm_luxury`, `neon_pop`, `minimal_outline`).
+    - **Slides 2..N-1 (`body` — 📌 본문 포인트)**: Top 54% scene frame + bottom 46% structured editorial card with `POINT 01..N` pill badge, vertical accent bar, bold point headline, divider line, 3-line detailed explanation, and `다음 포인트 (i/N) →` swipe indicator.
+    - **Final Slide (`cta` — 🎯 마지막 요약·CTA)**: Rounded summary frame + top circular/rounded photo + `SUMMARY & CHECKLIST` pill + centered conclusion headline + `✓` checklist bullet lines + bottom high-contrast CTA button (`더 많은 추천 정보 · 첫 댓글 링크 확인 →` / `저장해 두고 필요할 때 바로 꺼내보세요 ★`).
+  - Updated `/jobs/<job_id>/carousel-generate`, `/jobs/<job_id>/carousel-slide-update`, and `/jobs/<job_id>/carousel-slide-action` in `downloader/studio.py` to persist `role` and `template` per slide and allow changing any slide's role (`cover` / `body` / `cta`) or theme individually.
+- **Complete Studio Separation (`02-A 🎬 미디어(영상) 편집` vs `02-B 📰 캐러셀·뉴스카드 편집`)**:
+  - Expanded `.production-steps` to 5 independent stages (`01 영상·소재 분석`, `02-A 🎬 미디어(영상) 편집`, `02-B 📰 캐러셀·뉴스카드 편집`, `03 대본·게시문`, `04 상품·제휴 링크`).
+  - Added **Post-Analysis Track Chooser (`#post-analysis-mode-chooser`)** in `01 영상·소재 분석` so right after source analysis, the user can choose between `🎬 02-A 미디어(영상) 편집 스튜디오` and `📰 02-B 캐러셀·뉴스카드 전용 스튜디오`.
+  - Added `📰 캐러셀편집` quick action button to every project card in the dashboard (`repeat(5, 1fr)`).
+- **Direct Interactive Slide Workbench (`#carousel-active-workbench`) in `02-B 캐러셀·뉴스카드 스튜디오`**:
+  - Split-view live workbench with a large 4:5 active slide canvas on the left (`◀ 이전` / `다음 ▶` navigation, `-0.5초` / `+0.5초` / `📹 좌측 영상 현재 시점 캡처` frame controls) and a direct inspector on the right:
+    - Per-slide Role selector (`★ 메인 표지 (Cover)` / `📌 본문 포인트 (Body)` / `🎯 마지막 요약·CTA (Ending)`) + 1-click role copy presets (`표지 훅 자동채움`, `본문 포인트 폼`, `요약·CTA 폼`).
+    - Per-slide Theme selector (override any individual slide among the 8 Canva themes).
+    - Direct Headline input (`[형광펜 박스]` / `*포인트 색상*` 1-click wrap buttons), Subcopy textarea, Badge input, and `✦ 슬라이드 #N 변경사항 즉시 합성` button.
+  - Added `📰 슬라이드교체` buttons on extracted video frames so clicking a frame immediately swaps the active slide's background scene.
 
-## Gemini API / Antigravity CLI 검색 연결 현황 (2026-10-14)
-- 상세 필터에 Gemini API Google 검색 / Antigravity CLI Gemini 검색을 별도 추가.
-- 공식 Gemini CLI 실행하지 않음. 사용자 지정 Antigravity 계정의 gemini-3.8-flash-low 모델 사용.
-- API는 Google 검색 연동 1요청, Antigravity는 세션1회/120초. 자동 공급자 전환 없음. 출처 없는 생성 URL은 거부.
-- 후보는 YouTube 상세 최대1조회로 검증하고 카탈로그/채널에 누적. API검색 키는 설정에서 DPAPI 저장.
-- 격리31테스트와 workspace.js 구문검사 통과.
-- 실제 Antigravity 검색1회: search_web 실행 확인, 최종 status ERROR/stream interrupted, 유효 영상 주소 미확보. 추가 호출/YouTube검증/SerpAPI/자동API전환 없음.
-- 중첩 event/step_update/result 형식에 맞게 응답 파서 보완. 실패를 성공으로 표기하지 않음.
-- Gemini API 실호출은 미검증. Antigravity에서 실제 후보를 확보하는 흐름도 아직 미통과.
-- 현재 누적채널336개. 새영상 저장 시 채널자동등록, 동일ID 중복등록 방지. 채널 자동 주기갱신은 미구현.
-## 전용 Electron 실제 화면 확인 및 복구 수정 (2026-10-14)
-- Windows Computer Use로 실제 전용 앱 창 확인: 최초 콘텐츠 발견 빈 화면, 도우미 연결 끊김, 내부 chrome-error 문서.
-- 5006 /studio/session 및 /studio/ HTTP 200 확인. 기존 도우미 종료 없음.
-- 재연결과 페이지 새로고침 후 실제 전용 앱에 최신 화면 표시: 영상684/채널336/후보239, 카드30개, 전체카테고리 및 정렬/상세필터 표시.
-- main.cjs: did-fail-load/did-finish-load 상태 추적, 재연결/작업 메뉴 선택 시 실패 문서만 복구. 정상 제작 문서는 자동 새로고침하지 않음.
-- Node 구문검사 및 실패 문서/정상 문서/파괴된 view 대상 격리 회귀검사 통과. 신규 복구 코드 실제 장애 재현 검증은 아직 미완료.
-- 정상 창 닫기 후 기존 PID49508이 종료되지 않아 start-browser.bat 새 실행은 단일 인스턴스 보호로 차단됨. 잠금 파일 무조건 삭제/강제 종료 없음. 강제 종료 승인을 요청함.
-- 유료 검색/AI/SerpAPI 추가 호출 없음. Gemini/Antigravity 실제 추천 성공은 이전과 같이 미검증.
+### 9. Browser Top Toolbar `네이버 클립` Tab Target URL (`studio-browser/main.cjs`, `studio-browser/test_clip_split.cjs`)
+- Updated `sites.naver_clip` in `studio-browser/main.cjs` from `https://m.naver.com/shorts/` to `https://m.naver.com/` so clicking the top **네이버 클립** (`data-site="naver_clip"`) tab in the browser opens `https://m.naver.com/` directly.
+- Updated `studio-browser/test_clip_split.cjs` to assert `naver_clip:'https://m.naver.com/'` and `navigation.siteKey('https://m.naver.com/') === 'naver_clip'`.
 
-## 승인된 브라우저 재실행 결과
-- 사용자 승인 후 기존 브라우저 PID49508만 강제 종료. 잠금 파일 무조건 삭제 없음.
-- 기존 start-browser.bat 1회 실행, 명령 종료 코드0. 새 Electron 메인 PID3920이 창을 유지함.
-- 실제 전용 앱: Threads 로그인 유지, 도우미 연결됨 확인. 콘텐츠 발견에서 영상684/채널336/후보239 및 카드 표시 확인.
-- 기존5006 PID64516 및5005 포트 유지. 외부 검색0회, 누적 조회 API사용0회.
-- 실패문서 복구 코드가 새 앱에 로드됨. 새 코드를 대상으로 서버 장애를 인위적으로 재현하지는 않음.
-- 남은 과제: 정상 창 종료 후 프로세스가 남는 문제의 원인 수정, Antigravity 실제 추천 성공 검증.
-## 등록 채널 숏폼 조회수 순 수집 버튼
-- 콘텐츠 발견 > 채널 관리에 등록 채널 숏폼 수집 · 조회수 순 버튼 추가. 실제 Electron 화면에서 표시 확인.
-- POST /studio/discovery/channels/shorts/refresh: 오래 확인하지 않은 채널5개, 최근 업로드50개씩, 상세 메타데이터 조회 후180초 이하만 조회수 내림차순 저장.
-- 영상ID로 중복 저장 방지, 기존 조회수 관측 기록 갱신. 성공 후 채널 확인 시각 갱신. YouTube최대11유닛,SerpAPI0,search.list0,자동재시도0.
-- 버튼 성공 후 누적 자료/짧은 영상/조회수 높은 순/전체기간으로 전환. 기존 관련성·최소조회수 필터는 적용됨.
-- 채널 역대 전체 영상 순위가 아닌 최근 업로드 범위. API 메타데이터만으로 Shorts 확정 불가하므로 짧은 영상 후보 포함.
-- 격리2테스트 통과:180초경계/긴영상·길이누락제외/조회수정렬/저장재로드/중복0/기존채널갱신호환. JS구문검사 통과.
-- 실제 외부 호출은 실행하지 않음. 실행 서버HTML 및 전용앱 새 버튼 표시 확인. 도우미 종료/앱재시작 없음.
-## 정상 종료 경로 수정 및 실제 Electron 격리 검증
-- 원인: before-quit 핸들러가 app.whenReady 콜백 내부 attemptGracefulQuit 함수를 참조하여 ReferenceError 후 종료 취소. 창 닫기와 앱 종료에서 중복 준비/저장도 수행됨.
-- main.cjs: 종료 준비 함수를 공통 범위로 이동. shutdown.cjs에서 창 닫기/앱 종료를 단일 Promise로 처리. 도우미 종료 거부/쿠키 저장 실패 시 창 유지.
-- 쿠키 저장10초 초과 시 종료 승인 없이 오류 표시. 강제 종료 fallback 없음. 정상 저장 성공 후 리소스 정리 및 app.quit.
-- test_shutdown.cjs: 중복 종료1회 처리/작업중 종료거부/저장오류/저장지연보호 통과.
-- 별도 임시 프로필 실제 Electron 프로세스2회: 첫 프로세스 쿠키 저장 후 창닫기 종료코드0, 두번째 프로세스 저장된 쿠키 재조회 종료코드0 확인.
-- 생산 브라우저/도우미/로그인 데이터 미변경. 새 종료코드는 다음 앱 실행부터 적용되며, 현재 생산 인스턴스 종료검증은 아직 수행하지 않음.
-## 수집한 레퍼런스 삭제 / 독립 보관함
-- 수집 목록과 saved-references 보관함을 별도 JSON 폴더로 분리. 수집 카드의 보관함에 저장은 독립 사본 저장(동일URL 중복 방지).
-- 목록별 개별 삭제 및 현재 목록 전체 삭제. UI 확인창 및 토큰 인증,64자리파일ID 검증. 전체 삭제는 확인한 ID 스냅샷만 지우므로 새로 도착한 항목 유지.
-- 수집 목록 삭제 시 보관함 사본/원본 미디어/작업 미삭제. 보관함 삭제도 수집 목록 유지. 삭제한 수집 항목은 자동 확장동기화로 되살아나지 않으며 명시적 재수집 가능.
-- 발견 카드의 보관함 담기 문구를 레퍼런스 수집으로 정정.
-- 격리 API 테스트 통과: 저장/독립삭제/전체확인필수/인증/경로검증/재동기화차단/명시적재수집. studio.js/workspace.js 구문검사 통과.
-- 실제 전용 앱:수집10개,개별삭제/전체삭제/보관함저장 버튼 표시 및 별도보관함0개 전환 확인. 사용자자료 실제삭제/임의보관 미수행. 실행페이지 새로고침으로 적용.
+### 10. 8-Direction Title/Subtitle Box Resize, Font Family & `px` Font Size, Video Timeline Scrubber Capture, Removal of Black `cover_box`, `F5` Reload State Persistence, and `Ctrl+Z` Undo (`downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`, `downloader/studio_web/workspace.js`)
+1. **8-Direction Box Resize & Clean Badge Behavior (`#drag-title-box` & `#drag-subtitle-box`)**:
+   - Added 8 directional resize handles (`n`, `s`, `w`, `e`, `nw`, `ne`, `sw`, `se`) to `#drag-title-box` and `#drag-subtitle-box` plus width/height sliders (`#overlay-title-box-w`, `#overlay-title-box-h`, `#btn-reset-title-box-dim`), keeping drag-move separate from box width/height resizing and passing `title_box_w`, `title_box_h`, `overlay_box_w`, `overlay_box_h` to the Pillow/FFmpeg backend.
+   - When `#overlay-title-badge` (`상단 소제목 배지 (선택)`) is empty, `#drag-title-kicker` (and `#drag-sub-kicker`) are completely hidden (`hidden=true`, `textContent=''`) instead of displaying fallback helper text (`상단/시작 타이틀 · 드래그 이동 / 테두리 크기조절`), and `#btn-fill-hook-title` no longer auto-fills `#overlay-title-badge` unless typed by the user.
+2. **Font Family (`#overlay-title-font`, `#overlay-font`) & `px` Font Size (`#overlay-title-size`, `#overlay-size`)**:
+   - Added font family selectors (`heavy_kr`, `sans`, `serif`, `batang_kr`, `brush_kr`, `gungseo_kr`) and replaced the legacy `%` `<select>` with `px` number inputs (`#overlay-title-size` default `54px`, `#overlay-size` default `42px`, plus `-4`/`+4` stepper buttons) that dynamically scale both the live preview (`resolvePreviewFontSizePx` in `studio.js`) and the rendered Pillow/FFmpeg output (`_resolve_font_px` & `_load_korean_font` in `studio_text_clean.py`).
+3. **Thin Interactive Video Timeline Scrubber & Exact Timestamp Capture (`#video-timeline-scrubber-bar`)**:
+   - Added `#video-timeline-scrubber-bar` (`#timeline-scrubber-range`, `#timeline-scrubber-time`, `#btn-capture-scrubber-bundle`, `#btn-capture-scrubber-carousel`) directly below `#frames` and added `action == 'capture_time'` in `attachments_config_route` (`studio.py`) to extract the exact frame via FFmpeg and attach it as a companion image (`bundle-img-<stamp>.jpg`) and timeline frame (`companion-cap-<stamp>.jpg`).
+4. **Removed Opaque Black Subtitle Cover Box (`cover_box`)**:
+   - Removed the `cover_box` option from `#text-erase-mode` in `index.html`, removed the FFmpeg black `drawbox` branch in `studio.py`, and neutralized black box painting in `clean_and_overlay_image` (`studio_text_clean.py`).
+5. **F5 Page Reload State Persistence (`takoh-active-job-id`, `takoh-active-stage`, `takoh-active-edit-tab`, `takoh-job-draft-<jobId>`)**:
+   - Persisted active job ID, active production stage, active edit tab, and unsaved per-job editor drafts in `localStorage` and restored them in `refreshJobs()` (`studio.js`) and boot initialization (`workspace.js`).
+6. **`Ctrl+Z` / `Cmd+Z` Undo Stack (`#btn-overlay-undo`)**:
+   - Added an up-to-40-step undo history stack (`pushEditorUndoSnapshot`, `performEditorUndo`) bound to `Ctrl+Z` / `Cmd+Z` and the `#btn-overlay-undo` button in `.player-canvas-toolbar-right`.
 
-## 사용자 전용 앱 실행 → 정상 종료 → 재실행 실제 검증 및 현황 (2026-10-14)
-- 작업 폴더 및 프로필 확인: 실행 앱이 `C:\Users\hynihk\Documents\TAKOH_Media_Downloader_PRO\github-handoff\takoh-inthread-browser\studio-browser` 소스와 `%APPDATA%\takoh-studio-browser` 프로필, `%LOCALAPPDATA%\ONEWS\studio` 데이터 폴더를 사용하는 것을 확인.
-- 1차 실행 확인: `start-browser.bat` 실행 시 Electron 메인(PID 23592, 창 핸들 `HWND 723322`) 및 5006 도우미(PID 2964) 기동, `/studio/session`·`/studio/busy-status` HTTP 200 응답 확인.
-- 실제 앱 정상 종료 검증: 창 닫기(`WM_CLOSE`) 시 `shutdown.cjs` → `attemptGracefulQuit`(`GET /studio/busy-status` 200 → `POST /studio/shutdown` 200) → `persistence.flush()` → `will-quit` 순서로 실행되어 Electron 프로세스 전체와 직접 시작한 5006 도우미(PID 2964)가 잔류 없이 종료되고 `app-profile.lock`이 해제됨을 확인.
-- 재실행 및 도우미 재연결 확인: `start-browser.bat` 재실행 시 단일 인스턴스 차단 없이 새 Electron 메인(PID 3416, 창 핸들 `HWND 985426`) 및 새 5006 도우미(PID 34776)가 정상 기동되고 `app-profile.lock`(3416) 기록 및 `/studio/session` 주기 폴링(HTTP 200) 연결됨을 확인.
-- 플랫폼 로그인 검증 (쿠키 존재 vs 실제 로그인 화면 확인 구분):
-  1. **SQLite 쿠키 DB 보존 확인**: 정상 종료 직후 `%APPDATA%\takoh-studio-browser\Partitions\sites\Network\Cookies`에서 총 157개 영구 쿠키(`.threads.com` `sessionid`/`ds_user_id`/`csrftoken`, `.instagram.com` `sessionid`, `.pinterest.com` `_pinterest_sess`/`_auth` 등)가 디스크에 유지됨을 확인했으며, 재실행 후에는 Chromium 네트워크 프로세스가 해당 DB 파일을 정상 점유함을 확인.
-  2. **실제 로그인 화면 확인 구분**: 이전 Windows Computer Use 화면 점검에서 기본 탭인 Threads 화면의 로그인 상태 유지는 확인했으나, 이번 재실행(PID 3416)에서는 비침투 창 핸들(`HWND 985426`) 및 세션 폴링만 확인하고 Instagram·Pinterest·X·TikTok 각 탭을 직접 전환하여 실제 로그인된 DOM/화면을 눈으로 검증하지는 않았음(쿠키 DB 존재 확인 완료 / 전 플랫폼 탭별 실제 로그인 화면 전환 확인은 미수행으로 구분).
+### 11. Carousel Studio (`02-B`) UX Optimization, 8 Distinct `body` Slide Architectural Layouts, and Emoji-Free Pro Monochrome UI (`downloader/studio_text_clean.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.js`, `downloader/studio_web/workspace.js`, `downloader/studio_web/studio.css`)
+1. **Carousel Studio (`02-B`) UX & Extracted Frame Button Fix**:
+   - Reorganized `#stage-carousel-panel` (`downloader/studio_web/index.html`) so `#carousel-slides-wrap` (compact horizontal storyboard filmstrip `#carousel-slides-preview` + split-view `#carousel-active-workbench`) sits immediately below `.carousel-template-picker`, while `<details id="carousel-batch-setup-drawer">` sits below as a clean collapsible drawer.
+   - Added an empty-state workbench (`carousel-empty-workbench`) when no slides exist yet with 1-click auto-fill & generate buttons, and wired instant `onchange` handlers on `#wb-active-role-select` and `#wb-active-tpl-select` in `renderCarouselPreview()` (`downloader/studio_web/studio.js`).
+   - Fixed the vertical character wrapping (`슬\n라\n이\n드\n교\n체`) on `#frames` thumbnail cards by replacing the narrow side-by-side button row with `.frame-action-stack` (`flex-direction: column`, `width: 100%`, `white-space: nowrap`, `minmax(108px, 1fr)`) displaying full-width horizontal buttons (`+ 첨부 추가` and `슬라이드 배경`).
+2. **8 Distinct Architectural Layouts for `body` Slides (`_render_canva_editorial_card_pil` in `downloader/studio_text_clean.py`)**:
+   - Replaced the single generic `eff_role == 'body'` split card with 8 genuinely distinct architectural layouts matching each theme:
+     1. `editorial_dark`: **시네마 스플릿 프레임** (Top 56% widescreen photo + coral divider + bottom solid dark split column with giant `01` index on the left and 2-tier copy on the right).
+     2. `magazine_gradient`: **보그/뉴욕 매거진 비대칭 에디토리얼** (Top-left `EDITORIAL FEATURE` & giant serif `01` + top-right framed vertical photo + bottom full-width editorial spread between gold rules).
+     3. `clean_white`: **모던 화이트 갤러리 시트** (Off-white paper canvas + top `STEP 01` rule + centered rounded photo frame + bottom left-aligned headline, accent bar, and body copy).
+     4. `highlight_hook`: **상단 다크 헤드라인 배너 + 하단 플로팅 캡션** (Top 31% dark header with neon-lime badge & headline + bottom 69% photo with floating dark caption box).
+     5. `mint_modern`: **모던 큐레이션 북 레이아웃** (Dark slate canvas + top `CURATION NOTE · 01` header + centered rounded photo + bottom quote-style vertical white left rule & copy).
+     6. `warm_luxury`: **폴라로이드 & 모눈 저널 노트** (Warm cream graph-paper grid + white Polaroid frame with masking tape accent at top center + serif journal note below).
+     7. `neon_pop`: **모던 인사이트 윈도우 카드** (Blurred photo background + crisp white UI window frame with top header bar, embedded rounded photo, and structured copy).
+     8. `minimal_outline`: **풀블리드 명조 에세이 포스터** (Full-bleed photo with smooth dark bottom scrim, fine editorial frame border, serif `01.` index + short gold rule + large serif headline & subcopy).
+3. **Emoji Removal & Restrained Pro Studio Monochrome UI (`#0f172a` / `#1e293b` / `#334155` / `#f8fafc`)**:
+   - Removed decorative emojis across `downloader/studio_web/index.html`, `downloader/studio_web/studio.js`, and `downloader/studio_web/workspace.js`.
+   - Unified the color palette in `downloader/studio_web/studio.css` into a restrained slate/charcoal desktop editing environment, replacing rainbow badges, neon borders, and multi-colored pastel gradients.
 
-## 승인된 Antigravity CLI 실제 검색 1회 검증 결과 (2026-10-14)
-- 실행 조건: `GET /studio/discovery` (`provider=antigravity_search`, 모델 `gemini-3.8-flash-low`, 제한시간 120초, `country=KR`, `mode=shopping`, `category=living_kitchen`, `published_range=90d`, `refresh=1`) 1회 실행.
-- 실행 소요 및 CLI 상태: 약 76.6초 소요(CLI 내부 74.8초, 1턴). 이전 실행과 달리 스트림 중단 없이 `result.status: "SUCCESS"`로 완료되었으며, CLI 내부에서 `search_web` 도구가 총 6회(`step_index` 2, 4, 6, 8, 10, 12) 실행됨.
-- 단계별 성공 여부:
-  1. **실제 영상 URL 확보 (실패 — 0개)**:
-     - Antigravity CLI의 `--output-format stream-json` 이벤트(`step_update.tool_info`)에는 호출 파라미터(`parameters.query`)만 기록되고 도구의 원시 반환 본문(`result`/`output`)은 스트림 이벤트에 포함되지 않음.
-     - CLI 세션 로그(`0fdbe528-2ad5-4bd0-a602-1e858f03e3dc`) 대조 결과, `search_web` 도구 자체가 개별 `youtube.com/shorts/<11자리ID>` 또는 `youtube.com/watch?v=<11자리ID>` 직접 링크 대신 요약문과 `https://vertexaisearch.cloud.google.com/grounding-api-redirect/...` 리다이렉트 출처만 반환함.
-     - 그 결과 모델 응답 본문에서도 11자리 영상 ID URL이 0개였고, `parse_antigravity_events`의 `sources`가 빈 배열(`[]`)이 되어 `studio_gemini_discovery.py` 96행에서 최초 오류(`GeminiDiscoveryError: Google 웹 검색 실행·출처 근거를 확인하지 못해 추천을 중단했습니다. 모델이 기억으로 만든 URL은 사용하지 않습니다.`, HTTP 502)가 발생함.
-  2. **YouTube 상세 확인 (미실행 — 0회 / 0유닛)**:
-     - 후보 영상 ID가 확보되지 않아 1단계에서 즉시 중단되었으며, YouTube `videos.list` 호출은 0회(누적 요청 162회·6,803유닛 그대로 유지)로 쿼터가 소모되지 않음.
-  3. **누적 저장 (미실행 — 0건 추가)**:
-     - 검증된 후보가 없으므로 `discovery-catalogue.sqlite3`에 가짜/미검증 데이터를 저장하지 않고 기존 872건을 그대로 유지함.
-  4. **화면 표시 (오류 안내 표시 / 가짜 후보 미표시)**:
-     - HTTP 502 및 최초 오류 메시지를 반환하여 가짜 후보 카드가 표시되지 않도록 차단함.
-- 원시 응답 및 최초 오류 보존:
-  - 감사 폴더 `%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`에 44개 stream-json 이벤트 전체가 그대로 보존됨.
-  - 승인 조건에 따라 자동 재시도(0회), SerpAPI 호출(0회, 누적 27회 유지), 다른 공급자(Gemini API 등) 자동 전환 없이 즉시 중단함.
+### 12. Threads Shopping Account & Video Reference Discovery Upgrade (`downloader/content-studio.js`, `studio-browser/toolbar.html`, `downloader/studio_web/index.html`, `studio-browser/threads-research-extract.js`, `studio-browser/threads-research.cjs`, `downloader/studio_web/threads-research-ui.js`, `downloader/studio_web/workspace.js`, `studio-browser/main.cjs`)
+1. **Clarified "제품 찾기" Button & Workspace Naming**:
+   - Renamed the in-feed Threads post button in `downloader/content-studio.js` from `제품 찾기` to **`동일·연관 쇼핑계정 찾기`** (`title="이 영상과 동일·유사한 영상을 올리는 쇼핑 콘텐츠 계정 및 연관 게시물 탐색"`).
+   - Renamed the sidebar/sub-tab items in `studio-browser/toolbar.html` and `downloader/studio_web/index.html` to **`쓰레드 쇼핑계정·영상 탐색`** and updated the workspace heading to **`Threads 동일·연관 쇼핑계정 및 영상 레퍼런스 탐색`**.
+2. **Thorough Media, View Count (`views`), and Engagement Reaction (`likes`, `replies`, `reposts`, `quotes`) Collection**:
+   - Upgraded `extractThreadsResearch` (`studio-browser/threads-research-extract.js`) to parse both embedded Relay/SSR JSON scripts (`<script type="application/json">`, extracting `impression_count`, `view_count`, `play_count`, `like_count`, `direct_reply_count`, `repost_count`, `quote_count`, `video_versions`, `image_versions2`, `carousel_media`) and visible DOM badges/buttons/spans.
+   - Removed the `.slice(0, 8)` preview generation cap in `studio-browser/threads-research.cjs` so every collected post gets its `media_preview` prepared, and added `deepInspectPost()` during `capture` (`deep: true`), `audit-media`, and `sync-accounts` to visit post detail views and guarantee view counts, reactions, and media assets are populated.
+3. **Daily Account Feed Auto-Refresh & 1-Click Sync (`sync-accounts`, `set-account-sync`)**:
+   - Added `account_sync` tracking (`auto_daily`, `last_daily_run`, per-account `last_synced_at`, `last_added`) in `ResearchStore` (`studio-browser/threads-research.cjs`), a background daily scheduler (`syncCollectedAccounts({onlyDue: true})`), a batch **`[수집 계정 신규 콘텐츠 지금 일괄 갱신]`** button, and per-account **`[지금 갱신]`** buttons in `#threads-research`.
+4. **Optional Read-Only Threads API Collector (`save-api-token`, `api-keyword-collect`)**:
+   - Added strictly read-only Meta Threads Graph API (`GET https://graph.threads.net/v1.0/keyword_search`) support in `studio-browser/threads-research.cjs` (`threads-api-collector.json`, `mode: 'read_only_collection'`) and an in-UI configuration panel explaining why daily third-party account feed & view-count syncing works 100% via the built-in browser collector without requiring an API key, while allowing optional read-only API keyword collection.
 
-## 검색 출처 리다이렉트 링크(`grounding-api-redirect`) 실제 영상 주소 확보 검증 (2026-10-14)
-- **검증 방법 (반복 검색 0회)**:
-  - 직전 보존된 Antigravity 검색 감사 파일(`%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`, `conversation_id: 0fdbe528-2ad5-4bd0-a602-1e858f03e3dc`)과 해당 CLI 세션의 로컬 트랜스크립트(`~/.gemini/antigravity-cli/brain/0fdbe528-2ad5-4bd0-a602-1e858f03e3dc/.system_generated/logs/transcript_full.jsonl`)를 대조 분석함.
-  - CLI `search_web` 도구의 `GENERIC` 응답 본문에 기록된 `https://vertexaisearch.cloud.google.com/grounding-api-redirect/...` 링크 **28개**에 대해 `HEAD` 요청(`allow_redirects=False`)으로 `Location` 헤더를 확인한 결과, **28개 중 27개가 실제 개별 YouTube 영상 URL(Shorts 16개, Watch 11개, 채널 1개)로 즉시 변환됨**을 확인함.
-- **코드 보완 (`downloader/studio_gemini_discovery.py`, `downloader/test_gemini_discovery.py`)**:
-  1. `antigravity_transcript_sources(conversation_id, brain_root=None)`: `stream-json` 이벤트에 출처 URL이 비어 있을 때 해당 `conversation_id`의 로컬 트랜스크립트(`GENERIC` 스텝)에서 `search_web` 출처 링크를 추출.
-  2. `resolve_grounding_redirects(sources, timeout=4)`: `vertexaisearch.cloud.google.com/grounding-api-redirect/` URL을 `HEAD`(필요 시 `GET`, `allow_redirects=False`)로 조회하여 `Location` 헤더의 실제 영상 URL로 변환하고 원본 리다이렉트 주소는 `redirect_url` 필드에 보존 (`antigravity_search` 및 `gemini_search` 양쪽 모두 적용).
-  3. `extract_video_ids(text)`: `m.youtube.com/shorts/<11자리ID>` 모바일 도메인도 11자리 영상 ID로 추출하도록 정규식(`(?:(?:www|m)\.)?`) 보완.
-- **단위 테스트 및 보존 데이터 오프라인 검증 결과**:
-  - `python -m unittest test_gemini_discovery.py -v`: 리다이렉트 변환·트랜스크립트 출처 추출·모바일 쇼츠 URL 추출을 포함해 **9개 테스트 전부 통과 (`Ran 9 tests in 0.042s — OK`)**.
-  - 보존된 `eee8ef48fc97478494dccbe30888994e/latest-response.json`을 보완된 `parse_antigravity_events`에 통과시킨 결과, 추가 검색 없이 `search_count=6`, `sources=29개`, **고유 11자리 영상 ID 27개**(`YtgbN-TrWvY`, `f9s40SNqqm4`, `YGq4AMnW_mk`, `mi1tsWYp490`, `MdA0WXjq-2Y`, `53l5VGZLHyg`, `UNbHbL1jK-s`, `36PrR06QCd8`, `ilULIPlEGyo`, `kuxJCEICKxo`, `W4OP8WxahzE`, `BKkPurocO7Y`, `8iTO9aIwL2E`, `sPJffYnI1NA`, `KGZrk70O_nY`, `zT6hH9JACPY`, `fcAA1EMxWJY`, `FSsfVAThs_M`, `y4SEXzkUyqk`, `GmAqt0H_cnI`, `AUnRMPhQc88`, `i0sKoVxqxlM`, `DiyaYANmDKM`, `Lbv0Zcn1gkg`, `tovtCIliMmE`, `g6Gd0iBTP-Y`, `CnXSLtaVJxc`)가 정상 확보됨을 확인함.
-  - **구분**: 보존된 응답 기반 리다이렉트 → 실제 영상 URL(27개) 확보까지는 검증 완료했으며, 확보된 27개 ID를 실제 도우미의 YouTube 상세 조회(`videos.list` 1회·1유닛) → 누적 DB 저장 → 화면 카드 표시까지 연결하는 실행은 별도 승인 전이므로 수행하지 않음.
+### 13. Project Essential Development & Agentic Workflow Setup (`GEMINI.md`, `.agents/skills/`, `downloader/requirements.txt`, `studio-browser/package.json`, `.gitignore`, `.editorconfig`, `.env.example`)
+1. **Always-On Workspace Rule (`GEMINI.md`)**:
+   - Created root `GEMINI.md` enforcing port ownership (`5006` vs `5005`), user data/cookie/secret protection, Pro Studio monochrome UI rules (no decorative emojis, restrained `#0f172a`/`#1e293b`/`#334155`/`#f8fafc` palette), `02-A` / `02-B` studio separation, and the pre-update backup & verification workflow.
+2. **Project-Specific Agent Skills (`.agents/skills/`)**:
+   - `.agents/skills/takoh-studio-dev/SKILL.md`: Component map and development runbook for `02-A` video editing, `02-B` Canva carousel workbench, and Threads shopping account/video research.
+   - `.agents/skills/safe-backup-and-verify/SKILL.md` + executable PowerShell scripts:
+     - `.agents/skills/safe-backup-and-verify/scripts/backup_snapshot.ps1`: Automatically snapshots 16 core files into `.backups/<timestamp>-<label>/` before major updates.
+     - `.agents/skills/safe-backup-and-verify/scripts/verify_project.ps1`: Runs syntax checks (`node --check` on 13 JS/CJS files, `python -m py_compile` on core Python modules) and executes unit test suites in one command.
+3. **Dependency & Repository Hygiene Fixes**:
+   - Updated `downloader/requirements.txt` to include `Pillow>=10.2.0`, `numpy>=1.26.0`, and `opencv-python-headless>=4.9.0.80` (used by `studio_text_clean.py`).
+   - Updated `studio-browser/package.json` with `jsdom` devDependency and expanded `npm run check` / `npm test` scripts.
+   - Fixed `.gitignore` so `downloader/test_*.py`, `downloader/test_*.js`, and `studio-browser/test_*.cjs` are tracked properly while `.backups/` and `.scratch/` are ignored.
+   - Created `.editorconfig` (UTF-8, consistent indentation) and `.env.example` (safe environment variable template).
 
-## Threads 직접 휴먼터치 업로드 로직 구현 및 검증 (2026-10-14)
-- **목적 및 방향**:
-  - 공식 Meta Threads Graph API에 의존하지 않고, 로그인된 Threads 웹 화면(`https://www.threads.com/`)에서 실제 사람이 게시물과 첫 댓글(제휴 링크/고지문)을 작성·업로드하는 것과 동일한 **휴먼터치 직접 업로드 흐름**으로 통합 구현함.
-- **구현 내용**:
-  1. **휴먼터치 DOM 입력·클릭 엔진 (`downloader/studio-upload.js`)**:
-     - `humanPause(min, max)`: 단계 간 자연스러운 사고/대기 지연 적용 (JSDOM 테스트 환경에서는 자동 고속 동작).
-     - `humanClick(el)`: 부드러운 스크롤(`scrollIntoView`) 후 요소 영역 내부 랜덤 좌표 산출 및 `pointerover` → `mouseover` → `pointermove` → `mousemove` → `pointerdown` → `mousedown` → `focus` → `pointerup` → `mouseup` → `click` 실제 마우스/포인터 이벤트 시퀀스 발생.
-     - `humanFill(editor, value)`: 글자/청크 단위 `keydown` → `beforeinput` → `insertText` → `input` → `keyup` 타이핑 및 문장부호·줄바꿈·공백 구간 가변 딜레이 적용.
-     - 본문 게시 확인 후 획득한 게시물 permalink로 첫 댓글(제휴 링크 등)까지 동일한 휴먼터치 흐름으로 자동 작성·게시.
-     - 전용 브라우저(`127.0.0.1:5006`)와 단독 도우미(`127.0.0.1:5005`) 양쪽 포트 모두 지원하도록 `packetUrl` 허용 범위 확장.
-  2. **전용 Electron 브라우저 직접 업로드 매니저 및 브리지 (`studio-browser/threads-upload.cjs`, `studio-browser/site-preload.cjs`, `studio-browser/main.cjs`)**:
-     - Chrome 확장 프로그램 없이도 전용 Electron 브라우저(`studio-browser`) 자체에서 즉시 게시·예약 게시·취소·상태 조회가 동작하도록 `createThreadsUploadManager` 구현.
-     - `upload-queue.json` 영구 큐 저장, 30MB 용량 제한 확인, 예약 시각 스케줄러, 중단/재시작 시 `running` → `uncertain` 전환으로 중복 게시 방지.
-     - 업로드 진행 중(`uploadManager.isBusy()`)일 때 앱 종료(`attemptGracefulQuit`) 및 개발 감시 재시작(`devWatcher`)을 보류하여 업로드 도중 브라우저가 닫히지 않도록 보호.
-  3. **제작 스튜디오 UI 정리 (`downloader/studio_web/index.html`, `downloader/studio_web/studio.js`)**:
-     - 공식 API 게시 설정 블록을 숨김(`hidden`) 처리하고, 게시 섹션을 **Threads에서 게시 (휴먼터치 직접 업로드)** 중심으로 안내 문구 및 버튼(`Threads에서 지금 업로드`, `이 시각에 업로드`) 정리.
-     - `studio.js`의 비동기 `update()` 실행 중 새 작업(`#new-job`) 전환 시 레이스 컨디션 방어 로직 추가.
-- **검증 결과**:
-  - `node downloader/test_studio_upload.js`: PASS
-  - `node downloader/test_studio_upload_dom.js`: PASS (휴먼터치 본문 게시 + 첫 댓글 게시 + 실패 시 원문 보존 검증)
-  - `node downloader/test_studio_local_bridge.js`: PASS
-  - `node downloader/test_studio_ui.js`: PASS
-  - `node downloader/test_studio_workspace.js`: PASS
-  - `node studio-browser/test_threads_upload.cjs`: PASS (전용 브라우저 큐 등록·예약 취소·즉시 실행·중단 시 `uncertain` 복구 검증)
-  - `node studio-browser/test_isolated_scenarios.cjs` & `node studio-browser/test_shutdown.cjs`: PASS
+### 14. Reference Library (`수집·보관 레퍼런스`) Immediate Thumbnail Rendering & Pre-Warming Pipeline (`downloader/studio.py`, `downloader/studio_web/studio.js`, `downloader/content-studio.js`, `studio-browser/threads-research.cjs`)
+1. **Root Causes Identified**:
+   - **Synchronous On-Demand FFmpeg Bottleneck (`/references/<id>/thumbnail`)**: Previously, thumbnails were never prepared when a reference was imported (`/references/import`). Instead, when the user opened `수집·보관 레퍼런스`, dozens of cards simultaneously requested `/studio/references/<id>/thumbnail`, each downloading the remote image/video and spawning an FFmpeg subprocess behind a `_ffmpeg_slots = BoundedSemaphore(2)` lock.
+   - **Video-Only Threads Posts & Expired CDN Signatures**: When a Threads post had a `<video>` without a `poster` attribute, `thumbnailUrl` was saved as `""`, forcing the backend to download up to 64MB of remote `.mp4` video just to extract 1 frame—or failing outright if the CDN signature expired or if the post was initially collected before its media finished loading (`already_saved` previously ignored newly discovered media on re-import).
+   - **Global `Cache-Control: no-store` Override**: `private_studio()` in `studio.py` overwrote `send_file(..., max_age=3600)` with `Cache-Control: no-store` on every `/studio/*` response, forcing the browser to re-fetch every thumbnail on every tab switch.
+   - **No Automatic Client Fallback & Hidden-Tab Lazy Loading**: `refreshReferences()` in `studio.js` only tried `ref.previewUrl` once (`onerror` immediately hid the `<img>` without falling back to `thumbnailDataUrl` / `thumbnailUrl` / `poster` / `imageUrls[0]`), and set `loading="lazy"` on all cards while `#reference-workspace` was hidden at boot.
+2. **Fixes Implemented**:
+   - **Live Canvas Snapshot (`thumbnailDataUrl`) at Collection Time**: Updated `reference()` in `downloader/content-studio.js` to capture a lightweight JPEG data URL (`canvas.toDataURL('image/jpeg', 0.78)`) directly from the live `<video>` or `<img>` DOM element in the browser, and updated `studio-browser/threads-research.cjs` (`action === 'reference'`) to pass `thumbnailDataUrl: p.media_preview?.data_url || ''`.
+   - **Background Thumbnail Pre-Warming & JPEG Fast-Path (`downloader/studio.py`)**: Added `_warm_reference_thumbnail_async()` in `import_reference` so the local thumbnail cache (`reference-thumbnails/<id>.jpg`) is populated in the background immediately upon collection; added a direct write fast-path for `thumbnailDataUrl` and standard JPEGs (`\xff\xd8\xff`) so FFmpeg is not spawned unnecessarily; and updated `import_reference` to merge newly discovered `thumbnailUrl` / `poster` / `thumbnailDataUrl` / `imageUrls` / `videoUrls` when an existing reference is re-collected.
+   - **Browser Cache Preservation & Multi-Stage Client Fallback (`downloader/studio.py`, `downloader/studio_web/studio.js`)**: Exempted `GET .../thumbnail` responses from `Cache-Control: no-store` in `private_studio()`, set `loading="eager"` on the first 16 cards in `refreshReferences()`, and added automatic cascading fallback across `[ref.thumbnailDataUrl, ref.previewUrl, ref.thumbnailUrl, ref.poster, ref.imageUrls?.[0]]`.
 
-## 보존된 Antigravity 리다이렉트 후보(27개) → YouTube 상세 확인(1유닛) → 누적 카탈로그 저장 → 실제 화면 응답 검증 (2026-10-14)
-- **실행 범위 (반복 검색 0회 · SerpAPI 0회 · 승인된 YouTube `videos.list` 1회/1유닛)**:
-  - 직전 보존된 Antigravity 감사 파일(`%LOCALAPPDATA%\ONEWS\studio\gemini_discovery_audits\eee8ef48fc97478494dccbe30888994e\latest-response.json`)에서 리다이렉트 변환(`resolve_grounding_redirects` + `antigravity_transcript_sources`)으로 확보한 **고유 11자리 영상 ID 27개**를 대상으로, 새 Antigravity CLI 세션을 열지 않고 실제 YouTube Data API v3 `videos.list`(`part=snippet,contentDetails,statistics,status`, 27개 ID 일괄 조회) **단 1회(1유닛)**만 호출함.
-- **단계별 검증 결과**:
-  1. **YouTube 상세 확인 (`videos.list` 1회 · 1유닛 — 성공)**:
-     - HTTP 200 응답으로 27개 영상 전체의 상세 메타데이터(제목, 채널명/채널ID, 길이, 조회수, 업로드일, 라이선스 등)를 확인함.
-     - YouTube 사용량 기록(`youtube_discovery_cache.json`): `requests_count` 162 → **163회 (+1)**, `quota_units` 6,803 → **6,804유닛 (+1)**, SerpAPI 호출 **0회 (27회 그대로 유지)**.
-  2. **누적 카탈로그 영구 저장 (`discovery-catalogue.sqlite3` — 성공)**:
-     - `DiscoveryCatalogue.add(..., source_type='antigravity_search')`를 통해 확인된 27개 영상을 영구 저장함.
-     - 누적 영상 수: 기존 872개 → **899개 (+27개 신규 저장)**, 등록 채널 수 **363개**.
-  3. **원시 캐시 연동 및 실제 `/studio/discovery` 응답 확인 (성공)**:
-     - `antigravity_search` 원시 캐시에 검증된 후보와 29개 검색 출처(`gemini_search_sources`, `redirect_url` 및 변환된 최종 URL 포함), 관측 검색어 6개(`gemini_search_queries_observed: 6`)를 기록함.
-     - 실행 중인 전용 앱 도우미(`http://127.0.0.1:5006/studio/discovery?archive=0&unseen=0&provider=antigravity_search&country=KR&mode=shopping&category=living_kitchen&published_range=90d&min_views=0&sort_by=relevance&limit=30&page=1`) 조회 결과:
-       - `HTTP 200 OK`, `verification_status: "실서비스 연결됨"`, `provider: "antigravity_search"`
-       - 쇼핑 쇼츠/관련성/최근 90일 필터를 통과한 **유효 후보 13개**(`36PrR06QCd8` 살림설렘 30초 2.6만회, `GmAqt0H_cnI` 살림톡톡 29초 3.5만회, `BKkPurocO7Y` 리뷰하는언니 20초 1.2만회, `kuxJCEICKxo` 쿠팡꿀템 28초, `sPJffYnI1NA` 다이소 주방 정리템 등)와 검색 출처 링크(`gemini_search_sources` 29개)가 정상 반환됨을 확인함.
+### 15. NLE Filmstrip/Waveform Timeline Scrubber, Stage-Scoped Carousel Replace Buttons, Proportional Font Scaling on Box Resize, Font Size Range Sliders, and Wide `01` / `02-A` / `02-B` Studio Layout (`downloader/studio_web/index.html`, `downloader/studio_web/workspace.js`, `downloader/studio_web/studio.js`, `downloader/studio_web/studio.css`)
+1. **NLE Filmstrip + Audio Waveform Timeline Scrubber (`#video-timeline-scrubber-bar`)**:
+   - Redesigned `#video-timeline-scrubber-bar` into a dark NLE video clip timeline (`#nle-clip-track`) featuring:
+     - Top dark-teal clip header bar showing the clip filename (`#scrubber-clip-name`), `HH:MM:SS:FF` frame timecode (`#scrubber-clip-timecode`), and current/total seconds badge (`#timeline-scrubber-time`).
+     - Continuous 16-cell horizontal thumbnail filmstrip (`#scrubber-filmstrip-row`) populated from extracted frames.
+     - Audio waveform canvas (`#scrubber-waveform-canvas`) with teal vertical waveform bars and orange peak indicator dots.
+     - Vertical white playhead cursor (`#scrubber-playhead-line` with top cap) synchronized with `#timeline-scrubber-range` and `<video id="preview">` playback.
+2. **Stage-Scoped `[현재 시점으로 캐러셀 슬라이드 배경 교체]` Button (`02-B` Only)**:
+   - Updated `selectStage(name)` in `downloader/studio_web/workspace.js` and CSS rules in `downloader/studio_web/studio.css` (`body:not([data-active-stage="carousel"]) #btn-capture-scrubber-carousel` and `.frame-replace-slide-btn`) so the carousel background replacement buttons appear **exclusively** in `02-B 캐러셀·뉴스카드 편집` (`stage === 'carousel'`) and remain hidden in `01 영상·소재 분석` and `02-A 미디어(영상) 편집`.
+3. **Proportional Font Size Scaling When Expanding/Resizing Overlay Boxes**:
+   - Updated `bindDraggableChip()` and the `#overlay-title-box-w` slider handler in `downloader/studio_web/studio.js` so dragging any of the 8 resize handles on `#drag-title-box` or `#drag-subtitle-box` (or adjusting box width) scales `#overlay-title-size` (`18px`–`140px`) and `#overlay-size` (`18px`–`110px`) proportionally (`Math.round(startFontSize * scaleRatio)`), keeping text size naturally matched to the box size.
+4. **Fixed Title Font Size Scaling Ceiling & Added Font Size Range Sliders**:
+   - Fixed `resolvePreviewFontSizePx()` in `downloader/studio_web/studio.js`, which previously capped preview font size at `54px` (`Math.min(54, ...)`), preventing title font sizes above ~64px from visually growing on the preview canvas. Raised the preview ceiling to `96px` and applied `basePx` directly to `#drag-title-text`.
+   - Added smooth range sliders (`#overlay-title-size-range` and `#overlay-size-range`) alongside the number inputs (`#overlay-title-size` and `#overlay-size`) and `-4`/`+4` step buttons with two-way synchronization and undo history support.
+5. **Wide Full-Width Studio Layout for `01`, `02-A`, `02-B` & Enlarged Carousel Active Slide Preview**:
+   - Scoped the left `실시간 미리보기 (모바일 게시 화면)` panel (`.content-live-preview`) so it is hidden during `01 영상·소재 분석` (`analysis`), `02-A 미디어(영상) 편집` (`editing`), and `02-B 캐러셀·뉴스카드 편집` (`carousel`), and shown **only** in `03 대본·게시문` (`writing`), `04 상품·제휴 링크` (`product`), and `게시·예약` (`publish`).
+   - Restored a spacious 2-column side-by-side workspace layout in `01`, `02-A`, and `02-B` (`minmax(430px, 46%) minmax(480px, 54%)`), and enlarged the `02-B` active slide preview canvas (`.wb-canvas-frame` in `.carousel-wb-grid`) to **`410px × 513px`** (more than 2× the previous width).
 
-## 전용 브라우저 네이티브 다운로드 브리지 및 전체 회귀 테스트 완결 (2026-10-14)
-- **전용 브라우저(`studio-browser`) 보완**:
-  - `studio-browser/main.cjs`: `trackSiteDownloads(contents)` 및 `recentDownloads` 목록 관리 추가, `studioListDownloads`·`studioGetDownload` IPC 핸들러를 실제 완료된 파일 목록 및 원본 게시물 주소(`source`)와 연결하여 스튜디오 `[다운로드 및 수집]` 워크스페이스에서 즉시 불러올 수 있도록 완성.
-  - `studio-browser/helper-manager.cjs`: `resolvePythonPath()`를 추가하여 환경변수(`TAKOH_PYTHON`), 번들 런타임(`runtime/python/python.exe`), 로컬 가상환경(`.venv`), Python 3.11/3.12 경로를 순차 탐색하도록 개선.
-  - `downloader/content-threads.js`: 동일 게시물 내 다중 미디어(영상 + 별도 이미지 링크 `a[href*="/post/"][href*="/media"]`)가 동일 좌표를 가질 때 이미지가 비디오 포스터로 오인되어 개별 다운로드 버튼이 누락되지 않도록 `videoForImage` 판별 보강.
-- **전체 자동화 테스트 통과 현황**:
-  - Python 단위 테스트 (`python -m unittest discover -s downloader -p "test_*.py"`): **128개 전체 통과 (`OK`)**
-  - JavaScript / Electron CJS 단위·DOM 회귀 테스트 (`downloader/test_*.js` 19개 + `studio-browser/test_*.cjs` 3개): **22개 스위트 전체 통과 (`PASS`)**
+### 16. 25+ Korean Typography Catalog, Custom Font Upload (`.ttf`/`.otf`/`.ttc`), Box Corner Radius (`0~80px`), 2-Layer Double-Stroke Text Outline (`0~24px`), and `01 영상·소재 분석` Pre-Analysis AI Model Selector & Guided UX (`downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`, `downloader/test_studio_text_clean.py`)
+1. **25+ Korean Fonts Across 5 Categories & Bundled Open-Source Display Fonts (`downloader/fonts/`, `downloader/studio_text_clean.py`)**:
+   - Downloaded and bundled 9 popular open-source Korean viral/display fonts in `downloader/fonts/` (`BlackHanSans-Regular.ttf`, `GasoekOne-Regular.ttf`, `DoHyeon-Regular.ttf`, `Jua-Regular.ttf`, `BagelFatOne-Regular.ttf`, `GowunDodum-Regular.ttf`, `GowunBatang-Bold.ttf`, `Orbit-Regular.ttf`, `NanumPenScript-Regular.ttf`) alongside `NotoSansKR-VF.ttf`, `NotoSerifKR-VF.ttf`, and Windows Korean system fonts (`H2GTRE.TTF`, `H2HDRM.TTF`, `H2PORL.TTF`, `H2GSRB.TTF`, `HMKMMAG.TTF`, `HMFMOLD.TTF`, `malgunbd.ttf`), providing **25 categorized font options** across Title (`#overlay-title-font`), Subtitle (`#overlay-font`), Carousel Global (`#carousel-font`), and Carousel Active Slide Workbench (`#wb-active-font-select`).
+   - Added `@font-face` rules (`StudioFont_*`) in `downloader/studio_web/studio.css` and `resolveCssFontFamily()` in `downloader/studio_web/studio.js` so the live preview canvas immediately reflects the selected font.
+2. **User Custom Font Upload (`.ttf` / `.otf` / `.ttc`)**:
+   - Added `/studio/fonts`, `/studio/fonts/upload`, `/studio/fonts/<font_key>`, and `/studio/fonts/file/<font_key>` in `downloader/studio.py` storing user-uploaded fonts safely in `%LOCALAPPDATA%\ONEWS\studio\custom-fonts\`.
+   - Added **`[+ 내 폰트 추가 (.ttf/.otf)]`** buttons (`triggerCustomFontUpload`) next to Title, Subtitle, Carousel Global, and Carousel Slide font selectors that upload the font, inject a dynamic `@font-face` (`CustomFont_<key>`), and select it across all font dropdowns.
+3. **Adjustable Box Corner Radius (`모서리 둥글기 0~80px`)**:
+   - Added synchronized range slider + number input controls for Title Box Corner Radius (`#overlay-title-box-radius-range` / `#overlay-title-box-radius`, default `18px`) and Subtitle Box Corner Radius (`#overlay-box-radius-range` / `#overlay-box-radius`, default `22px`).
+   - Wired `title_box_radius` and `overlay_box_radius` into both the live preview (`titleBox.style.borderRadius`, `subBox.style.borderRadius`) and the Pillow backend (`_render_video_hook_template_layer`, `_render_editorial_subtitle_card_pil`, `draw_korean_overlay_pil`, `clean_and_overlay_video`).
+4. **2-Layer Double-Stroke Text Outline (`1차 안쪽 테두리` + `2중 바깥 테두리` Thickness `0~24px` & Color Pickers)**:
+   - Added `_draw_double_stroke_text()` and `_parse_color_rgba()` in `downloader/studio_text_clean.py` so when `double_stroke_width > 0`, Pillow renders the outer 2nd border at `stroke_width + double_stroke_width` first, then the inner 1st border at `stroke_width`, and finally the fill text across all video hook templates, subtitle cards, and all 8 Canva carousel themes (`cover`, `body`, `cta`).
+   - Added `buildLiveDoubleStrokeTextShadow()` in `downloader/studio_web/studio.js` for real-time multi-ring CSS `text-shadow` preview on `#drag-title-text` and `#drag-subtitle-text`.
+5. **`01 영상·소재 분석` Pre-Analysis AI Engine & Model Selector Bar (`STEP 0`) + Intuitive Step-by-Step UX**:
+   - Added **`#analysis-ai-model-bar` (`STEP 0 · 분석 전 AI 엔진 및 모델 선택`)** at the top of `01 영상·소재 분석` with:
+     - **1. AI 연결 방식 (`#analysis-ai-provider`)**: `Gemini API`, `Antigravity 구독 CLI`, `OpenAI API`, `Codex 구독 CLI`, `KIE AI API`.
+     - **2. 분석 AI 모델 선택 (`#analysis-model-choice` + `#analysis-model-custom`)**: Dynamically populated with all models for the chosen provider (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-3.8-flash`, `gpt-4.1`, etc.) and capability tags (`[음성+프레임]` vs `[프레임만]`), bidirectionally synced with the `analysis` task route and global AI settings.
+     - **Connection Readiness Badge (`#analysis-ai-conn-badge`)** + **`[AI 키·계정 설정 ↗]`** quick button + **Scope Badge (`#analysis-model-scope-badge`)**.
+    - Added a **3-Step Progress Overview Bar (`#analysis-progress-overview`)** and reorganized the analysis tools into clear **STEP 1 (AI 장면·음성 심층 분석)**, **STEP 2 (화면 속 글자 OCR 및 한국어 번역)**, **STEP 3 (원본 게시물 본문 확인)** cards with live completion badges (`✓ 분석 완료` / `분석 대기`), followed by **STEP 4 (`#post-analysis-mode-chooser`: `02-A 미디어 편집` vs `02-B 캐러셀 제작`)** at the bottom.
 
+### 17. `02-B 캐러셀·뉴스카드 편집` Pre-Production AI Model Selector Bar (`STEP 0`) & Auto-Populated 3-Part Story (`01 표지` · `02~N-1 본문` · `마지막장 요약·CTA`) from Video Analysis (`downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`, `downloader/studio_web/workspace.js`, `downloader/test_studio.py`)
+1. **Pre-Production AI Engine & Model Selector Bar (`#carousel-ai-model-bar` in `02-B 캐러셀 편집`)**:
+   - Added `#carousel-ai-model-bar` (`STEP 0 · 캐러셀 제작 전 AI 엔진 및 모델 선택`) at the very top of `#stage-carousel-panel` with:
+     - **1. AI 연결 방식 (`#carousel-ai-provider`)**: `Gemini API`, `Antigravity 구독 CLI`, `OpenAI API`, `Codex 구독 CLI`, `KIE AI API`.
+     - **2. 캐러셀 대본·생성 AI 모델 선택 (`#carousel-model-choice` + `#carousel-model-custom`)**: Dynamically populated with all models for the chosen provider, bidirectionally synchronized with `01 영상·소재 분석` (`#analysis-ai-model-bar`) and global AI settings via `syncAnalysisBarUi()`.
+     - **1-Click Action Buttons**: **`[선택 AI로 표지·본문·마지막장 재작성]`** (`#btn-ai-compose-carousel-story`, calling `POST /studio/jobs/<job_id>/carousel-story-draft` with the selected AI model) and **`[분석 자료로 즉시 자동 채우기]`** (`#btn-autofill-carousel-texts`).
+2. **Always-Visible 3-Part Story Plan Editor (`#carousel-story-plan-panel`) & Auto-Population from Video Analysis**:
+   - Added `#carousel-story-plan-panel` (`영상 소재 분석 기반 [표지 · 본문 · 마지막장] 자동 구성 대본`) directly above the 8-theme layout picker with 3 dedicated, clearly labeled editors:
+     1. **`01 표지 (Cover · 첫 장 훅)` (`#carousel-cover-title`)**: Hook headline + subcopy (`헤드라인 | 보조카피`).
+     2. **`02~N-1 본문 (Body · 핵심 포인트)` (`#carousel-body-texts`)**: Problem empathy -> core feature -> real-use detail points (`한 줄에 1장씩`).
+     3. **`N 마지막장 (CTA · 핵심 요약·결론)` (`#carousel-cta-text`)**: Final summary & CTA (`[상품/핵심 요약] ... | 보조 설명`).
+   - Added `ensureCarouselStoryAutoPopulated(force)` in `downloader/studio_web/studio.js` and triggered it automatically in `render()`, on `selectStage('carousel')` (`downloader/studio_web/workspace.js`), and on `#carousel-count` changes so that as soon as video material analysis is available, **Cover**, **Body**, and **Last Slide (CTA)** are automatically populated without manual typing.
+3. **Backend AI Story Synthesis & Deterministic 3-Role Harvesting (`downloader/studio.py`)**:
+   - Enhanced `_build_fallback_carousel_texts()` so Slide 1 is structured as the **Main Cover**, Slides `2..count-1` as **Body Points**, and Slide `count` (`count >= 3`) as the **Final Summary / CTA Slide**.
+   - Added `_generate_ai_carousel_story_slides()` and `POST /studio/jobs/<job_id>/carousel-story-draft` to synthesize structured `cover`, `body`, and `cta` slides (including recommended frame timestamps) using the user's selected AI provider/model, and wired `POST /studio/jobs/<job_id>/carousel-generate` to apply AI story copy and timestamps when generating the carousel set.
+4. **Compact Left Preview Column (`280px` Player / `310px` Column) Across `01 영상·소재 분석`, `02-A 미디어(영상) 편집`, and `02-B 캐러셀·뉴스카드 편집` (`downloader/studio_web/studio.css`)**:
+   - Narrowed `.analysis-workspace-grid` in `01`, `02-A`, and `02-B` to `grid-template-columns: minmax(260px, 310px) minmax(0, 1fr) !important` (`playerColWidth: 310px`, `playerFrameWidth: 280px`, `max-height: 410px`) and narrowed `.carousel-wb-grid` active slide preview to `minmax(230px, 280px) minmax(0, 1fr)` (`wbCanvasWidth: 280px`), expanding the right-hand editing workbench to `1162px+`.
 
+### 19. `02-A 미디어(영상) 편집` — Subtitle Erase (Blur / Cover / Complete AI Inpaint), Interactive Mask Box, and Video Zoom (`downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.css`, `downloader/studio_web/studio.js`, `downloader/test_studio.py`)
+1. **Subtitle Erase Modes (`#text-erase-mode` & `.erase-mode-chip-group` in `STEP A`)**:
+   - **원본 유지 (`none` / `keep`)**: Preserves original video/image frame and composites only the new Korean title/subtitle.
+   - **흐림 (블러 · `blur_subtitles` / `blur_mask`)**: Applies Gaussian blur (on images) or FFmpeg `delogo` regional blur (on videos) over the subtitle/watermark mask region.
+   - **덮어씌우기 (`cover_subtitles` / `cover_mask`)**: Draws a solid/translucent mask box with customizable color (`#erase-mask-color`) and opacity (`#erase-mask-opacity`, `20% ~ 100%`) via Pillow rounded rectangle (on images) or FFmpeg `drawbox=t=fill` (on videos).
+   - **완전 삭제 (`auto_subtitles` / `auto_text` / `local_fill`)**: Uses RapidOCR + Telea/Navier-Stokes & Optical-Flow temporal inpainting (`clean_text_video` / `clean_and_overlay_image`) to erase original foreign subtitles or watermarks completely.
+2. **Interactive Draggable & 8-Direction Resizable Mask Region (`#drag-mask-box` in `STEP B`)**:
+   - Added `#drag-mask-box` inside `#player-overlay-canvas` with 8 directional resize handles (`n, s, w, e, nw, ne, sw, se`), live visual feedback (backdrop blur for `blur_subtitles`, colored cover box for `cover_subtitles`, striped target zone for `auto_subtitles`/`local_fill`), quick mask presets (`하단 자막줄 맞춤`, `하단 2줄 와이드`, `상단 워터마크`, `우측 하단 로고`, `중앙 배너 가림`), and `X / Y / W / H (%)` coordinate inputs (`#mask-x`, `#mask-y`, `#mask-w`, `#mask-h`).
+3. **Video / Image Zoom Scale & Focus (`STEP C`)**:
+   - Added `100% ~ 160%` zoom slider & number input (`#video-zoom-scale-range`, `#video-zoom-scale`), quick zoom preset buttons (`100% 원본`, `108% 미세 크롭`, `116% 테두리·로고 컷`, `128% 자막·여백 컷`, `140% 클로즈업`), and focus center inputs (`#video-zoom-focus-x`, `#video-zoom-focus-y`).
+   - Previews zoom in real time on `#preview` / `#image-preview` via CSS `transform: scale(...)` and `transform-origin`, and renders permanently via OpenCV cubic crop/resize (for images) or FFmpeg `scale` + `crop` filterchain (for videos).
 
+### 21. `02-B 캐러셀·뉴스카드 편집` — 1st-Slide 90% Viral Hook Formula Engine & Structured Bottom Slide Workbench (`사진 수정 [이미지 추가 · Ctrl+V 복사 붙여넣기]` + `제목` + `부제목` + `본문 텍스트 추가`) (`downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.js`, `downloader/studio_web/studio.css`, `downloader/test_studio.py`)
+1. **1st-Slide (Cover) 90% Viral Hook Formula Engine (`COVER_HOOK_FORMULAS` / `formatCoverHookByFormula`)**:
+   - Added 5 one-click Cover Hook Formula chips (`data-cover-hook-formula`) in both the top `#carousel-story-plan-panel` (`#carousel-cover-hook-formula-bar`) and the bottom active slide workbench (`.wb-cover-hook-box`):
+     - `question` (**질문형 후킹**): 호기심·공감 유발 질문으로 스와이프 유도 (`아직도 [키워드] 그냥 고르세요?` / `혹시 [키워드] 아직도 그대로 쓰세요?`)
+     - `number` (**숫자·공식형 후킹**): 구체적 수치·법칙으로 신뢰도·클릭률 상승 (`잘 고르는 [키워드] 핵심 공식 N가지` / `90%가 놓치는 [키워드] 핵심 공식 N가지`)
+     - `twist` (**반전·통념파괴형**): 고정관념을 깨는 반전 문장으로 시선 고정 (`다 똑같다는 [키워드]의 의외의 반전`)
+     - `loss_aversion` (**손실회피·비교형**): 모르면 손해 보는 핵심 체크 포인트 강조 (`모르면 나만 손해 보는 [키워드] 체크리스트`)
+     - `direct_rule` (**단도직입·비결형**): 잘 터지는 핵심 공식·결론을 직관적으로 제시 (`잘 터지는 [키워드] 핵심 비결 총정리` + `잘 되는 캐러셀에는 공식이 있습니다!`)
+   - Supported `hook_formula` in `/jobs/<job_id>/carousel-story-draft`, `/jobs/<job_id>/carousel-generate`, and `/jobs/<job_id>/carousel-slide-update` (both AI generation prompt and deterministic fallback).
+2. **Canva-Style Bottom Storyboard Filmstrip + Structured 4-Step Slide Workbench (`#carousel-slides-wrap` / `renderCarouselPreview()`)**:
+   - Added a Canva-style `[+ 슬라이드 추가]` card (`.carousel-storyboard-add-card`) at the end of the horizontal slide filmstrip (`#carousel-slides-preview`).
+   - Rebuilt the active slide workbench (`#carousel-active-workbench`) into a clear, step-by-step editor:
+     - **1. 사진 수정 (`이미지 추가 · 복사 붙여넣기 · 장면 캡처`)**:
+       - **`+ 이미지 파일 추가/교체`** & **`+ 새 슬라이드로 사진 추가`** (`#carousel-slide-photo-input` file picker + drag-and-drop onto `.wb-canvas-frame`).
+       - **`클립보드 이미지 붙여넣기 (Ctrl+V)`**: Clicking the button or pressing `Ctrl+V` anywhere in `02-B 캐러셀·뉴스카드 편집` reads the image from the clipboard, converts it to `image_data_url`, crops it to the carousel aspect ratio (`4:5` / `1:1` / `9:16`) via `_save_custom_slide_image_from_data_url` in `downloader/studio.py`, and immediately updates the active slide's photo (with a 1-click restore button to revert to the video/original frame).
+       - **`-0.5초` / `+0.5초` / `현재 영상 시점 캡처`** video frame controls.
+     - **첫 장(표지)이 90% — 바이럴 후킹 공식 원클릭 적용 바**: Instant 1-click conversion of the slide's Title & Subtitle into Question / Number / Twist / Loss-Aversion / Direct-Secret hook formats.
+     - **2. 제목 (`#wb-active-head-input`)**: Main headline input with `+ [박스 강조]` and `+ *색상 강조*` syntax buttons.
+      - **3. 부제목 (`#wb-active-subtitle-input`)**: 2nd-tier hook subcopy / core summary line (e.g., `"잘 되는 캐러셀에는 공식이 있습니다!"`).
+      - **4. 본문 텍스트 추가 (`#wb-active-body-input`)**: Multi-line additional body copy / bullet points with `+ 체크포인트 줄 추가` and `본문 비우기` buttons, rendered across all 8 Canva themes via multi-line `sub_text` support in `_render_canva_editorial_card_pil` (`downloader/studio_text_clean.py`).
 
-## 2026-10-15 KIE 통합
-KIE 독립 공급자와 키·모델·가격·크레딧·분석·초안·번역 UI 구현. 상세 범위와 미검증 항목은 KIE-INTEGRATION.md 참조. 실제 키 및 유료 생성은 미검증. 기존 로컬 변경 보존.
+### 22. `01 영상·소재 분석` & `02-A 미디어(영상) 편집` — Click-to-Edit Unified Text Inspector (`#capcut-text-inspector`) & 11-Feature Typography Engine (`downloader/studio_text_clean.py`, `downloader/studio.py`, `downloader/studio_web/index.html`, `downloader/studio_web/studio.js`, `downloader/studio_web/studio.css`, `downloader/test_studio_text_clean.py`, `downloader/test_studio.py`)
+1. **Click-to-Edit Interactive Canvas & Unified Text Inspector (`#capcut-text-inspector`)**:
+   - Clicking any text layer on the video preview canvas (`#drag-title-box` or `#drag-subtitle-box`), clicking the preview quick-select buttons (`#btn-canvas-select-title` / `#btn-canvas-select-sub`), or clicking the inspector layer pills (`#inspector-tab-title` / `#inspector-tab-subtitle`) highlights the active layer on the canvas (`.active-selected-layer`), opens `02-A 미디어(영상) 편집 -> ① 텍스트 편집창 (클릭·실시간 수정)`, and populates `#capcut-text-inspector` for that layer (`activeTextLayer = 'title' | 'subtitle'`).
+   - Separated `02-A 미디어(영상) 편집` into 4 clean, focused tabs (`data-edit-tab`):
+     1. `① 텍스트 편집창 (클릭·실시간 수정)` (`#media-text-editor` / `#capcut-text-inspector`)
+     2. `② 자막 지우기 · 마스크 · 화면 확대` (`#video-erase-mask-zoom-pane`)
+     3. `③ 3초 후킹 · 인트로 연출` (`#hook-analysis-panel`)
+     4. `④ 쓰레드 미디어 묶음 (영상+이미지)` (`#media-bundle-panel`)
+2. **11 Core Typography Features (Live Preview + Pillow/FFmpeg Backend Rendering)**:
+   - **① 텍스트 수정 (`#inspector-text-input`, `#inspector-badge-input`)**: Multi-line / `|` 2-tier text input + `+ [형광펜 박스]` + `+ *색상 강조*` + `분석·OCR 문구 자동 채우기`.
+   - **② 사전 설정 스타일 (`[data-inspector-preset]`)**: 8 one-click presets (`초대형 옐로우`, `둥근 블랙 카드`, `상단 헤더바(블랙+핑크띠)`, `3D 입체 외곽선`, `형광 그린 글로우`, `매거진 배지+다크박스`, `화이트 카드`, `투명 외곽선`).
+   - **③ 글꼴 (`#inspector-font-select`)**: 25 categorized Korean fonts + `+ 내 폰트(.ttf/.otf)` upload.
+   - **④ 패턴 (`#inspector-btn-bold`, `#inspector-btn-italic`, `#inspector-btn-underline`)**: Bold (`wght` axis / stroke boost), Italic (Pillow affine shear transform `_apply_layer_italic_and_opacity` & CSS `font-style: italic`), and Underline (Pillow underline draw & CSS `text-decoration: underline`).
+   - **⑤ 정렬 (`[data-inspector-align="left|center|right"]`)**: Left, Center, and Right alignment inside the text box in both live preview and Pillow rendering (`_render_video_hook_template_layer` & `render_overlay_rgba_layer`).
+   - **⑥ 글꼴 크기 (`#inspector-font-size-range`, `#inspector-font-size`)**: `18px ~ 140px` slider and numeric input.
+   - **⑦ 확대 배율 (`#inspector-scale-pct-range`, `#inspector-scale-pct`)**: `50% ~ 200%` layer scale multiplier (`scale_pct`).
+   - **⑧ 불투명도 (`#inspector-opacity-range`, `#inspector-opacity`)**: `15% ~ 100%` layer alpha multiplier (`opacity`).
+   - **⑨ 문자간격 · 자간 (`#inspector-letter-spacing-range`, `#inspector-letter-spacing`)**: `-4px ~ +24px` character-by-character spacing (`_measure_spaced_text` & `_draw_double_stroke_text`).
+   - **⑩ 줄간격 · 행간 (`#inspector-line-spacing-range`, `#inspector-line-spacing`)**: `0.85 ~ 2.20` line spacing multiplier (`line_spacing`).
+   - **⑪ 색상 & ⑫ 획 · 2중 테두리**: Custom text hex color (`#inspector-text-color` + 6 quick color swatches), background box toggle/color/opacity (`#inspector-bg-enabled`, `#inspector-bg-color`, `#inspector-bg-opacity`), 1st inner stroke (`#inspector-stroke-width`, `#inspector-stroke-color`), and 2nd outer double stroke (`#inspector-double-stroke-width`, `#inspector-double-stroke-color`).
 
+---
 
-## 2026-10-15 API 설정 UX 정리
-AI 연결 / 콘텐츠 검색·제휴 / 사용량·등록 현황으로 분리. 선택 서비스 키만 노출, 서비스→키→모델 순서, KIE 고급·번역 접기. DOM 검증 통과(기존 핸들러·분류·서비스 전환·중복 ID). 키·유료 외부 요청·서버 재시작 없음.
+## Verification Evidence (Separated by Category)
 
-실서버 신규 asset 경로 404 발견 후 기존 studio.js/studio.css에 통합하여 재시작 없이 제공하도록 수정. 실제 HTTP 제공 확인. 유료 공급자 호출 없음. 네이티브 화면은 창 조작 제약으로 최종 시각 검증 미완료.
+### Static / Unit Verification
+- `powershell -ExecutionPolicy Bypass -File .agents/skills/safe-backup-and-verify/scripts/backup_snapshot.ps1 -Label "before_capcut_style_text_inspector_and_analysis_edit_ux"` -> **PASS (`[BACKUP OK] Copied 16 core files to .backups/20261016-164409-before_capcut_style_text_inspector_and_analysis_edit_ux`)**.
+- `powershell -ExecutionPolicy Bypass -File .agents/skills/safe-backup-and-verify/scripts/verify_project.ps1` -> **PASS (`All JS/CJS files passed syntax check`, `All Python modules passed py_compile`, `Ran 5 tests in 3.720s - OK`, `All Project Health & Regression Checks PASSED`)**.
+- `python -m unittest test_studio.StudioTests.test_video_text_inspector_11_typography_parameters_persist_and_render` (in `downloader/`) -> **PASS (`Ran 1 test in 3.099s - OK`)**.
+- `python -m unittest test_studio_text_clean.TextCleanTests.test_capcut_11_typography_features_render_in_pillow` (in `downloader/`) -> **PASS (`OK`)**.
+- `powershell -ExecutionPolicy Bypass -File .agents/skills/safe-backup-and-verify/scripts/backup_snapshot.ps1 -Label "before_carousel_workbench_image_paste_and_cover_hook_formulas"` -> **PASS (`[BACKUP OK] Copied 16 core files to .backups/20261016-161159-before_carousel_workbench_image_paste_and_cover_hook_formulas`)**.
+- `python -m unittest -v test_studio -k "test_carousel"` (in `downloader/`) -> **PASS (`Ran 3 tests in 9.241s - OK`, including `test_carousel_cover_hook_formulas_and_slide_photo_paste_and_3tier_text`, `test_carousel_story_draft_and_3part_cover_body_cta_generation`, and `test_carousel_and_media_text_edit_erase_mode_none_preserves_original_frame`)**.
+- `python -m unittest test_studio.StudioTests.test_video_subtitle_erase_modes_blur_cover_inpaint_mask_and_zoom test_studio.StudioTests.test_carousel_and_media_text_edit_erase_mode_none_preserves_original_frame` (in `downloader/`) -> **PASS (`Ran 2 tests in 8.001s - OK`)**.
+- `python -m unittest discover -s downloader -p "test_studio.py" -k "test_carousel_story_draft_and_3part_cover_body_cta_generation"` -> **PASS (`Ran 1 test in 1.618s - OK`)**.
+- `python -m unittest discover -s downloader -p "test_studio_text_clean.py"` -> **PASS (`Ran 5 tests in 3.720s - OK`, including `test_capcut_11_typography_features_render_in_pillow` and `test_expanded_korean_fonts_double_stroke_and_box_radius`)**.
+- `node --check` on `studio-browser/threads-research-extract.js`, `studio-browser/threads-research.cjs`, `downloader/studio_web/threads-research-ui.js`, `downloader/studio_web/workspace.js`, `downloader/studio_web/studio.js`, `downloader/content-studio.js`, `studio-browser/main.cjs` -> **PASS**.
+- `node studio-browser/test_threads_research_media.cjs` -> **PASS (`media gate, pending previews, reply exclusion, exact/visual grouping, highest-view representative, separate override, distinct carousel protection`)**.
+- `node verify_threads_research_upgrade.cjs` -> **PASS (`deep metrics/media capture, daily account sync + detail view enrichment, and read-only API token store`)**.
+- `node studio-browser/test_clip_split.cjs` -> **PASS (`Clip discovery and creator tabs separated; uploads use creator; profile/viewer stays discovery`)**.
+- `python -m unittest discover -s downloader -p "test_studio.py" -k "test_magazine_carousel_8_themes_slide_actions_and_video_png_overlay" -v` -> **PASS (`OK` in 8.95s)**.
 
+### Real Browser & Rendered Showcase Verification
+- **`02-A 미디어(영상) 편집` — Click-to-Edit Unified Text Inspector (`#capcut-text-inspector`: Layer Switcher, Text Input, 8 Preset Styles, 25 Fonts + Custom Font, Pattern `[B 굵게 / I 기울임 / U 밑줄]`, Alignment `[좌측 / 가운데 / 우측]`, Font Size `px`, Scale `%`, Opacity `%`, Letter Spacing `px`, Line Spacing, Color Swatches & Background Box, and 1st/2nd Double Stroke)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_capcut_text_inspector_title.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_capcut_text_inspector_subtitle.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_tab2_erase_mask_zoom.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_01_analysis_step123_clean.png`
+- **`02-B 캐러셀·뉴스카드 편집` — 1st-Slide 90% Cover Hook Formula Bar (`질문형`, `숫자·공식형`, `반전·통념파괴형`, `손실회피·비교형`, `단도직입·비결형`), Canva-Style `+ 슬라이드 추가` Storyboard Filmstrip, and Structured Bottom Slide Workbench (`1. 사진 수정 [이미지 추가 · Ctrl+V 복사 붙여넣기]`, `첫 장 90% 후킹 공식`, `2. 제목`, `3. 부제목`, `4. 본문 텍스트 추가`)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02b_cover_hook_formulas_top.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02b_bottom_workbench_photo_title_subtitle_body.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02b_workbench_4steps_detail.png`
+- **`02-A 미디어(영상) 편집` — Subtitle Erase Modes (`원본 유지`, `흐림(블러)`, `덮어씌우기`, `완전 삭제`), Interactive Mask Region (`STEP B`), and Video Zoom (`STEP C` `116% 확대`)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02a_erase_mask_zoom_blur.png`
+- **Compact Preview Width (`310px` Left Column / `280px` Player & Slide Canvas / `1162px` Right Workbench) Across `01 영상·소재 분석`, `02-A 미디어 편집`, and `02-B 캐러셀 편집`**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_narrow_preview_01_analysis.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_narrow_preview_02a_editing.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_narrow_preview_02b_carousel.png`
+- **`02-B 캐러셀·뉴스카드 편집` Pre-Production AI Engine/Model Selector Bar (`STEP 0` `Gemini API / gemini-2.5-flash`) & Auto-Populated 3-Part Story Panel (`01 표지`, `02~03 본문`, `04 마지막장 CTA` automatically filled from video analysis)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02b_carousel_ai_story_auto_top.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_02b_carousel_ai_story_and_workbench.png`
+- **`01 영상·소재 분석` Guided Workflow & Pre-Analysis AI Engine/Model Selector Bar (`STEP 0` Provider/Model Selector `Gemini API / gemini-2.5-pro`, Scope Pill `음성(내레이션) + 영상 프레임 통합 분석`, 3-Step Overview Strip, and `STEP 1`~`STEP 4` Cards)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_01_analysis_ai_model_bar_ux.png`
+- **`02-A` Media Editing Studio (25+ Categorized Korean Fonts + `[+ 내 폰트 추가 (.ttf/.otf)]`, Box Corner Radius Sliders `34px`/`42px`, and 1st/2nd Double-Stroke Outline Sliders & Color Pickers with Live Preview)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_fonts_radius_double_stroke_02a.png`
+- **`02-B` Carousel Studio Workbench (Per-Slide Font Selector + `[+ 내 폰트]` Upload + 1st/2nd Double-Stroke Sliders & Color Pickers)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_fonts_double_stroke_02b_workbench.png`
+- **Wide `02-A` Media Editing Studio (NLE Filmstrip/Waveform Scrubber `00:00:04:14`, Carousel Replace Button Hidden, Title Font Size Slider `54px -> 92px` Scaling Preview from `25.5px -> 43.4px`, and Mobile Live Preview Hidden)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_wide_02a_nle_and_font_slider.png`
+- **Wide `02-B` Carousel Studio (Large `410px × 513px` Active Slide Preview Canvas, NLE Scrubber with `[현재 시점으로 캐러셀 슬라이드 배경 교체]` Button Visible, and Mobile Live Preview Hidden)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_wide_02b_large_carousel_preview.png`
+- **`03 대본·게시문` Stage (Left `실시간 미리보기 모바일 게시 화면` Automatically Shown)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_03_writing_with_mobile_preview.png`
+- **Threads Shopping Account & Video Reference Discovery UI (Clarified Naming, Media + Views/Likes/Replies/Reposts Cards, Daily Account Sync Controls, and Read-Only Threads API Collector)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_threads_research_accounts_and_api_ui.png`
+- **8 Distinct `body` Slide Architectural Layouts Showcase (`editorial_dark`, `magazine_gradient`, `clean_white`, `highlight_hook`, `mint_modern`, `warm_luxury`, `neon_pop`, `minimal_outline`)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_8_distinct_body_layouts_showcase.png`
+- **Pro Studio Monochrome UI, Fixed Horizontal Frame Buttons (`+ 첨부 추가` / `슬라이드 배경`), and Optimized `02-B` Carousel Workbench UX**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_fixed_frames_buttons_and_pro_ui.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_pro_carousel_workbench_ux.png`
+- **8-Direction Title Box Resize, Font Family (`brush_kr` / `serif`), `px` Font Size (`68px` / `48px`), Scrubber Frame Capture (`1.40s`), `Ctrl+Z` Undo, and `F5` Reload State Preservation**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_title_box_resize_font_px_and_scrubber.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_after_f5_reload_preserved.png`
+- **Cover (`메인 표지`) vs Body (`본문 포인트`) vs CTA (`마지막 요약·전환`) Role Comparison Showcase**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_carousel_cover_body_cta_roles_showcase.png`
+- **Separated Studios Live Browser Verification (`01` Dual Track Chooser, `02-A` Media Editing Studio, `02-B` Carousel Workbench & Storyboard Deck)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_stage01_dual_track_chooser.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_stage02a_media_editing_studio.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_stage02b_carousel_workbench_cover.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_stage02b_carousel_workbench_body_and_deck.png`
+- **Native Aspect-Ratio Player Stage & Safe-Zone Guide Alignment (`702×1062` vertical video rendered at `366px × 554px`, matching `#analysis-player-stage` `368px × 557px` with zero sidebars)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_vertical_player_native_ratio_safezone.png`
+- **Draggable Title & Subtitle Overlay Box Shape Stability (`322.4px × 101.9px` invariant across center, right, left, and bottom positions)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_drag_title_box_center_fixed.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_drag_title_box_right_edge_fixed.png`
+- **Source Hub Sub-Navigation & Global Button Spacing Audit (`AUDIT ISSUES FOUND: 0` across all 9 workspaces)**:
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_source_subnav_buttons_spaced.png`
+  - `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_create_top_actions_spaced.png`
+- **8 Canva 1:1 Card News Layouts Showcase**:
+  `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_8_canva_editorial_layouts_showcase.png`
+- **6 Korean Viral Video Hook Templates Showcase**:
+  `C:\Users\hynihk\.gemini\antigravity\brain\1c9155c0-dfe9-4a1f-9388-40354814a3c7\screenshots\verify_6_video_hook_templates_showcase.png`
 
-## 2026-10-15 API 설정 카드 UX
-5개 서비스 선택 카드, 선택 강조, 연결/모델 2열 배치, 780px 이하 단일열, 버튼 높이44px·간격12px, 고급/삭제 분리. 기존 핸들러·KIE DOM 회귀 통과. 격리 Chromium 1440px/390px 렌더 확인(가로 넘침 없음). 실제 공급자 호출·키 변경·앱/도우미 재시작 없음.
-
-
-## 2026-10-15 배포 준비 실행 계획
-RELEASE-READINESS-PLAN.md에 A~L 12단계, 퇴행 방지·증거 구분·복구·비용/게시 권한 경계·새 PC 배포 검증 기준 작성. 이번 작업은 계획 작성이며 실제 배포 구현·승인·패키징을 수행하지 않음.
-
-## 2026-10-15 배포 준비 단계 A~E 구현 및 전수 검증 완결
-- **단계 A (실행 기준점 & 시스템 빌드 노출)**:
-  - 포트 5006/5005 소유권 및 단일 진입점 추적 확정.
-  - `/studio/connections-status` 및 스튜디오 UI에 안전한 시스템 빌드 정보 (`app_version: '3.5.0'`, `commit_id: '55cd118'`, `is_dirty: true`, `schema_version: 'v5_verified_published_date'`, `helper_port: 5006`) 노출 (개인정보·키 유출 0건).
-- **단계 B (게시·삭제 데이터 무결성 확보 — P1 3종 완결)**:
-  - B1: 다중 첨부 사전 검증 (`threads-upload.cjs`) — 캐러셀 10개 초과, 다운로드 404/실패, 0바이트, 30MB 초과 시 즉시 게시 사전 차단.
-  - B2: 게시 완료·댓글 판정 엄격화 (`studio-upload.js`) — 과거 게시물 링크 오인 방지(`oldLinks`, `oldPostIds` 영구 배제, 계정·본문·타임스탬프 3중 검증).
-  - B3: 수집/보관함 탭 전환 비동기 응답 순서 역전 차단(`referenceLoadSeq`) 및 카드 레벨 삭제 collection 고정.
-- **단계 C & D (런타임 안정성 & 설정 UX)**:
-  - `test_shutdown.cjs` (PASS) 및 `test_studio_kie_dom.js` (PASS).
-- **단계 E (회귀 해결 및 전체 테스트 전수 통과)**:
-  - 캐시 버전 상수(`FILTER_VERSION = 'v5_verified_published_date'`) 모듈 레벨 정의.
-  - 분석/원문 없는 초안 요청 400 거절 및 제휴 상품 `#광고` 필수 검증 반영.
-  - 영상 획득 시 포스터 이미지 422 거절 로직 보강.
-  - 쿠팡 정밀 검색 쿼리(`site:www.coupang.com/vp/products`) 테스트 동기화.
-  - **전체 자동화 테스트 통과 현황**:
-    - Python 단위 테스트 (`python -m unittest discover -s downloader -p "test_*.py"`): **139개 전체 통과 (`Ran 139 tests in 85.190s, OK`)**
-    - Node.js 단위·DOM 회귀 테스트: **5개 스위트 전체 통과 (`PASS`)**
-
-
-## 2026-10-15 Threads 상품 관련 탐색
-THREADS-RESEARCH.md 참조. 비로그인 관련 수집·계정 누적·상업성 단서·공개 반응·기존 로그인 원문/작성자 댓글 검사·제품 확인·레퍼런스 전송 구현. 격리 테스트 통과. 실사이트 예시는 로그인 요구로0건 중단 확인; 전체 실수집 미검증. 앱 시작 코드 적용은 정상 재실행 필요. 기존 앱/도우미·사용자 자료 유지.
-
-정상 재실행 승인 후 앱/5006이 이미 닫힌 상태 확인→기존 start-browser.bat 실행→도우미 busy=false→실제 Threads 상품 레퍼런스 UI 표시 확인. 생산 테스트 항목 생성·공개 게시·유료 API 호출 없음. /share/ 단축 주소는 현재 고유 게시물 주소로 연 뒤 사용해야 함.
-
-
-## 2026-10-15 공유 링크 입력 오류 수정
-/share/ 링크를 공식 도메인의 게시물 주소로 실제 연결한 뒤 수집하도록 수정. 프로토콜 생략·앞뒤 공백 지원, 외부 도메인/자격증명/포트 차단,25초 로딩 상한 추가. 실사이트 공유 링크1건 고유 주소 연결 확인, 이후 로그인 요구는별도 상태로0건 중단. 격리 회귀 통과. 사용자 승인 후 정상 재실행 적용 진행.
-
-
-## 2026-10-15 모바일 및 연속 탐색
-출발 게시물→관련→프로필→다른 게시물의 영속 대기열, 중복 제거, 실행 한도, 일시정지/이어가기와 정상 사이트 X 닫기를 구현했다. 앱 종료 전에 탐색을 멈춘다. 기존 로그인·키·참조 데이터는 변경하지 않는다.
-격리 회귀 테스트와 실제 별도 Electron 저장소에서 4+4페이지 이어 방문을 확인했다. 누적 콘텐츠25개·계정10개이며 사용자 저장소에 테스트 자료를 주입하지 않았다. 실제 실행의 X 클릭은0회이므로 팝업 자동 닫기의 실사이트 성공 증거와 구분한다. 사용자 승인으로 정상 재실행 적용을 진행한다.
-실제 적용 확인: 사용자 승인 후 기존 앱에 정상 닫기를 전달했다. 5006 종료와 프로필 잠금 자동 해제를 확인한 뒤 start-browser.bat으로1회 실행했다. 새 메인 PID50208, /studio/busy-status HTTP200(active_count=0), 실제 창의 ‘도우미 연결됨’과 확장 탐색/이어가기/일시정지 버튼을 확인했다. 기존 후보7개도 화면에서 유지됐다. 이번 적용 확인에서 생산 탐색이나 외부 유료 API 호출은 실행하지 않았다.
-
-## 2026-10-15 Threads 탐색 별도 작업 탭
-콘텐츠 발견 내부에 붙어 있던 연구 화면을 상단 ‘Threads 상품 탐색’ 작업 탭으로 분리했다. 기존 DOM 이벤트·수집 자료·영속 대기열을 공유하고 탭 이동으로 탐색을 시작하거나 중단하지 않는다. 마지막 선택 탭 보존과 workspace=research 진입을 지원한다. 연구 DOM 회귀/기존 레퍼런스 흐름/JS 구문 검사 통과. 실제 실행 앱을 재시작하지 않고 화면 새로고침하여 새 탭 표시 및 선택, 확장 탐색 버튼과 기존 저장 자료 표시를 확인했다. 외부 검색이나 생산 탐색은 실행하지 않았다.
-
-## 2026-10-15 연구 탭 너비 수정
-별도 main이 공통 240px 사이드바 그리드를 상속하여 본문이 좁아진 원인을 확인했다. research-workspace를 display:block, width:100%, max-width:none으로 한정 수정하고 모바일 여백·단일 카드 열·긴 상태문 줄바꿈을 지정했다. 실제 앱 새로고침 후 1366px 창에서 탐색 패널이 좌우 가용 폭을 사용하는 화면을 확인했다. 작은 화면용 CSS는 추가했으며 별도 모바일 실측은 하지 않았다. 데이터 및 탐색 동작 변경 없음.
-
-## 2026-10-15 프로필의 새로운 게시물 우선 확장
-깊이 순 대기열을 프로필의 미방문 게시물→새 작성자 프로필→대기 중 관련 게시물 우선순위로 변경했다. 프로필에서 이미 방문한 글은 게시물 수 한도에 포함하지 않고, 기존 관련 후보와 겹쳐 대기 중인 글은 프로필 탐색 우선순위로 승격한다. 제품 문구·외부 링크·광고 태그 단서를 우선하되 동일 제품 자동 판정은 하지 않는다. 새 게시물에서 발견한 관련 콘텐츠로 계속 확장하며 게시물ID 중복 제거를 유지한다. 격리 테스트에서 프로필/새 게시물 우선 방문, 원래 링크 재방문 없음, 한도1에서도 기존 글을 건너뛰어 새 글 방문 및 기존 연구 회귀 통과. 새 스케줄러는 메인 프로세스 모듈이므로 실제 앱 적용은 정상 재실행 필요. 실사이트 새 순서 실행은 아직 미검증.
-
-## 2026-10-15 반응 수치·썸네일·언어 구분
-미추출 수치를 ‘미공개’로 단정한 UI를 ‘미확인’으로 정정했다. SVG aria-label뿐 아니라 title 속성/title 요소의 반응 라벨을 읽고, 원문 상단의 조회수 라벨을 게시물 카드와 분리하여 읽는다. 별도 detail_metrics가 화면에 반영되지 않던 문제를 수정하여 최신 확인 수치와 기존 수치의 null 보완 값을 표시·정렬한다. 본문 이미지/영상 포스터의 CDN 썸네일을 저장·표시하고 상세 갱신에서 기존 자료에 보완한다. 카드별 ‘수치·썸네일 갱신’은 로그인 세션 원문 창을 열어 DOM을 제한적으로 다시 읽는다.
-한국어/해외 언어/미확인 표시·필터를 추가했다. 시간·작성자 같은 한국어 UI를 제거한 본문 문자 기준이며 계정 국적이나 소재국 판정이 아니다. 이미지 속 언어/OCR은 미지원이다.
-검증: 사용자와 같은 형태의 DOM에서 조회88/좋아요5/댓글5/썸네일 추출 테스트 통과. 별도 실제 공개 페이지 DeRYIpXEgfY에서 좋아요92/댓글4/리포스트14/썸네일 추출 확인. 해당 비로그인 화면에는 조회 라벨이 없어서 조회수 null이며 스크린샷의88을 실제 수집값으로 복사하지 않았다. 기존 연구 회귀 통과. 승인된 정상 종료·재실행 후 실제 앱에서 언어 필터·갱신 버튼과 기존 콘텐츠180개/계정41개 유지 확인. 실제 저장된 원문 수치(조회17000·좋아요181·댓글14·리포스트15)가 카드에 표시되고 썸네일도 나타나는 화면을 확인했다. 이전 탐색 순서 변경도 함께 적용됐다. 사용자가 보고 있는 자료에 대량 재조회는 하지 않았다. 누락된 기존 썸네일/수치는 원문 갱신 또는 이후 탐색 시 보완된다.
-
-## 2026-10-15 미디어 중심 레퍼런스 선별
-목적을 계정/게시물 개수 누적에서 제작할 새 미디어와 반응이 좋은 반복 미디어 선별로 변경했다. 추출 결과에 실제 본문 media_assets/media_checked를 기록한다. 프로필 사진·외부 링크 미리보기·크기가 작은 아이콘을 제외하며 작성자 댓글은 원문 근거로만 유지하고 새 콘텐츠로 등록하지 않는다. 실제 미디어가 없는 새 글은 콘텐츠 저장/확장 후보에서 제외한다. 기존 기록은 삭제하지 않고 확인 대기/제외로 분류한다.
-로컬 research-previews에 실제 CDN 이미지를 제한된 크기·시간으로 받아 디코딩하고 JPEG 미리보기·SHA256·dHash를 저장한다. 외부 리다이렉트 및 임의 호스트는 차단한다. 정상 카드는 디코딩된 로컬 미리보기가 있어야 표시한다. 미확보·실패는 확인 대기로 분리한다. 본문이 변경되면 이전 미리보기를 무조건 재사용하지 않는다.
-같은 미디어 경로/이미지 바이트/가까운 썸네일 해시로 묶고 확인된 조회수가 높은 글을 대표로 표시한다. 상품명만 같다는 이유로 묶지 않으며 캐러셀의 첫 장만 같을 때 전체 중복으로 확정하지 않는다. 썸네일 유사는 ‘유사 후보’로 구분하며 사용자가 별개 콘텐츠로 분리할 수 있다. 영상 전체 프레임·오디오 비교나 변경된 표지의 동일 영상 탐지는 이번 구현에 포함되지 않으며 새로움은 수집 범위 내 중복 미발견을 뜻한다.
-UI: 새로운 콘텐츠, 반응 좋은 콘텐츠(조회수 순), 중복·유사 묶음, 제품 관련성 검토, 미디어·썸네일 확인 대기, 미디어 없는 글/제외 기록. 기존 자료 점검은 최대5개 원문을 순차 확인한다. 신규 수집은 페이지 사이 대기2.8초, 페이지당 미리보기 최대8개이며 나머지는 확인 대기에 보존한다. 사용자 제품 확인과 미디어·미리보기 확인이 모두 있어야 레퍼런스로 전송한다.
-검증: 미디어/댓글/프로필 제외, 중복 대표 선택·개수, 다른 콘텐츠 분리, 서로 다른 캐러셀 보호, 새 콘텐츠/중복/확인 대기 UI, 기존 연구·대기열·레퍼런스 회귀 통과. 별도 실제 Electron 저장소에서 사용자 예시 DedwZ7OEgmW를 읽어 본문/댓글2개 중 미디어가 있는 본문1개만 저장, 이미지2개·좋아요5/댓글5/리포스트1·실제 썸네일 캐시 및 재조회 성공. 해당 비로그인 화면의 조회수는 미확인으로 유지했다. 이 검증에 생산 자료를 주입하지 않았다.
-
-실제 적용 검증: 사용자 정상 재실행 승인 후 앱/직접 시작한5006을 정상 종료하고 새로 실행했다. 기존 생산 자료180개/계정41개/대기열101개를 보존했다. 실제 앱의 기존 자료 점검 버튼으로5개 원문을 읽어 썸네일5개 캐시, 제품 후보3개/관련성 검토2개/미확인175개를 확인했다. 이번5개에는 중복그룹이 없으므로 실제 중복그룹 성공 증거와 구분한다. 초기 실제 화면에서 기존 CSP가 data 이미지 미리보기를 막아 표시가 실패하는 것을 발견했으며 img-src에만 data:를 허용하고 재적용했다. 다른 개발 작업의 studio.py 변경은 보존하고 CSP 한 줄만 부분 스테이징했다.
-최종 실제 화면 확인: CSP 재적용 뒤 사용자 앱의 새로운 콘텐츠 목록에서 @peachymira__, @acik.haha, @nisrna_의 실제 미디어 썸네일3개와 반응 수치가 정상 표시되는 것을 화면으로 확인했다. 탐색 설정을 접고 콘텐츠 목록·언어·정렬을 먼저 표시하도록 정리했다. 기존 자료의 재점검은5개까지만 수행했으며 남은175개는 여전히 확인 대기다.
-
-## 2026-10-15 게시물 ‘제품 찾기’ 시작·간단 카드
-연구 화면을 ‘Threads에서 제품 찾기 → 찾은 제품 콘텐츠’ 순서로 정리했다. 긴 사용 안내, 카드 본문·문구·링크·발견 경로·제품 확인·갱신은 기본 닫힌 자세히 보기로 이동했다. 기본 카드는 실제 미리보기·계정·조회/좋아요/댓글·저장 버튼 중심이다. 주소 입력은 고급 설정에만 남겼다.
-전용 앱의 Threads 게시물 툴바에 ‘제품 찾기’를 추가했다. 클릭한 게시물의 고유 주소를 native IPC로 전달하며 mainFrame/공식 Threads 호스트 검사와 고정 탐색 한도를 적용한다. 원문 세션은 유지하고 별도 비로그인 창을 사용한다. 새 선택 출발점과 그 분기를 먼저 처리하고 이전 대기열은 삭제하지 않는다. 클릭 자체로 보관함 저장이나 게시를 하지 않는다.
-댓글이 많아 관련 스레드 DOM 영역이 확인되지 않는 경우 추가 댓글 스크롤을 하지 않고 원문 미디어를 확인한 뒤 작성자 프로필로 전환한다. 관련 미표시와 후보 없음은 구분하고 프로필 전환 횟수를 상태에 표시한다. 이유가 댓글 수 때문이라고 자동 단정하지 않는다.
-검증: 게시물당 버튼1개·정확한 선택 URL 전달·독립 클릭, 새 분기 우선/기존 대기열 보존, 관련 미표시→프로필 대기열, 기본 닫힌 상세/콘텐츠 순서/기존 연구 UI 회귀 통과. 실제 앱에서 사용자 예시 DedwZ7OEgmW의 제품 찾기를 눌러 별도 비로그인 창이 같은 게시물로 열리고 selected_branch/seed가 일치하며 관련 게시물/프로필 탐색으로 진행하는 것을 확인했다. 최초 연결 검증에서8페이지까지 처리되었으며 대기열·자료는 보존했다. 댓글 미표시 분기의 추가 변경은 격리 테스트로 확인했으며 특정 다댓글 게시물의 실사이트 합격으로 주장하지 않는다.
-최종 적용 확인: 현재 앱은 정상 실행/도우미 연결 상태이며 탐색은 일시정지로 복구되어 자동으로 계속 돌지 않는다. 실제 화면에서 ‘Threads에서 제품 찾기’가 콘텐츠 목록보다 위에 있고, 카드가 썸네일·계정·반응·닫힌 ‘자세히 보기’·수집 버튼으로 표시되는 것을 확인했다. 연결 검증으로 누적 자료는188개/계정43개가 되었고 기존 자료는 유지됐다. 현재 대기 후보101개는 보존됐다.
-
-## 2026-10-15 제작·게시 분리 및 수동 제휴 링크
-콘텐츠 제작과 게시·예약을 별도 작업 탭으로 분리했다. 제작은 수집 레퍼런스/분석·편집/대본·게시문/상품·제휴 링크의4단계이고, 작업 목록을 접을 수 있게 옮겨 본문 전체 폭을 사용한다. 게시 탭은 같은 선택 작업의 미디어·본문·첫 댓글을 연결하며 탭 전환으로 입력값을 초기화하지 않는다. sidebar 게시 메뉴도 새 게시 작업 화면으로 연결한다. 반응형 그리드,44px 수준의 주요 입력/버튼, 포커스 표시와 상단 탭 키보드 탐색을 추가했다.
-제휴 링크 직접 입력을 기본으로 변경했다. 직접 발급한 링크/상품명/소유 계정 확인으로 저장할 수 있으며 원본 상품 URL은 숨기고 서버에도 빈 값으로 저장한다. 쿠팡 API 발급 모드에서만 원본 URL을 요구하고 상품 후보 선택으로 자동 발급을 실행하지 않는다. 기존 API 발급·최종 게시 확인·중복 방지 로직은 유지한다. 상품 검색/AI/발급/실제 게시 외부 호출은 테스트에서 수행하지 않았다.
-검증: 별도 임시 데이터와 실제 Flask 제품 저장 경로에서 수동 링크 저장/디스크 재조회, 확인 누락 차단, API 원본 URL 필수 및 미지원 플랫폼 차단 통과. 기존 prepare의 비발행 상태/상품 변경 후 초안 재검토 테스트 통과. 제작/게시 DOM 전환, 미저장 문장 유지, 수동 링크 요청, API 전용 필드, 네 단계/자동 발급·게시 미실행 통과. 기존 레퍼런스/키 설정/게시 DOM/확장 큐 회귀 통과. 오래된 test_studio_workspace.js의 CLI 안내 agy 문자열 기대와 test_studio_ui.js의 ‘직접 게시’ 문구 기대는 현행 기존 문구와 달라 실패했으며 전체 통과로 표기하지 않는다. 이는 변경 전 코드 문자열과도 불일치하며 테스트를 통과시키려고 기존 개발 변경을 덮어쓰지 않았다.
-실제 앱 적용·화면 확인은 사용자 정상 재실행 승인 후 진행한다. 다른 개발 작업이 있는 studio.py/studio.js는 이번 수정분만 부분 스테이징한다.
-
-실제 적용: 승인된 정상 종료에서 닫힌 비로그인 창 참조 오류(Object has been destroyed)가 재현되어 중단했다. 사용자 별도 승인 후 기존 앱 PID 37632만 강제 종료했다. 닫힌 연구 창/웹콘텐츠 접근 가드를 추가했고, 수정 앱은 이후 정상 종료(will-quit) 및 재실행을 확인했다. 제작 4단계와 별도 게시·예약 탭의 실제 데스크톱 화면, 전체 너비 배치, API 없는 제휴 링크 기본 입력/원본 URL 숨김, 도우미 busy-status HTTP 200·작업 0개를 확인했다. Threads 실제 로그인 프로필이 재실행 후 표시됐다. 다른 플랫폼 로그인 및 실제 게시·유료 호출은 이번 검증 범위가 아니다. 닫힌 창 회귀 테스트와 제작 DOM 테스트 통과. 5005 종료/자료 삭제/잠금 강제 삭제는 수행하지 않았다.
-
-## 2026-10-15 작업별 AI 연결·메인/서브 구분
-설정 상단에 글 작성, 분석·번역, 콘텐츠 검색 카드와 연결/모델 편집·배정 동작을 추가했다. 글 작성과 분석/OCR/후킹 요청에 각 작업의 배정을 실제 전달한다. 배정은 현재 브라우저 프로필 localStorage에 공급자·모델·서브 모델만 저장하며 키는 기존 암호화 저장소를 사용한다. 미배정 작업은 기존 공통 선택을 따르고 이를 표시한다. CLI 서브는 같은 공급자의 한도 초과 시 대체이며 사용 안 함 선택은 메인 모델을 fallback 값으로 보내 기존 서버의 동일 모델 재시도 금지 조건으로 중단한다. API 서브 자동 대체는 지원하지 않음을 표시한다. 검색 공급자 선택은 콘텐츠 발견과 양방향 연동·재로드 보존하며, 모델은 서버에서 저장 완료한 검색 설정으로 표시한다.
-검증: test_ai_roles.js에서 서로 다른 작성/분석 실제 버튼 요청 본문, 재로드, 키 미저장/타 공급자 키 전달 방지, CLI 서브 중단, 검색 공급자 보존 통과. 기존 제작 분리 DOM 및 KIE DOM 테스트 통과. 실제 실행 중 앱을 새로고침하여 설정의 3개 카드, Gemini API/모델·등록 상태, API 서브 미사용, YouTube 검색 표시를 확인했다. 사용자 배정을 임의로 저장하거나 유료 생성/검색은 실행하지 않았다. 도우미·브라우저 재시작 없이 적용했으며 실제 공급자 생성 성공 검증과는 구분한다.
-
-## 2026-10-15 플랫폼 미리보기·세로 게시 설정·예약 달력
-제작과 게시 화면 왼쪽에 Threads/Instagram/TikTok/네이버 클립 선택형 로컬 미리보기를 추가했다. 본문·댓글 입력과 저장 작업 변경을 반영하고 준비된 영상/이미지·첨부·캐러셀을 전환한다. 실제 플랫폼 렌더링과 완전히 같다는 보장은 하지 않으며 레이아웃 참고용임을 표시한다. 오른쪽 게시 설정은 본문/댓글 확정 → 대상/미디어/시각 → 최종 확인/시작 세로 흐름이다. 기존 업로드 실행 경로를 재사용하며 검토한 내용이 변경되면 최종 확인을 해제한다.
-예약 달력은 기존 영구 저장 native upload queue를 읽고 월 이동, 날짜별 항목/상태/시간/게시 결과, 날짜를 예약 입력으로 연결한다. 30초마다 보이는 달력/게시 화면의 상태만 재조회하며 새 게시 실행이나 별도 예약 엔진을 만들지 않는다. 앱이 켜져 있어야 예약 실행되는 기존 제약을 표시한다.
-검증: test_preview_calendar.js 통과(본문 갱신, 4플랫폼, 캐러셀 전환, 시작 보호/재확인, 실제 큐 스키마 기반 날짜·상태 표시와 예약 날짜 연결). 제작/AI 배정/KIE DOM 회귀 테스트 통과. 실제 앱 새로고침으로 제작/게시의 왼쪽 미리보기와 저장 영상의 첨부 5개 연결, 세로 게시 설정 및 비활성 시작 버튼을 확인했다. 실제 예약 달력에서 기존 대기열 4건 및 게시 확인/직접 게시 확인 대기를 구분해 확인했다. 새 예약·실제 게시·유료 API 호출은 미실행. 프로필/설정/자료와 기존 다른 개발 변경 보존.
-
-## 2026-10-15 플랫폼별 미리보기 연출·네이버 클립 주소 수정
-Threads 다크 본문/첨부/반응/댓글, Instagram 피드 및 릴스, TikTok 추천/세로영상/오른쪽 반응/하단 본문, 네이버 클립 세로뷰를 각각 구성했다. SVG 반응 아이콘과 플랫폼별 상·하단 탐색 배치를 추가했으며 실제 플랫폼 렌더링 완전 일치나 실제 계정명/반응 수를 주장하지 않는다. 기존 입력·미디어·캐러셀/예약 연결은 유지한다.
-네이버 공식 도움말 https://help.naver.com/service/30048/contents/24422?osType=COMMONOS 는 PC 웹 업로드 경로를 안내한다. 기존 m.blog.naver.com/clip/editor는 실제 전용 앱에서 MobileErrorView/notfound로 연결됨을 재현했다. https://clipcreators.naver.com/web 접속은 실제 NAVER 로그인 화면(복귀 대상 clipcreators.naver.com/web)으로 연결됨을 확인했다. 앱 기본 탭/업로드 이동/게시 화면 링크를 교체하고 오류 블로그 페이지를 정상 클립 웹으로 허용하던 URL 판단을 좁혔다. 네이버 로그인·파일 업로드·최종 발행은 미검증이다.
-플랫폼별 DOM/캐러셀/최종확인/달력 회귀 테스트 통과. 실행 앱 새로고침 후 Threads/TikTok 미리보기 구성을 확인했다. main.cjs 기본 주소는 앱 정상 재실행 시 적용되며 현재 네이버 탭은 직접 새 주소로 이동했다. 유료 호출·실제 게시·자료 초기화는 없다.
-
-## 2026-10-15 네이버 로그인 finalize 복귀·미리보기 디테일
-사용자가 제시한 finalize URL의 복귀 대상은 http://clipcreators.naver.com/web이며 기존 앱 외부 HTTP 차단과 충돌 가능성이 있었다. 실제 앱에서 로그인 후 세션을 유지한 채 https://clipcreators.naver.com/web로 이동하자 /web/dashboard의 로그인 계정·대시보드·업로드 버튼이 정상 표시됨을 확인했다. 로그인 완료 자체와 복귀 이동 장애를 구분한다. naver-navigation.cjs는 정확히 clipcreators.naver.com의 HTTP 복귀만 HTTPS로 승격하며 다른 HTTP/악성 유사 호스트·인증정보·비표준 포트는 허용하지 않는다. 메인 및 로그인 팝업의 navigation/redirect에 연결했다. test_naver_navigation.cjs 통과. 변경된 자동 복귀 훅은 정상 앱 재실행 후 적용되며 실제 재로그인 경로는 추가 검증 필요.
-미리보기에는 SVG 하단 탐색, 프로필/더보기 영역, 원본 오디오/음성 없음 표시, 세로 본문·프로필·반응 버튼 간격과 TikTok 만들기 버튼 색상을 추가했다. 플랫폼 실제 계정 정보나 반응 숫자를 만들어 표시하지 않는다. test_preview_calendar.js 및 AI 배정 DOM 테스트 통과. 실제 게시·유료 호출·쿠키 초기화는 없음.
-
-## 2026-10-15 네이버 클립 탐색과 업로드 분리
-실제 앱의 m.naver.com 클립 탭에서 추천 영상 재생을 확인했고, 사용자 제공 seedMediaId URL에서 작성자/해시태그/좋아요/댓글/다음 클립을 확인했다. 특정 영상 없는 https://m.naver.com/shorts/로 이동하니 다른 추천 영상(seedMediaId 자동 부여)이 정상 표시됨을 확인했다. 이를 기본 탐색 주소로 사용한다.
-상단 네이버 클립(naver_clip)은 추천 시청 피드, 별도 클립 업로드(naver_creator)는 clipcreators.naver.com/web를 사용하도록 분리했다. 두 탭은 기존 persist:sites 세션을 공유하고 각 페이지 상태는 독립이다. 업로드 큐의 naver_clip 플랫폼 ID/기존 예약 자료는 변경하지 않으며 uploadSiteKey만 naver_creator로 연결한다. 크리에이터 주소 직접 입력도 전용 업로드 탭을 선택한다. 이전 로그인 HTTP→HTTPS 가드는 양쪽 네이버 탭에서 유지한다. test_clip_split.cjs 및 test_naver_navigation.cjs 통과. 새 탭/메인 프로세스 변경은 정상 재실행 후 적용된다. 재실행은 사용자가 탐색 확인을 먼저 요청하여 보류했다. 실제 업로드/수집 추출까지 검증한 것은 아니다.
-
-## 2026-10-15 Pinterest 미디어 고정 도구막대
-핀터레스트의 저장/수집/바로 제작을 한 DOM 도구막대로 묶어 이미지·영상 미디어 호스트에 절대 위치로 부착했다. 공유 위치 엔진의 매번 장애물 회피 위치 변경에서 이 도구막대만 제외하며 타 플랫폼 동작은 유지한다. 피드는 미디어 하단, 상세는 하단 왼쪽의 구분된 배경/큰 버튼, 영상은 조작부 위 여백을 둔다. 버튼 hover 확대를 없애 이동을 방지하고 클릭 이벤트가 핀 링크로 전파되지 않게 한다. 재스캔·이미지→영상 교체·카드 제거 시 중복/잔여 버튼을 정리하며 수집 본문에서 도구막대 문구를 제외한다.
-검증: test_pinterest_toolbar.js 통과(8회 스캔 중복 방지, 3버튼, 상세 모드, CSS 고정 하단, 정확한 핀 수집/저장/바로제작 payload, 클릭 전파 방지, 교체/제거). 기존 Pinterest collection 및 원본 추출 regressions 통과. 실제 전용 앱의 pin/940970915931652903 상세 화면에서 3버튼 한 그룹 확인, 추천 영역 스크롤에서 각 카드 하단 한 그룹을 확인했다. 이번 실제 화면 검증에서 다운로드·수집·바로 제작 클릭은 실행하지 않았다.
-공유 Threads 모달 회귀 테스트는 마지막 닫힘 후 display 복원 assertion이 실패했다. 작업 전 core/studio 스냅샷으로도 동일 assertion/값으로 재현되어 이번 Pinterest 변경으로 발생한 실패와 구분한다. 잠긴 Threads 파일은 변경하지 않았다. 사용자 로그인/작업/보관함/설정·기존 타 개발 변경 보존.
-
-## 2026-10-15 — 플랫폼별 게시 미리보기 개선
-- 실제 전용 앱에서 Threads 피드, Instagram 피드/릴스, TikTok 공개 추천 피드, 네이버 Clip 웹 뷰어의 구성과 아이콘 순서를 확인했다. 로그인이나 공개 게시를 수행하지 않았다.
-- 모바일 게시 미리보기에서 Threads 프로필 옆 본문 정렬, Instagram 릴스 5개 반응 아이콘과 피드 저장 위치, TikTok 원형 반응 버튼, 네이버 보라색 Clip 헤더 및 3개 반응 버튼을 분리했다. 네이버에 임의로 표시하던 공통 하단 메뉴를 제거했다.
-- 브라우저 기본 영상 컨트롤 대신 재생/정지·음소거 버튼을 연결했다. 캐러셀 페이지 버튼 및 본문 더 보기를 제공한다. 게시 전 반응 수를 만들어 표시하지 않는다.
-- 검증: test_preview_calendar.js 통과(본문/미디어/슬라이드/플랫폼별 아이콘 수/네이버 메뉴 숨김/게시 최종 확인/달력 회귀). node --check 통과. 실제 앱에서 기존 로컬 영상 불러오기, Instagram 릴스 및 네이버 Clip 렌더링, 재생 후 영상 프레임 변화와 일시 정지 버튼 변경을 확인했다.
-- 실행 중인 5006에서 수정 JS 제공을 확인했고 제작 페이지를 새로고침했다. 앱/도우미 종료나 재시작 없음. 최신 상단 순서/종료 후 재생 버튼 복원 보완은 다음 페이지 갱신에 적용된다.
-- 한계: 실제 모바일 앱의 버전·화면 폭별 픽셀 일치와 모든 플랫폼 게시 후 화면은 미검증이다. 계정 이름/사진은 실제 계정 연동 전 자리표시자다. 실제 서비스 전체를 복제했다거나 픽셀 단위 일치 완료라고 주장하지 않는다.
-
-## 2026-10-15 — 미리보기 폭 축소 및 이미지 비율 깨짐 수정
-- 원인: 1100px 이하에서 미리보기 열을 250~300px로 축소했고, Instagram 피드 이미지의 height:100% 규칙이 남아 intrinsic ratio와 충돌했다. 이전 미리보기 내부 스크롤은 화면 하단을 잘라 보여줬다.
-- 변경: 미리보기 패널 430px / 플랫폼 캔버스 390px 고정. 숏폼 캔버스 390×693.333(9:16). 피드 이미지·영상은 height:auto로 원본 비율 유지, 숏폼은 object-fit:contain으로 비율 유지. 작업 영역 컨테이너 1000px 이하에서는 편집을 미리보기 아래로 배치하며, 430px보다 좁으면 캔버스를 압축하지 않고 가로 스크롤로 제공한다. 미리보기 내부 높이 제한·스크롤 제거. 낮은 창에서는 일반 페이지 스크롤을 사용한다.
-- Chromium 실측: studio-browser/test_preview_layout.cjs에서 분리된 임시 프로필·숨김 창으로 75개 조합 통과(exit 0). 화면 폭 1600/1100/800/500/320, 세로/가로/정사각형 원본, Threads 피드/Instagram 피드·릴스/TikTok/네이버 클립. 캔버스 폭·숏폼 높이·원본 이미지 비율·아이콘 정사각형·좁은 화면 세로 배치를 수치 검사했다. 실제 게시 후 화면이나 픽셀 일치 검증은 아니다.
-- 기존 test_preview_calendar.js 통과. 실행 중인 앱 제작 페이지 갱신 후 기존 선택 작업(AQNpVG… 영상)을 다시 열고 넓어진 Threads 및 Instagram 미리보기 확인. 앱/도우미 종료와 외부 API 호출 없음.
-
-## 2026-10-15 — Threads 첨부 미디어 배치 및 독립 원본·작업함
-- 사용자가 제공한 Threads 화면을 기준으로 단일 세로 영상은 높이 430px 상한과 원본 비율로 표시하며 본문 전체 폭까지 늘리지 않는다. 여러 미디어는 같은 높이의 가로 목록으로 표시하고 가로 스크롤로 다음 미디어를 확인한다. Instagram 캐러셀은 기존 슬라이드 전환을 유지한다.
-- 저장된 원본·작업 서랍을 제작 화면에서 제거하고 독립 `원본·작업함` 탭으로 이동했다. 기존 원본/분석/대본 작업·삭제 핸들러를 그대로 유지하며, 이름 검색 및 원본 준비/분석·편집·대본/게시 완료 상태 필터를 추가했다. 기존 작업을 열면 제작 화면의 기존 단계로 이동한다. 수집한 레퍼런스/보관함과 저장된 원본 작업을 합치지 않았다.
-- 검증: test_preview_calendar.js에서 작업함 탭 이동·제작 화면 숨김/복원·검색+상태 필터 결과 수·Threads 가로 미디어 2개·Instagram 슬라이드·최종 게시 확인·달력 회귀 통과. node --check studio.js/workspace.js 통과. Chromium 75개 비율/레이아웃 회귀 확인.
-- 실제 사용자 앱은 작성 중 게시문이 확인되어 이번 작업에서 새로고침하거나 재시작하지 않았다. 실제 새 작업함 클릭과 신규 Threads 배치 화면 확인은 사용자 편집 저장 후 페이지 갱신이 필요하다. 사용자 게시문/프로필/도우미/자료는 수정하지 않았다.
-
-## 2026-10-15 — 플랫폼별 본문 광고 표시 및 영상 광고 삽입
-- Threads 업로드 본문은 `#광고`, Instagram/TikTok/네이버 클립은 `[광고]`로 정규화한다. 기존 선두 표시는 제거 후 한 번만 적용하며, 다중 플랫폼 업로드에서도 전달 패킷마다 적용한다.
-- Instagram/TikTok/클립 영상은 extension-export 단계에서 실제 `[광고]` 텍스트를 삽입한 별도 MP4를 생성한다. 원본은 변경하지 않으며 동일 원본의 표시 영상은 캐시 재사용한다. 주 영상 및 영상 첨부에 적용하고 이미 edit.ad_position으로 삽입한 주 영상은 중복 처리하지 않는다. 생성 실패/크기 초과 시 원본으로 대체하지 않고 차단한다. 기존 예약 패킷은 소급 변경하지 않는다.
-- 미리보기 본문·영상 광고 표시를 플랫폼별로 나누고, 구버전 도우미에서는 disclosure-policy 버전 확인 실패로 새 업로드 준비를 차단한다.
-- 실제 FFmpeg 격리 테스트 test_platform_ad.py 통과: 4개 플랫폼 패킷 본문, 원본 바이트 보존, 출력 영상 상단 밝은 글자 픽셀, 해상도·음성 유지, 실제 업로드 file-0와 표시 영상 일치, 캐시 재사용, 실패 시 HTTP422. JSDOM 미리보기/슬라이드/작업함/게시 확인/달력 회귀 통과.
-- 사용자 승인된 5006 정상 재시작은 작업 중 상태가 감지되어 종료 전에 중단했다. 브라우저/작성 내용/로그인/5005는 유지했다. 현재 메모리 서버에 정책 적용 여부는 재시작 후 확인해야 한다.
-- 후속 적용 확인: 진행 중 캐러셀 작업이 종료된 뒤 유휴 상태에서 인증된 `/studio/shutdown`으로 정상 종료, 5006 포트 해제 확인 후 같은 소스 경로에서 숨김 도우미를 재실행했다. `/studio/disclosure-policy` 응답 `version=platform-ad-v1`, `threads_body=#광고`, `other_body=[광고]`, 영상 적용 플랫폼 목록을 실제 확인했다. 브라우저는 종료/새로고침하지 않았으며 미리보기 갱신은 사용자 편집 저장 후 페이지 새로고침으로 적용한다.
-
-## 2026-10-15 — 담백한 게시문 및 작성 화면 동선
-- 첫 댓글 안내를 필수로 붙이던 draft_prompt/repost_draft_prompt 및 한줄·두줄·후킹 분량 지시를 제거했다. 담백한 기능 소개/구체적 상황 공감/관찰된 특징으로 시작하는 후킹 3안을 요청한다. 근거 없는 충격·180도 변화·가짜 실사용을 금지하고 댓글/프로필/링크 유도 대신 확인된 쓰임으로 마무리한다.
-- 생성 결과 포맷에서 알려진 상투 문장(예: 자세한 정보는 첫 댓글에 남겨둘게요)을 제거한다. 기존 사용자 작성·저장 본문은 수정하지 않는다. 첫 댓글의 제휴 링크·고지 기능과 플랫폼별 광고 표시 정책은 유지한다.
-- 작성 화면을 말투 선택 → 명시적인 초안 3개 만들기 → 초안 비교 → 본문 수정 → 본문·댓글 확정 저장/게시·예약 이동으로 정리했다. 스타일 버튼만 눌러도 AI를 호출하던 동작을 제거했다. 초안 카드 최소 폭, 버튼 간격과 44~46px 높이, 본문 편집 공간을 확보했다.
-- 검증: test_studio_writing.py 5개 통과(스타일별 지시·관찰 근거·상투 안내 제거·문단 보존), JSDOM 미리보기/작업함/게시 확인/달력 회귀 통과 및 말투 선택 시 외부 호출 없음 확인. 실제 AI 공급자 호출은 실행하지 않았다. 새 글의 실제 모델 품질은 아직 미검증이다.
-- 현재 사용자 본문을 보존하기 위해 앱 페이지를 갱신하지 않았다. 새 Python 작성 규칙은 5006 정상 재시작 승인을 요청한 상태다.

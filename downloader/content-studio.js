@@ -54,11 +54,19 @@
     if (media?.tagName === 'VIDEO' && source) videoSet.add(source);
     const imageSet = new Set();
     if (media?.tagName === 'IMG' && source) imageSet.add(source);
+    let extraPoster = posterUrl;
+    let firstVideoEl = media?.tagName === 'VIDEO' ? media : null;
+    let firstImgEl = media?.tagName === 'IMG' ? media : null;
     const scope = boundary || target;
     if (scope && scope.querySelectorAll) {
       for (const v of scope.querySelectorAll('video')) {
+        if (!firstVideoEl) firstVideoEl = v;
         const vUrl = https(v.currentSrc || v.src || v.querySelector('source')?.src || '');
         if (vUrl) videoSet.add(vUrl);
+        if (!extraPoster) {
+          const vp = https(v.poster || v.getAttribute('poster') || '');
+          if (vp) extraPoster = vp;
+        }
       }
       for (const img of scope.querySelectorAll('img')) {
         const iUrl = https(img.currentSrc || img.src || '');
@@ -74,9 +82,31 @@
         if (img.closest('header, [data-testid*="avatar" i]')) continue;
         const a = img.closest('a[href]');
         if (a && /^\/@[^/]+\/?$/.test(new URL(a.href, location.href).pathname)) continue;
+        if (!firstImgEl) firstImgEl = img;
         imageSet.add(iUrl);
       }
     }
+
+    let thumbnailDataUrl = '';
+    try {
+      const snapTarget = (firstVideoEl && firstVideoEl.readyState >= 2 && firstVideoEl.videoWidth > 0) ? firstVideoEl : ((firstImgEl && firstImgEl.complete && firstImgEl.naturalWidth > 0) ? firstImgEl : null);
+      if (snapTarget) {
+        const sw = snapTarget.videoWidth || snapTarget.naturalWidth || 320;
+        const sh = snapTarget.videoHeight || snapTarget.naturalHeight || 320;
+        const scale = Math.min(1, 360 / Math.max(sw, sh, 1));
+        const cw = Math.max(1, Math.round(sw * scale));
+        const ch = Math.max(1, Math.round(sh * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(snapTarget, 0, 0, cw, ch);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+        if (dataUrl && dataUrl.startsWith('data:image/jpeg;base64,') && dataUrl.length < 220000) {
+          thumbnailDataUrl = dataUrl;
+        }
+      }
+    } catch {}
 
     // Extract clean post text (excluding our own injected toolbar labels)
     let rawText = '';
@@ -93,6 +123,8 @@
     }
 
     const mediaKind = videoSet.size > 0 ? 'video' : (imageSet.size > 0 ? 'image' : 'text');
+    const resolvedPoster = extraPoster || [...imageSet][0] || '';
+    const resolvedThumb = thumbnailUrl || extraPoster || [...imageSet][0] || '';
     return {
       id: permalink,
       permalink,
@@ -101,8 +133,9 @@
       text: rawText.slice(0, 10000),
       imageUrls: [...imageSet],
       videoUrls: [...videoSet],
-      poster: posterUrl || '',
-      thumbnailUrl: thumbnailUrl || [...imageSet][0] || ''
+      poster: resolvedPoster,
+      thumbnailUrl: resolvedThumb,
+      thumbnailDataUrl
     };
   }
   function stopEvents(el){
@@ -128,7 +161,7 @@
     },true);
 
     const directBtn=document.createElement('button');directBtn.type='button';
-    directBtn.className='takoh-create-direct';directBtn.textContent='⚡ 바로 제작';directBtn.title='우측 사이드바에서 이 게시물을 바로 편집·번역하고 쓰레드에 업로드';
+    directBtn.className='takoh-create-direct';directBtn.textContent='⚡ 바로 제작';directBtn.title='콘텐츠 제작 탭으로 이동해 이 게시물을 바로 편집·번역하고 업로드';
     directBtn.style.cssText='pointer-events:auto;padding:5px 11px;border:1px solid rgba(45,212,191,0.6);border-radius:8px;background:linear-gradient(135deg,#0f766e,#2563eb);color:white;cursor:pointer;font-size:12px;font-weight:700;z-index:2147483647;margin-left:4px;';
     stopEvents(directBtn);
     directBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
@@ -137,7 +170,7 @@
       const runtime=typeof chrome==='undefined'?null:chrome.runtime;
       if(!runtime?.id||typeof runtime.sendMessage!=='function'){failed();return;}
       const refData=reference(getTargetFn());
-      window.TAKCore.showToast('studio-direct-'+Date.now(),'⚡ 우측 퀵 편집기 열기','원본 본문과 미디어를 우측 편집 사이드바로 불러옵니다.','info');
+      window.TAKCore.showToast('studio-direct-'+Date.now(),'✦ 콘텐츠 제작 탭으로 이동','원본 본문과 미디어를 콘텐츠 제작 화면으로 불러옵니다.','info');
       runtime.sendMessage({action:'studioCreateDirect',reference:refData},response=>{
         try{
         const error=runtime.lastError;
@@ -257,8 +290,8 @@
     toolbar.appendChild(button);
     toolbar.appendChild(directBtn);
     if(window.takohNative&&/(^|\.)(threads\.com|threads\.net)$/.test(location.hostname)){
-      const find=document.createElement('button');find.type='button';find.className='takoh-find-products';find.textContent='제품 찾기';find.title='이 게시물에서 비로그인 관련 제품 탐색 시작';find.style.cssText=button.style.cssText;stopEvents(find);
-      find.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(find.disabled)return;find.disabled=true;try{const ref=reference(findPostBoundary(row)||postEl);const r=await window.takohNative.request({action:'studioFindProducts',url:ref.permalink});if(!r?.success)throw Error(r?.error||'탐색 시작 실패');}catch(error){window.TAKCore.showToast('research-'+Date.now(),'제품 찾기',error.message,'error');}finally{find.disabled=false;}},true);toolbar.append(find);
+      const find=document.createElement('button');find.type='button';find.className='takoh-find-products';find.textContent='동일·연관 쇼핑계정 찾기';find.title='이 영상과 동일·유사한 영상을 올리는 쇼핑 콘텐츠 계정 및 연관 게시물 탐색';find.style.cssText=button.style.cssText;stopEvents(find);
+      find.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(find.disabled)return;find.disabled=true;try{const ref=reference(findPostBoundary(row)||postEl);const r=await window.takohNative.request({action:'studioFindProducts',url:ref.permalink});if(!r?.success)throw Error(r?.error||'탐색 시작 실패');}catch(error){window.TAKCore.showToast('research-'+Date.now(),'동일·연관 쇼핑계정 찾기',error.message,'error');}finally{find.disabled=false;}},true);toolbar.append(find);
     }
 
 

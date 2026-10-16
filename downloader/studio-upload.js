@@ -1,6 +1,6 @@
 /* Durable extension & native browser upload queue with human-touch Threads DOM interaction. No repeated posting after uncertain failures. */
 async function takohThreadsUpload(payload) {
-  const isJsdom=/jsdom/i.test(globalThis.navigator?.userAgent||'');
+  const isJsdom=/jsdom/i.test((typeof navigator!=='undefined'?navigator.userAgent:'') + ' ' + (globalThis.navigator?.userAgent||''));
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const rand=(min,max)=>Math.floor(min+Math.random()*(max-min+1));
   const humanPause=(min=420,max=980)=>sleep(isJsdom?2:rand(min,max));
@@ -358,10 +358,17 @@ async function takohThreadsUpload(payload) {
     return {state:'posted',permalink:location.href};
   }
 
-  // --- TikTok Upload ---
+  // --- TikTok Upload (Video & Photo/Carousel Mode) ---
   if(!isJsdom&&(targetPlatform==='tiktok'||/tiktok\.com/i.test(location.hostname))){
-    status('틱톡(TikTok) 영상 업로드를 시작합니다...');
-    const fileInput=await wait(()=>document.querySelector('input[type="file"][accept*="video"]')||document.querySelector('input[type="file"]'),45000,'틱톡 영상 파일 입력');
+    const isImageUpload=payload.kind==='image'||payload.publish_format==='image'||payload.publish_format==='carousel'||(Array.isArray(payload.loadedFiles)&&payload.loadedFiles.length>0&&payload.loadedFiles.every(f=>f.kind==='image'||/^image\//i.test(f.mime||'')));
+    const modeLabel=isImageUpload?'틱톡(TikTok) 이미지·포토 슬라이드':'틱톡(TikTok) 영상';
+    status(`${modeLabel} 업로드를 시작합니다...`);
+    const fileInput=await wait(()=>{
+      if(isImageUpload){
+        return document.querySelector('input[type="file"][accept*="image"]')||document.querySelector('input[type="file"]');
+      }
+      return document.querySelector('input[type="file"][accept*="video"]')||document.querySelector('input[type="file"]');
+    },45000,'틱톡 파일 입력');
     await humanPause(350,750);
     fileInput.files=preparedTransfer.files;
     fileInput.dispatchEvent(new Event('input',{bubbles:true}));
@@ -372,20 +379,27 @@ async function takohThreadsUpload(payload) {
       await humanFill(captionEditor,payload.body);
     }
     if(!payload.automatic){
-      status('휴먼터치로 틱톡 영상과 설명을 입력했습니다. 화면에서 확인 후 [게시(Post)] 버튼을 눌러 주세요.');
+      status(`휴먼터치로 ${modeLabel}와 설명을 입력했습니다. 화면에서 확인 후 [게시(Post)] 버튼을 눌러 주세요.`);
       return {state:'awaiting_confirmation',permalink:location.href};
     }
     const postBtn=await wait(()=>findButton(document,/^(게시|업로드|Post|Publish)$/i),60000,'틱톡 게시 버튼');
     await humanPause(700,1300);
     await humanClick(postBtn);
-    status('틱톡 게시 버튼을 클릭했습니다.');
+    status(`${modeLabel} 게시 버튼을 클릭했습니다.`);
     return {state:'posted',permalink:location.href};
   }
 
-  // --- Naver Clip Upload ---
+  // --- Naver Clip Upload (Video & Image/Multi-Image) ---
   if(!isJsdom&&(targetPlatform==='naver_clip'||/naver\.com/i.test(location.hostname))){
-    status('네이버 클립(Naver Clip) 영상 업로드를 시작합니다...');
-    const fileInput=await wait(()=>document.querySelector('input[type="file"][accept*="video"]')||document.querySelector('input[type="file"]'),45000,'네이버 클립 파일 입력');
+    const isImageUpload=payload.kind==='image'||payload.publish_format==='image'||payload.publish_format==='carousel'||(Array.isArray(payload.loadedFiles)&&payload.loadedFiles.length>0&&payload.loadedFiles.every(f=>f.kind==='image'||/^image\//i.test(f.mime||'')));
+    const modeLabel=isImageUpload?'네이버 클립(Naver Clip) 이미지·슬라이드':'네이버 클립(Naver Clip) 영상';
+    status(`${modeLabel} 업로드를 시작합니다...`);
+    const fileInput=await wait(()=>{
+      if(isImageUpload){
+        return document.querySelector('input[type="file"][accept*="image"]')||document.querySelector('input[type="file"]');
+      }
+      return document.querySelector('input[type="file"][accept*="video"]')||document.querySelector('input[type="file"]');
+    },45000,'네이버 클립 파일 입력');
     await humanPause(350,750);
     fileInput.files=preparedTransfer.files;
     fileInput.dispatchEvent(new Event('input',{bubbles:true}));
@@ -398,17 +412,17 @@ async function takohThreadsUpload(payload) {
       try{await humanFill(editor,payload.body);}catch{}
     }
     if(!payload.automatic){
-      status('휴먼터치로 네이버 클립 영상과 본문을 입력했습니다. 화면에서 확인 후 등록 버튼을 눌러 주세요.');
+      status(`휴먼터치로 ${modeLabel}와 본문을 입력했습니다. 화면에서 확인 후 등록 버튼을 눌러 주세요.`);
       return {state:'awaiting_confirmation',permalink:location.href};
     }
     const publishBtn=findButton(document,/^(등록|발행|게시|올리기|완료)$/i);
     if(publishBtn){
       await humanPause(600,1100);
       await humanClick(publishBtn);
-      status('네이버 클립 등록 버튼을 클릭했습니다.');
+      status(`${modeLabel} 등록 버튼을 클릭했습니다.`);
       return {state:'posted',permalink:location.href};
     }
-    status('네이버 클립에 영상과 본문을 채웠습니다. 화면에서 최종 등록 버튼을 눌러 주세요.');
+    status(`${modeLabel}와 본문을 채웠습니다. 화면에서 최종 등록 버튼을 눌러 주세요.`);
     return {state:'awaiting_confirmation',permalink:location.href};
   }
 
@@ -444,11 +458,12 @@ async function takohThreadsUpload(payload) {
     banner.append(document.createElement('br'),next);
     return {state:'awaiting_confirmation'};
   }
-  const expectImageOnly=(payload.kind==='image')||(Array.isArray(payload.loadedFiles)&&payload.loadedFiles.length>0&&payload.loadedFiles.every(f=>f.kind==='image'));
-  if(expectImageOnly&&!isJsdom){
+  const isImageFile=f=>Boolean(f&&(f.kind==='image'||(typeof f.mime==='string'&&f.mime.startsWith('image/'))||/\.(?:jpe?g|png|webp|gif)$/i.test(f.name||'')));
+  const expectImageOnly=(payload.kind==='image'||(typeof payload.mime==='string'&&payload.mime.startsWith('image/'))||/\.(?:jpe?g|png|webp|gif)$/i.test(payload.name||''))||(Array.isArray(payload.loadedFiles)&&payload.loadedFiles.length>0&&payload.loadedFiles.every(isImageFile));
+  if(expectImageOnly){
     await wait(()=>dialog.querySelector('img')||dialog.querySelector('video'),45000,'이미지미리보기');
   }else{
-    await wait(()=>(dialog.querySelector('video')&&dialog.querySelector('video').readyState>=2)||(expectImageOnly&&dialog.querySelector('img')),90000,'영상미리보기');
+    await wait(()=>(dialog.querySelector('video')&&dialog.querySelector('video').readyState>=2)||dialog.querySelector('img'),90000,'영상미리보기');
   }
   await humanPause(650,1400);
   snapshotExistingPosts();

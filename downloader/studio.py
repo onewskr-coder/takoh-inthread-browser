@@ -1386,8 +1386,31 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         ag_ok = bool(ag_cli.get('authenticated') or ag_cli.get('logged_in'))
         cx_ok = bool(cx_cli.get('authenticated') or cx_cli.get('logged_in'))
 
+        def _resolve_build_info():
+            cid = '확인 불가'
+            dirty = '확인 불가'
+            try:
+                b_dir = Path(__file__).resolve().parent.parent
+                out = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=b_dir, capture_output=True, text=True, timeout=2, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                if out.returncode == 0 and out.stdout.strip():
+                    cid = out.stdout.strip()
+                st = subprocess.run(['git', 'status', '--porcelain'], cwd=b_dir, capture_output=True, text=True, timeout=2, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                if st.returncode == 0:
+                    dirty = bool(st.stdout.strip())
+            except Exception:
+                pass
+            return {
+                'app_version': '3.5.0',
+                'helper_port': 5006,
+                'commit_id': cid,
+                'is_dirty': dirty,
+                'schema_version': 'v5_verified_published_date',
+                'discovery_engine_version': 'v5_verified_published_date'
+            }
+
         return jsonify({
             'apis': {
+
                 'gemini_api': {
                     'label': 'Gemini API 키 (분석·대본)',
                     'configured': bool(gemini_keys),
@@ -1445,15 +1468,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     'message': cx_cli.get('message', ''),
                 },
             },
-            'version_info': {
-                'app_version': '3.5.0',
-                'helper_port': 5006,
-                'commit_id': '55cd118',
-                'is_dirty': True,
-                'schema_version': 'v5_verified_published_date',
-                'discovery_engine_version': 'v5_verified_published_date'
-            }
+            'version_info': _resolve_build_info()
         })
+
+
 
 
     def parse_iso8601_duration(duration_str):
@@ -1945,9 +1963,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
     def private_studio(response):
         if request.path.startswith('/studio'):
             response.headers.pop('Access-Control-Allow-Origin', None)
-            response.headers['Cache-Control'] = 'no-store'
+            if not (request.method == 'GET' and response.status_code == 200 and request.path.endswith('/thumbnail')):
+                response.headers['Cache-Control'] = 'no-store'
             response.headers['X-Content-Type-Options'] = 'nosniff'
-            response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; media-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+            response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"
         return response
 
     @bp.errorhandler(StudioError)
@@ -1983,9 +2002,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             publish_format = str(data.get('publish_format') or '').strip()
             if platform == 'instagram_carousel':
                 publish_format = 'carousel'
-            elif platform in ('instagram_reels', 'naver_clip', 'tiktok'):
+            elif platform == 'instagram_reels':
                 publish_format = 'video'
-            elif publish_format not in ('video', 'image', 'carousel'):
+            elif publish_format not in ('video', 'image', 'carousel', 'combo'):
                 publish_format = 'image' if job.get('kind') == 'image' else 'video'
             if job['status']!='publish_ready':
                 raise StudioError('4단계에서 [게시 본문 + 첫 댓글 확정 저장]을 먼저 눌러주세요.')
@@ -1995,8 +2014,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             except (ValueError,TypeError):raise StudioError('예약 시각은 현재부터 90일 이내로 선택하세요.')
             if not isinstance(data.get('automatic',False),bool):raise StudioError('업로드 방식을 확인하세요.')
             is_image_job = job.get('kind') == 'image'
-            if platform in ('instagram_reels', 'naver_clip', 'tiktok') and is_image_job:
-                raise StudioError('릴스·네이버 클립·틱톡 업로드는 영상 소재가 필요합니다. 인스타 캐러셀 또는 쓰레드를 선택하세요.')
+            if platform == 'instagram_reels' and is_image_job:
+                raise StudioError('인스타그램 릴스 업로드는 영상 소재가 필요합니다. 이미지는 인스타 캐러셀·쓰레드·네이버 클립·틱톡을 선택하세요.')
             carousel_slides = (job.get('carousel') or {}).get('slides') or []
             use_carousel_files = (publish_format == 'carousel' or platform == 'instagram_carousel')
             if use_carousel_files and not carousel_slides and not (job.get('attachments') or []):
@@ -2019,20 +2038,17 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 except ValueError as error:raise StudioError(str(error),422)
             if source.stat().st_size>30*1024*1024:raise StudioError('광고 표시가 적용된 영상이 30MB를 초과합니다.')
             delivery_base=request.host_url.rstrip('/').replace('://localhost', '://127.0.0.1')
-            export_hash=hashlib.sha256(json.dumps([POLICY_VERSION, platform, publish_format, body,job.get('comment',''),job.get('sha256',''),len(carousel_slides if use_carousel_files else (job.get('attachments') or [])),int(when//60000),data.get('automatic',False)],ensure_ascii=False).encode()).hexdigest()
-            previous=(job.get('extension_deliveries') or {}).get(platform) or (job.get('extension_delivery') if platform == 'threads' else None) or {}
-            if previous.get('hash')==export_hash and (root/'deliveries'/previous.get('id','')/'packet.json').is_file():
-                packet=json.loads((root/'deliveries'/previous['id']/'packet.json').read_text(encoding='utf-8'))
-                return jsonify(id=previous['id'],url=delivery_base+'/studio/delivery/'+previous['id'],when=packet['when'],automatic=packet['automatic'],platform=platform,publish_format=publish_format)
-            delivery=secrets.token_hex(24)
-            folder=root/'deliveries'/delivery
-            folder.mkdir(parents=True)
-            try:os.link(source,folder/'video')
-            except OSError:shutil.copy2(source,folder/'video')
+            def _file_sha256(p):
+                h = hashlib.sha256()
+                with open(p, 'rb') as fp:
+                    for chunk in iter(lambda: fp.read(65536), b''):
+                        h.update(chunk)
+                return h.hexdigest()
+
             primary_ext = '.jpg' if is_image_job else '.mp4'
             primary_mime = 'image/jpeg' if is_image_job else 'video/mp4'
             primary_name = Path(job['name']).stem + primary_ext
-            files_manifest = []
+            staged_files = []
             if use_carousel_files and carousel_slides:
                 if len(carousel_slides) > 10:
                     raise StudioError('캐러셀 이미지는 최대 10장까지 업로드할 수 있습니다.')
@@ -2042,16 +2058,32 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         raise StudioError(f'캐러셀 {idx + 1}번째 이미지 파일을 확인할 수 없어 게시를 차단했습니다.')
                     if s_file.stat().st_size > 30 * 1024 * 1024:
                         raise StudioError(f'캐러셀 {idx + 1}번째 이미지가 30MB를 초과하여 게시를 차단했습니다.')
-                    try:os.link(s_file, folder/f'file-{len(files_manifest)}')
-                    except OSError:shutil.copy2(s_file, folder/f'file-{len(files_manifest)}')
-                    files_manifest.append(dict(part=f'file/{len(files_manifest)}', name=f'{Path(job["name"]).stem}-slide-{idx+1}.jpg', mime='image/jpeg', kind='image'))
+                    staged_files.append((
+                        s_file,
+                        dict(
+                            part=f'file/{len(staged_files)}',
+                            name=f'{Path(job["name"]).stem}-slide-{idx+1}.jpg',
+                            mime='image/jpeg',
+                            kind='image',
+                            sha256=_file_sha256(s_file),
+                            slide_id=slide.get('slide_id') or f'slide-{idx+1}',
+                        ),
+                    ))
             else:
-                attachments_list = job.get('attachments') or []
+                raw_format = str(data.get('publish_format') or '').strip()
+                attachments_list = [] if raw_format == 'video' or platform == 'instagram_reels' else (job.get('attachments') or [])
                 if len(attachments_list) > 9:
                     raise StudioError('첨부 미디어는 기본 파일을 포함해 최대 10개까지 업로드할 수 있습니다.')
-                try:os.link(source, folder/'file-0')
-                except OSError:shutil.copy2(source, folder/'file-0')
-                files_manifest.append(dict(part='file/0', name=primary_name, mime=primary_mime, kind='image' if is_image_job else 'video'))
+                staged_files.append((
+                    source,
+                    dict(
+                        part='file/0',
+                        name=primary_name,
+                        mime=primary_mime,
+                        kind='image' if is_image_job else 'video',
+                        sha256=_file_sha256(source),
+                    ),
+                ))
                 for idx, att in enumerate(attachments_list, start=1):
                     att_file = directory(job_id) / str(att.get('file') or '')
                     if not att_file.is_file() or att_file.stat().st_size == 0:
@@ -2062,13 +2094,48 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         try:att_file=prepare_ad_video(att_file,find_ffmpeg(),run_ffmpeg,inspect_media)
                         except ValueError as error:raise StudioError(str(error),422)
                         if att_file.stat().st_size>30*1024*1024:raise StudioError('광고 표시 첨부 영상이 30MB를 초과합니다.')
-                    try:os.link(att_file, folder/f'file-{idx}')
-                    except OSError:shutil.copy2(att_file, folder/f'file-{idx}')
                     att_kind = 'video' if att.get('kind') == 'video' else 'image'
                     att_mime = 'video/mp4' if att_kind == 'video' else 'image/jpeg'
                     att_name = str(att.get('name') or f'attachment-{idx}' + ('.mp4' if att_kind == 'video' else '.jpg'))
-                    files_manifest.append(dict(part=f'file/{idx}', name=att_name, mime=att_mime, kind=att_kind))
-            packet=dict(id=delivery,job_id=job_id,platform=platform,publish_format=publish_format,disclosure_policy=POLICY_VERSION,video_ad_required=platform in VIDEO_AD_PLATFORMS,body=body,comment=job.get('comment',''),name=primary_name,mime=primary_mime,kind='image' if is_image_job else 'video',files=files_manifest,repost_mode=bool(job.get('repost_mode')),when=when,automatic=data.get('automatic',False),created=time.time(),state='saved')
+                    staged_files.append((
+                        att_file,
+                        dict(
+                            part=f'file/{idx}',
+                            name=att_name,
+                            mime=att_mime,
+                            kind=att_kind,
+                            sha256=_file_sha256(att_file),
+                        ),
+                    ))
+
+            source_sha256 = _file_sha256(source)
+            carousel_rev = (job.get('carousel') or {}).get('render_revision') or (job.get('carousel') or {}).get('updated_at') or 0
+            export_hash=hashlib.sha256(json.dumps([
+                POLICY_VERSION,
+                platform,
+                publish_format,
+                body,
+                job.get('comment',''),
+                job.get('sha256',''),
+                source_sha256,
+                carousel_rev if use_carousel_files else 0,
+                [(m['name'], m['sha256']) for _, m in staged_files],
+                int(when//60000),
+                data.get('automatic',False),
+            ],ensure_ascii=False).encode()).hexdigest()
+            previous=(job.get('extension_deliveries') or {}).get(platform) or (job.get('extension_delivery') if platform == 'threads' else None) or {}
+            if previous.get('hash')==export_hash and (root/'deliveries'/previous.get('id','')/'packet.json').is_file():
+                packet=json.loads((root/'deliveries'/previous['id']/'packet.json').read_text(encoding='utf-8'))
+                return jsonify(id=previous['id'],url=delivery_base+'/studio/delivery/'+previous['id'],when=packet['when'],automatic=packet['automatic'],platform=platform,publish_format=publish_format)
+            delivery=secrets.token_hex(24)
+            folder=root/'deliveries'/delivery
+            folder.mkdir(parents=True)
+            shutil.copy2(source, folder/'video')
+            files_manifest = []
+            for f_idx, (src_path, meta) in enumerate(staged_files):
+                shutil.copy2(src_path, folder/f'file-{f_idx}')
+                files_manifest.append(meta)
+            packet=dict(id=delivery,job_id=job_id,platform=platform,publish_format=publish_format,disclosure_policy=POLICY_VERSION,video_ad_required=platform in VIDEO_AD_PLATFORMS,body=body,comment=job.get('comment',''),name=primary_name,mime=primary_mime,kind='image' if is_image_job else 'video',source_sha256=source_sha256,files=files_manifest,repost_mode=bool(job.get('repost_mode')),when=when,automatic=data.get('automatic',False),created=time.time(),state='saved')
             (folder/'packet.json').write_text(json.dumps(packet,ensure_ascii=False),encoding='utf-8')
             job['extension_delivery']=dict(id=delivery,hash=export_hash)
             deliveries = dict(job.get('extension_deliveries') or {})
@@ -2317,9 +2384,47 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             save(job)
             return jsonify(job)
 
+    def _warm_reference_thumbnail_async(reference_id, ref_data):
+        def _worker():
+            try:
+                cache = root / 'reference-thumbnails' / (reference_id + '.jpg')
+                if cache.is_file() and cache.stat().st_size > 0:
+                    return
+                with lock('reference-' + reference_id):
+                    if cache.is_file() and cache.stat().st_size > 0:
+                        return
+                    data_url = str(ref_data.get('thumbnailDataUrl') or '').strip()
+                    if data_url.startswith('data:image/'):
+                        m = re.match(r'^data:image/[a-zA-Z0-9.+-]+;base64,(.+)$', data_url, re.S)
+                        if m:
+                            raw_bytes = base64.b64decode(m.group(1))
+                            if raw_bytes:
+                                cache.parent.mkdir(parents=True, exist_ok=True)
+                                cache.write_bytes(raw_bytes)
+                                return
+                    content = fetch_reference_thumbnail(ref_data)
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    if content[:3] == b'\xff\xd8\xff' and len(content) <= 512 * 1024:
+                        cache.write_bytes(content)
+                        return
+                    binary = find_ffmpeg()
+                    if not binary:
+                        return
+                    with tempfile.TemporaryDirectory(dir=cache.parent) as temporary:
+                        source = Path(temporary) / 'preview'
+                        output = Path(temporary) / 'preview.jpg'
+                        source.write_bytes(content)
+                        result = run_ffmpeg(binary, ['-y', '-protocol_whitelist', 'file,pipe', '-i', str(source),
+                            '-frames:v', '1', '-vf', 'scale=480:480:force_original_aspect_ratio=decrease', str(output)])
+                        if not result.returncode and output.is_file():
+                            output.replace(cache)
+            except Exception:
+                pass
+        threading.Thread(target=_worker, daemon=True).start()
+
     @bp.route('/references/import', methods=['POST'])
     def import_reference():
-        if request.content_length and request.content_length > 200000:
+        if request.content_length and request.content_length > 400000:
             raise StudioError('레퍼런스 데이터가 너무 큽니다.')
         data = request.get_json() or {}
         ref = data.get('reference', {})
@@ -2332,15 +2437,19 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             values = ref.get(key, [])
             if not isinstance(values, list) or len(values) > 30:
                 raise StudioError('레퍼런스 미디어 목록을 확인해 주세요.')
-            clean[key] = [valid_url(value) for value in values]
+            clean[key] = [valid_url(value) for value in values if value]
         for key in ('poster', 'thumbnailUrl'):
             val = ref.get(key)
             clean[key] = valid_url(val) if val and isinstance(val, str) and val.startswith('https://') else ''
+        raw_data_url = str(ref.get('thumbnailDataUrl') or '').strip()
+        if raw_data_url.startswith('data:image/') and len(raw_data_url) <= 250000:
+            clean['thumbnailDataUrl'] = raw_data_url
         if isinstance(ref.get('discovery'), dict):
             clean['discovery'] = ref['discovery']
         clean['imported_at'] = time.time()
         root.mkdir(parents=True, exist_ok=True)
         name = hashlib.sha256(clean['permalink'].encode()).hexdigest()
+        clean['reference_id'] = name
         folder = root / 'references'
         folder.mkdir(exist_ok=True)
         target_file = folder / (name + '.json')
@@ -2351,7 +2460,28 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 return jsonify(skipped_deleted=True), 200
             if target_file.is_file():
                 existing_ref = json.loads(target_file.read_text(encoding='utf-8'))
+                updated = False
+                for k in ('thumbnailUrl', 'poster', 'thumbnailDataUrl', 'username', 'text'):
+                    if clean.get(k) and not existing_ref.get(k):
+                        existing_ref[k] = clean[k]
+                        updated = True
+                for k in ('imageUrls', 'videoUrls'):
+                    if clean.get(k) and not existing_ref.get(k):
+                        existing_ref[k] = clean[k]
+                        updated = True
+                if clean.get('mediaKind') in ('video', 'image') and existing_ref.get('mediaKind') not in ('video', 'image'):
+                    existing_ref['mediaKind'] = clean['mediaKind']
+                    updated = True
+                if clean.get('discovery') and not existing_ref.get('discovery'):
+                    existing_ref['discovery'] = clean['discovery']
+                    updated = True
+                if updated:
+                    temporary = folder / (name + '.tmp')
+                    temporary.write_text(json.dumps(existing_ref, ensure_ascii=False), encoding='utf-8')
+                    temporary.replace(target_file)
+                existing_ref['reference_id'] = name
                 existing_ref['already_saved'] = True
+                _warm_reference_thumbnail_async(name, existing_ref)
                 return jsonify(existing_ref), 200
             clean['already_saved'] = False
             temporary = folder / (name + '.tmp')
@@ -2360,6 +2490,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if name in tombstones:
                 tombstones.remove(name)
                 tombstones_file.write_text(json.dumps(tombstones),encoding='utf-8')
+        _warm_reference_thumbnail_async(name, clean)
         return jsonify(clean), 200
 
     @bp.route('/references/save', methods=['POST'])
@@ -2693,21 +2824,35 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             abort(404)
         cache = root / 'reference-thumbnails' / (reference_id + '.jpg')
         with lock('reference-' + reference_id):
-            if not cache.is_file():
-                content = fetch_reference_thumbnail(json.loads(path.read_text(encoding='utf-8')))
+            if not cache.is_file() or cache.stat().st_size == 0:
+                ref_data = json.loads(path.read_text(encoding='utf-8'))
                 cache.parent.mkdir(parents=True, exist_ok=True)
-                binary = find_ffmpeg()
-                if not binary:
-                    raise StudioError('썸네일 처리 도구를 찾지 못했습니다.', 422)
-                with tempfile.TemporaryDirectory(dir=cache.parent) as temporary:
-                    source = Path(temporary) / 'preview'
-                    output = Path(temporary) / 'preview.jpg'
-                    source.write_bytes(content)
-                    result = run_ffmpeg(binary, ['-y', '-protocol_whitelist', 'file,pipe', '-i', str(source),
-                        '-frames:v', '1', '-vf', 'scale=480:480:force_original_aspect_ratio=decrease', str(output)])
-                    if result.returncode or not output.is_file():
-                        raise StudioError('썸네일 이미지를 읽지 못했습니다.', 422)
-                    output.replace(cache)
+                data_url = str(ref_data.get('thumbnailDataUrl') or '').strip()
+                wrote_direct = False
+                if data_url.startswith('data:image/'):
+                    m = re.match(r'^data:image/[a-zA-Z0-9.+-]+;base64,(.+)$', data_url, re.S)
+                    if m:
+                        raw_bytes = base64.b64decode(m.group(1))
+                        if raw_bytes:
+                            cache.write_bytes(raw_bytes)
+                            wrote_direct = True
+                if not wrote_direct:
+                    content = fetch_reference_thumbnail(ref_data)
+                    if content[:3] == b'\xff\xd8\xff' and len(content) <= 512 * 1024:
+                        cache.write_bytes(content)
+                    else:
+                        binary = find_ffmpeg()
+                        if not binary:
+                            raise StudioError('썸네일 처리 도구를 찾지 못했습니다.', 422)
+                        with tempfile.TemporaryDirectory(dir=cache.parent) as temporary:
+                            source = Path(temporary) / 'preview'
+                            output = Path(temporary) / 'preview.jpg'
+                            source.write_bytes(content)
+                            result = run_ffmpeg(binary, ['-y', '-protocol_whitelist', 'file,pipe', '-i', str(source),
+                                '-frames:v', '1', '-vf', 'scale=480:480:force_original_aspect_ratio=decrease', str(output)])
+                            if result.returncode or not output.is_file():
+                                raise StudioError('썸네일 이미지를 읽지 못했습니다.', 422)
+                            output.replace(cache)
         return send_file(cache, mimetype='image/jpeg', max_age=3600)
 
     @bp.route('/youtube-settings', methods=['GET', 'POST'])
@@ -3758,7 +3903,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
     def asset(name):
         if name not in ('studio.js', 'studio.css', 'workspace.js'):
             abort(404)
-        return send_file(Path(__file__).parent / 'studio_web' / name)
+        return send_file(Path(__file__).parent / 'studio_web' / name, max_age=0)
 
     @bp.route('/jobs')
     def jobs():
@@ -4300,7 +4445,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
 
     @bp.route('/jobs/<job_id>/media/<name>')
     def media_file(job_id, name):
-        if name not in ('video', 'original') and not re.fullmatch(r'frame-[0-5]\.jpg', name) and not re.fullmatch(r'(?:attach|carousel)-\d+\.(?:jpg|mp4)', name):
+        if name not in ('video', 'original') and not re.fullmatch(r'frame-\d+\.jpg', name) and not re.fullmatch(r'(?:attach-[A-Za-z0-9_-]+|bundle-img-[A-Za-z0-9_-]+|companion-[A-Za-z0-9_-]+|carousel-\d+)\.(?:jpg|mp4)', name):
             abort(404)
         job = read(job_id)
         if not (directory(job_id) / name).is_file():
@@ -4308,7 +4453,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         mime = 'video/mp4' if (name == 'video' or name.endswith('.mp4')) else 'image/jpeg' if (name.endswith('.jpg') or job.get('kind') == 'image') else 'application/octet-stream'
         return send_file(directory(job_id) / name, download_name=job['name'] if name in ('video', 'original') else name,
                          mimetype=mime,
-                         conditional=True)
+                         conditional=True,
+                         max_age=0)
 
     @bp.route('/jobs/<job_id>/repost-meta', methods=['POST'])
     def repost_meta(job_id):
@@ -4405,28 +4551,272 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 save(job)
             return jsonify({'translated_text': translated, 'tone': tone, 'job': job})
 
+    from studio_text_clean import set_custom_fonts_dir, STUDIO_FONT_CATALOG, _BUNDLED_FONTS_DIR
+    custom_fonts_dir = root / 'custom_fonts'
+    custom_fonts_dir.mkdir(parents=True, exist_ok=True)
+    set_custom_fonts_dir(custom_fonts_dir)
+
+    def _read_custom_fonts_manifest():
+        mf = custom_fonts_dir / 'fonts.json'
+        if mf.is_file():
+            try:
+                data = json.loads(mf.read_text(encoding='utf-8'))
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                pass
+        return []
+
+    def _write_custom_fonts_manifest(entries):
+        mf = custom_fonts_dir / 'fonts.json'
+        tmp = custom_fonts_dir / 'fonts.json.tmp'
+        tmp.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding='utf-8')
+        tmp.replace(mf)
+
+    @bp.route('/fonts', methods=['GET'])
+    def studio_fonts_list():
+        set_custom_fonts_dir(custom_fonts_dir)
+        custom_entries = _read_custom_fonts_manifest()
+        return jsonify(builtin=STUDIO_FONT_CATALOG, custom=custom_entries)
+
+    @bp.route('/fonts/upload', methods=['POST'])
+    def studio_font_upload():
+        set_custom_fonts_dir(custom_fonts_dir)
+        f_obj = request.files.get('font')
+        if not f_obj or not f_obj.filename:
+            raise StudioError('추가할 폰트 파일(.ttf, .otf, .ttc)을 선택해 주세요.', 400)
+        ext = Path(f_obj.filename).suffix.lower()
+        if ext not in ('.ttf', '.otf', '.ttc'):
+            raise StudioError('지원하는 폰트 형식은 .ttf, .otf, .ttc 입니다.', 400)
+        raw_bytes = f_obj.read()
+        if not raw_bytes or len(raw_bytes) > 40 * 1024 * 1024:
+            raise StudioError('폰트 파일 크기는 40MB 이하여야 합니다.', 400)
+        font_id = 'custom_' + uuid.uuid4().hex[:10]
+        safe_file = f'{font_id}{ext}'
+        dest_path = custom_fonts_dir / safe_file
+        dest_path.write_bytes(raw_bytes)
+        try:
+            from PIL import ImageFont
+            ImageFont.truetype(str(dest_path), 24)
+        except Exception:
+            if dest_path.is_file():
+                dest_path.unlink()
+            raise StudioError('유효하지 않거나 손상된 폰트 파일입니다. 정상적인 .ttf / .otf 파일을 업로드해 주세요.', 422)
+        raw_name = str(request.form.get('name') or Path(f_obj.filename).stem).strip()[:60] or '사용자 추가 폰트'
+        entry = {
+            'key': font_id,
+            'name': raw_name,
+            'category': '내가 추가한 커스텀 폰트',
+            'file': safe_file,
+            'custom': True,
+            'created_at': time.time(),
+        }
+        with lock('custom-fonts'):
+            entries = [e for e in _read_custom_fonts_manifest() if e.get('key') != font_id]
+            entries.append(entry)
+            _write_custom_fonts_manifest(entries)
+        return jsonify(font=entry, custom=entries)
+
+    @bp.route('/fonts/<font_key>', methods=['DELETE'])
+    def studio_font_delete(font_key):
+        font_key = str(font_key or '').strip()
+        if not font_key.startswith('custom_'):
+            raise StudioError('기본 내장 폰트는 삭제할 수 없습니다.', 400)
+        with lock('custom-fonts'):
+            entries = _read_custom_fonts_manifest()
+            target = next((e for e in entries if e.get('key') == font_key), None)
+            if not target:
+                raise StudioError('삭제할 커스텀 폰트를 찾지 못했습니다.', 404)
+            f_path = custom_fonts_dir / str(target.get('file') or '')
+            if f_path.is_file():
+                try:
+                    f_path.unlink()
+                except OSError:
+                    pass
+            entries = [e for e in entries if e.get('key') != font_key]
+            _write_custom_fonts_manifest(entries)
+        return jsonify(deleted=font_key, custom=entries)
+
+    @bp.route('/fonts/file/<font_key>', methods=['GET'])
+    def studio_font_file(font_key):
+        font_key = str(font_key or '').strip().lower()
+        if font_key.startswith('custom_'):
+            entries = _read_custom_fonts_manifest()
+            target = next((e for e in entries if str(e.get('key') or '').lower() == font_key), None)
+            if not target:
+                abort(404)
+            f_path = custom_fonts_dir / str(target.get('file') or '')
+            if not f_path.is_file():
+                abort(404)
+            return send_file(f_path, max_age=86400)
+        entry = next((e for e in STUDIO_FONT_CATALOG if str(e.get('key') or '').lower() == font_key), None)
+        if not entry:
+            abort(404)
+        f_name = str(entry.get('file') or '')
+        for candidate in (_BUNDLED_FONTS_DIR / f_name, Path('C:/Windows/Fonts') / f_name):
+            if candidate.is_file():
+                return send_file(candidate, max_age=86400)
+        abort(404)
+
     @bp.route('/jobs/<job_id>/media-text-edit', methods=['POST'])
     def media_text_edit(job_id):
+        set_custom_fonts_dir(custom_fonts_dir)
         with track_activity('자막·이미지 글자 편집', job_id):
             with lock(job_id):
                 original = read(job_id)
             data = request.get_json() or {}
-            erase_mode = str(data.get('erase_mode') or 'cover_box').strip()
-            if erase_mode not in ('keep', 'cover_box', 'auto_all', 'auto_subtitles', 'auto_text', 'local_fill'):
+            erase_mode = str(data.get('erase_mode') or 'keep').strip()
+            if erase_mode == 'none':
+                erase_mode = 'keep'
+            if erase_mode == 'cover_box':
+                erase_mode = 'cover_subtitles'
+            allowed_erase_modes = (
+                'keep',
+                'blur_subtitles', 'blur_mask',
+                'cover_subtitles', 'cover_mask',
+                'auto_all', 'auto_subtitles', 'auto_text',
+                'inpaint_subtitles', 'inpaint_all',
+                'local_fill', 'inpaint_mask',
+            )
+            if erase_mode not in allowed_erase_modes:
                 raise StudioError('지원하지 않는 글자 지우기 방식입니다.')
             overlay_text = str(data.get('overlay_text') or '').strip()[:300]
             overlay_position = str(data.get('overlay_position') or 'bottom').strip()
+            if overlay_position == 'center':
+                overlay_position = 'middle'
             if overlay_position not in ('top', 'middle', 'bottom'):
                 overlay_position = 'bottom'
             overlay_color = str(data.get('overlay_color') or 'white').strip()
             overlay_bg = bool(data.get('overlay_bg', True))
             try:
-                overlay_size = float(data.get('overlay_size', 4.5))
-                if not math.isfinite(overlay_size) or not 2.0 <= overlay_size <= 12.0:
-                    overlay_size = 4.5
+                overlay_size = float(data.get('overlay_size', 42.0))
+                if not math.isfinite(overlay_size) or not 2.0 <= overlay_size <= 180.0:
+                    overlay_size = 42.0
             except (TypeError, ValueError):
-                overlay_size = 4.5
-            rectangle = data.get('rectangle') if isinstance(data.get('rectangle'), dict) else None
+                overlay_size = 42.0
+
+            def _parse_pct(val):
+                if val is None or val == '':
+                    return None
+                try:
+                    v = float(val)
+                    if math.isfinite(v) and 0.0 <= v <= 100.0:
+                        return round(v, 2)
+                except (TypeError, ValueError):
+                    pass
+                return None
+
+            def _parse_bound_num(val, min_v=0.0, max_v=200.0):
+                if val is None or val == '':
+                    return None
+                try:
+                    v = float(val)
+                    if math.isfinite(v):
+                        return round(max(min_v, min(max_v, v)), 2)
+                except (TypeError, ValueError):
+                    pass
+                return None
+
+            overlay_x = _parse_pct(data.get('overlay_x'))
+            overlay_y = _parse_pct(data.get('overlay_y'))
+            overlay_font = str(data.get('overlay_font') or '').strip()[:48]
+            overlay_box_w = _parse_pct(data.get('overlay_box_w'))
+            overlay_box_h = _parse_pct(data.get('overlay_box_h'))
+            overlay_box_radius = _parse_bound_num(data.get('overlay_box_radius'), 0.0, 120.0)
+            overlay_stroke_width = _parse_bound_num(data.get('overlay_stroke_width'), 0.0, 36.0)
+            overlay_stroke_color = str(data.get('overlay_stroke_color') or '').strip()[:24]
+            overlay_double_stroke_width = _parse_bound_num(data.get('overlay_double_stroke_width'), 0.0, 36.0)
+            overlay_double_stroke_color = str(data.get('overlay_double_stroke_color') or '').strip()[:24]
+            overlay_bold = bool(data.get('overlay_bold', True))
+            overlay_italic = bool(data.get('overlay_italic', False))
+            overlay_underline = bool(data.get('overlay_underline', False))
+            overlay_text_color = str(data.get('overlay_text_color') or '').strip()[:24]
+            overlay_bg_color = str(data.get('overlay_bg_color') or '').strip()[:24]
+            overlay_bg_opacity = _parse_bound_num(data.get('overlay_bg_opacity'), 0.0, 100.0)
+            overlay_letter_spacing = _parse_bound_num(data.get('overlay_letter_spacing'), -10.0, 40.0) or 0.0
+            overlay_line_spacing = _parse_bound_num(data.get('overlay_line_spacing'), 0.7, 3.0) or 1.25
+            overlay_align = str(data.get('overlay_align') or '').strip().lower()[:12]
+            if overlay_align not in ('left', 'center', 'right'):
+                overlay_align = ''
+            overlay_scale_pct = _parse_bound_num(data.get('overlay_scale_pct'), 40.0, 250.0) or 100.0
+            overlay_opacity = _parse_bound_num(data.get('overlay_opacity'), 10.0, 100.0) or 100.0
+
+            title_text = str(data.get('title_text') or '').strip()[:240]
+            title_position = str(data.get('title_position') or 'top').strip()
+            if title_position == 'center':
+                title_position = 'middle'
+            if title_position not in ('top', 'middle', 'bottom'):
+                title_position = 'top'
+            title_color = str(data.get('title_color') or 'yellow').strip()
+            title_bg = bool(data.get('title_bg', True))
+            try:
+                title_size = float(data.get('title_size', 54.0))
+                if not math.isfinite(title_size) or not 2.0 <= title_size <= 180.0:
+                    title_size = 54.0
+            except (TypeError, ValueError):
+                title_size = 54.0
+            title_x = _parse_pct(data.get('title_x'))
+            title_y = _parse_pct(data.get('title_y'))
+            title_font = str(data.get('title_font') or '').strip()[:48]
+            title_box_w = _parse_pct(data.get('title_box_w'))
+            title_box_h = _parse_pct(data.get('title_box_h'))
+            title_box_radius = _parse_bound_num(data.get('title_box_radius'), 0.0, 120.0)
+            title_stroke_width = _parse_bound_num(data.get('title_stroke_width'), 0.0, 36.0)
+            title_stroke_color = str(data.get('title_stroke_color') or '').strip()[:24]
+            title_double_stroke_width = _parse_bound_num(data.get('title_double_stroke_width'), 0.0, 36.0)
+            title_double_stroke_color = str(data.get('title_double_stroke_color') or '').strip()[:24]
+            title_bold = bool(data.get('title_bold', True))
+            title_italic = bool(data.get('title_italic', False))
+            title_underline = bool(data.get('title_underline', False))
+            title_text_color = str(data.get('title_text_color') or '').strip()[:24]
+            title_bg_color = str(data.get('title_bg_color') or '').strip()[:24]
+            title_bg_opacity = _parse_bound_num(data.get('title_bg_opacity'), 0.0, 100.0)
+            title_letter_spacing = _parse_bound_num(data.get('title_letter_spacing'), -10.0, 40.0) or 0.0
+            title_line_spacing = _parse_bound_num(data.get('title_line_spacing'), 0.7, 3.0) or 1.25
+            title_align = str(data.get('title_align') or '').strip().lower()[:12]
+            if title_align not in ('left', 'center', 'right'):
+                title_align = ''
+            title_scale_pct = _parse_bound_num(data.get('title_scale_pct'), 40.0, 250.0) or 100.0
+            title_opacity = _parse_bound_num(data.get('title_opacity'), 10.0, 100.0) or 100.0
+            try:
+                title_start = max(0.0, float(data.get('title_start', 0.0) or 0.0))
+            except (TypeError, ValueError):
+                title_start = 0.0
+            try:
+                raw_end = data.get('title_end')
+                title_end = float(raw_end) if raw_end is not None and str(raw_end).strip() != '' else 0.0
+                if not math.isfinite(title_end) or title_end < 0.0:
+                    title_end = 0.0
+            except (TypeError, ValueError):
+                title_end = 0.0
+
+            title_badge = str(data.get('title_badge') or '').strip()[:36]
+            overlay_badge = str(data.get('overlay_badge') or data.get('badge_text') or '').strip()[:36]
+            overlay_template = str(data.get('template') or '').strip()[:36]
+            raw_rect = data.get('rectangle') if isinstance(data.get('rectangle'), dict) else None
+            rectangle = None
+            if raw_rect:
+                try:
+                    rx = max(0.0, min(96.0, float(raw_rect.get('x', 6.0))))
+                    ry = max(0.0, min(96.0, float(raw_rect.get('y', 74.0))))
+                    rw = max(2.0, min(100.0 - rx, float(raw_rect.get('w', 88.0))))
+                    rh = max(2.0, min(100.0 - ry, float(raw_rect.get('h', 16.0))))
+                    rectangle = {'x': round(rx, 2), 'y': round(ry, 2), 'w': round(rw, 2), 'h': round(rh, 2)}
+                except (TypeError, ValueError):
+                    rectangle = None
+            mask_color = str(data.get('mask_color') or '#0f172a').strip()[:24]
+            mask_opacity = _parse_bound_num(data.get('mask_opacity'), 0.15, 1.0)
+            if mask_opacity is None:
+                mask_opacity = 0.92
+            video_zoom = _parse_bound_num(data.get('video_zoom'), 100.0, 200.0)
+            if video_zoom is None:
+                video_zoom = 100.0
+            focus_x = _parse_pct(data.get('focus_x'))
+            if focus_x is None:
+                focus_x = 50.0
+            focus_y = _parse_pct(data.get('focus_y'))
+            if focus_y is None:
+                focus_y = 50.0
 
             binary = find_ffmpeg()
             if not binary:
@@ -4435,7 +4825,6 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if original.get('kind') == 'image':
                 from studio_text_clean import clean_and_overlay_image
                 source = directory(job_id) / 'original'
-                # Keep a backup of the untouched original image so repeated edits don't compound
                 raw_backup = directory(job_id) / 'original-raw'
                 if not raw_backup.is_file() and source.is_file():
                     shutil.copy2(source, raw_backup)
@@ -4453,6 +4842,61 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                             overlay_size=overlay_size,
                             overlay_color=overlay_color,
                             overlay_bg=overlay_bg,
+                            overlay_x=overlay_x,
+                            overlay_y=overlay_y,
+                            overlay_font=overlay_font,
+                            overlay_box_w=overlay_box_w,
+                            overlay_box_h=overlay_box_h,
+                            overlay_box_radius=overlay_box_radius,
+                            overlay_stroke_width=overlay_stroke_width,
+                            overlay_stroke_color=overlay_stroke_color,
+                            overlay_double_stroke_width=overlay_double_stroke_width,
+                            overlay_double_stroke_color=overlay_double_stroke_color,
+                            overlay_bold=overlay_bold,
+                            overlay_italic=overlay_italic,
+                            overlay_underline=overlay_underline,
+                            overlay_text_color=overlay_text_color,
+                            overlay_bg_color=overlay_bg_color,
+                            overlay_bg_opacity=overlay_bg_opacity,
+                            overlay_letter_spacing=overlay_letter_spacing,
+                            overlay_line_spacing=overlay_line_spacing,
+                            overlay_align=overlay_align,
+                            overlay_scale_pct=overlay_scale_pct,
+                            overlay_opacity=overlay_opacity,
+                            title_text=title_text,
+                            title_position=title_position,
+                            title_size=title_size,
+                            title_color=title_color,
+                            title_bg=title_bg,
+                            title_x=title_x,
+                            title_y=title_y,
+                            title_badge=title_badge,
+                            title_font=title_font,
+                            title_box_w=title_box_w,
+                            title_box_h=title_box_h,
+                            title_box_radius=title_box_radius,
+                            title_stroke_width=title_stroke_width,
+                            title_stroke_color=title_stroke_color,
+                            title_double_stroke_width=title_double_stroke_width,
+                            title_double_stroke_color=title_double_stroke_color,
+                            title_bold=title_bold,
+                            title_italic=title_italic,
+                            title_underline=title_underline,
+                            title_text_color=title_text_color,
+                            title_bg_color=title_bg_color,
+                            title_bg_opacity=title_bg_opacity,
+                            title_letter_spacing=title_letter_spacing,
+                            title_line_spacing=title_line_spacing,
+                            title_align=title_align,
+                            title_scale_pct=title_scale_pct,
+                            title_opacity=title_opacity,
+                            template=overlay_template,
+                            badge_text=overlay_badge,
+                            mask_color=mask_color,
+                            mask_opacity=mask_opacity,
+                            video_zoom=video_zoom,
+                            focus_x=focus_x,
+                            focus_y=focus_y,
                         )
                     except Exception as err:
                         raise StudioError('이미지 글자 편집 실패: ' + str(err)[:160], 422)
@@ -4466,16 +4910,75 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                     job['sha256'] = digest
                     job['text_edit'] = {
                         **report,
+                        'rectangle': rectangle,
+                        'mask_color': mask_color,
+                        'mask_opacity': mask_opacity,
+                        'video_zoom': video_zoom,
+                        'focus_x': focus_x,
+                        'focus_y': focus_y,
                         'overlay_text': overlay_text,
                         'overlay_position': overlay_position,
                         'overlay_size': overlay_size,
                         'overlay_color': overlay_color,
+                        'overlay_bg': overlay_bg,
+                        'overlay_x': overlay_x,
+                        'overlay_y': overlay_y,
+                        'overlay_font': overlay_font,
+                        'overlay_box_w': overlay_box_w,
+                        'overlay_box_h': overlay_box_h,
+                        'overlay_box_radius': overlay_box_radius,
+                        'overlay_stroke_width': overlay_stroke_width,
+                        'overlay_stroke_color': overlay_stroke_color,
+                        'overlay_double_stroke_width': overlay_double_stroke_width,
+                        'overlay_double_stroke_color': overlay_double_stroke_color,
+                        'overlay_bold': overlay_bold,
+                        'overlay_italic': overlay_italic,
+                        'overlay_underline': overlay_underline,
+                        'overlay_text_color': overlay_text_color,
+                        'overlay_bg_color': overlay_bg_color,
+                        'overlay_bg_opacity': overlay_bg_opacity,
+                        'overlay_letter_spacing': overlay_letter_spacing,
+                        'overlay_line_spacing': overlay_line_spacing,
+                        'overlay_align': overlay_align,
+                        'overlay_scale_pct': overlay_scale_pct,
+                        'overlay_opacity': overlay_opacity,
+                        'overlay_badge': overlay_badge,
+                        'template': overlay_template,
+                        'title_text': title_text,
+                        'title_position': title_position,
+                        'title_size': title_size,
+                        'title_color': title_color,
+                        'title_bg': title_bg,
+                        'title_x': title_x,
+                        'title_y': title_y,
+                        'title_font': title_font,
+                        'title_box_w': title_box_w,
+                        'title_box_h': title_box_h,
+                        'title_box_radius': title_box_radius,
+                        'title_stroke_width': title_stroke_width,
+                        'title_stroke_color': title_stroke_color,
+                        'title_double_stroke_width': title_double_stroke_width,
+                        'title_double_stroke_color': title_double_stroke_color,
+                        'title_bold': title_bold,
+                        'title_italic': title_italic,
+                        'title_underline': title_underline,
+                        'title_text_color': title_text_color,
+                        'title_bg_color': title_bg_color,
+                        'title_bg_opacity': title_bg_opacity,
+                        'title_letter_spacing': title_letter_spacing,
+                        'title_line_spacing': title_line_spacing,
+                        'title_align': title_align,
+                        'title_scale_pct': title_scale_pct,
+                        'title_opacity': title_opacity,
+                        'title_badge': title_badge,
+                        'title_start': title_start,
+                        'title_end': title_end,
                         'updated_at': time.time(),
                     }
                     save(job)
                 return jsonify(job)
 
-            # Video subtitle / text erase + Korean overlay (keeps full video timeline intact!)
+            # Video subtitle / text erase + Mask + Zoom + Korean overlay (keeps full video timeline intact!)
             source = directory(job_id) / 'video'
             raw_backup = directory(job_id) / 'video-raw'
             if not raw_backup.is_file() and source.is_file():
@@ -4486,23 +4989,42 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             mute = bool(data.get('mute_audio', False))
             audio = original['media']['has_audio'] and not mute
 
+            def _resolve_video_mask_px(default_y=74.0, default_h=16.0):
+                rect_src = rectangle
+                if not rect_src or float(rect_src.get('w', 0) or 0) < 3.0:
+                    try:
+                        from studio_text_clean import detect_subtitle_cover_band
+                        rect_src = detect_subtitle_cover_band(base_source, is_image=False)
+                    except Exception:
+                        rect_src = {'x': 6.0, 'y': default_y, 'w': 88.0, 'h': default_h}
+                rx = float(rect_src.get('x', 6.0))
+                ry = float(rect_src.get('y', default_y))
+                rw = float(rect_src.get('w', 88.0))
+                rh = float(rect_src.get('h', default_h))
+                px = max(2, min(width - 8, int(round(width * rx / 100.0))))
+                py = max(2, min(height - 8, int(round(height * ry / 100.0))))
+                pw = max(4, min(width - px - 2, int(round(width * rw / 100.0))))
+                ph = max(4, min(height - py - 2, int(round(height * rh / 100.0))))
+                return px, py, pw, ph
+
             with tempfile.TemporaryDirectory(prefix='vid-text-edit-', dir=root) as temp:
                 temp_dir = Path(temp)
                 cleaned = None
                 clean_report = None
-                v_filters = [f'scale={width}:{height},setsar=1']
-                cover_center_y_px = None
-                if erase_mode == 'cover_box':
-                    from studio_text_clean import detect_subtitle_cover_band
-                    band = rectangle if isinstance(rectangle, dict) else detect_subtitle_cover_band(base_source, is_image=False)
-                    bx = max(0, min(width - 4, int(round(width * float(band.get('x', 6.0)) / 100.0))))
-                    by = max(0, min(height - 4, int(round(height * float(band.get('y', 74.0)) / 100.0))))
-                    bw = max(8, min(width - bx, int(round(width * float(band.get('w', 88.0)) / 100.0))))
-                    bh = max(8, min(height - by, int(round(height * float(band.get('h', 15.0)) / 100.0))))
-                    cover_center_y_px = by + bh // 2
-                    box_color = 'white@0.95' if overlay_color == 'black' else '0x0E1016@0.94'
-                    v_filters.append(f'drawbox=x={bx}:y={by}:w={bw}:h={bh}:color={box_color}:t=fill')
-                elif erase_mode in ('auto_all', 'auto_subtitles', 'auto_text'):
+                v_filters = []
+                if video_zoom > 100.5:
+                    z_ratio = min(2.0, max(1.0, video_zoom / 100.0))
+                    scaled_w = int(round(width * z_ratio)) // 2 * 2
+                    scaled_h = int(round(height * z_ratio)) // 2 * 2
+                    extra_w = max(0, scaled_w - width)
+                    extra_h = max(0, scaled_h - height)
+                    crop_x = int(round(extra_w * (focus_x / 100.0)))
+                    crop_y = int(round(extra_h * (focus_y / 100.0)))
+                    v_filters.append(f'scale={scaled_w}:{scaled_h},crop={width}:{height}:{crop_x}:{crop_y},setsar=1')
+                else:
+                    v_filters.append(f'scale={width}:{height},setsar=1')
+
+                if erase_mode in ('auto_all', 'auto_subtitles', 'auto_text', 'inpaint_subtitles', 'inpaint_all'):
                     from studio_text_clean import clean_text_video
                     progress_path = directory(job_id) / 'text-clean-progress.json'
                     def progress(state):
@@ -4511,56 +5033,132 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         temporary.replace(progress_path)
                     progress(dict(stage='detecting', frame=0, total=0, repaired_frames=0))
                     cleaned = temp_dir / 'cleaned.mp4'
-                    scope = 'subtitles' if erase_mode == 'auto_subtitles' else 'all_text'
+                    scope = 'subtitles' if erase_mode in ('auto_subtitles', 'inpaint_subtitles') else 'all_text'
                     try:
                         clean_report = clean_text_video(base_source, cleaned, scope, progress)
                     except Exception as err:
                         progress(dict(stage='failed'))
                         raise StudioError('영상 자막 지우기 실패: ' + str(err)[:160], 422)
-                elif erase_mode == 'local_fill' and isinstance(rectangle, dict):
-                    try:
-                        rx, ry, rw, rh = [float(rectangle.get(k, 10)) for k in ('x', 'y', 'w', 'h')]
-                        px, py, pw, ph = [int(v * n / 100) for v, n in ((rx, width), (ry, height), (rw, width), (rh, height))]
-                        px = max(1, min(px, width - 4))
-                        py = max(1, min(py, height - 4))
-                        pw = max(2, min(pw, width - px - 1))
-                        ph = max(2, min(ph, height - py - 1))
-                        v_filters.insert(0, f'delogo=x={px}:y={py}:w={pw}:h={ph}')
-                    except Exception:
-                        pass
+                elif erase_mode in ('local_fill', 'inpaint_mask', 'blur_subtitles', 'blur_mask'):
+                    px, py, pw, ph = _resolve_video_mask_px(74.0, 16.0)
+                    v_filters.append(f'delogo=x={px}:y={py}:w={pw}:h={ph}')
+                elif erase_mode in ('cover_subtitles', 'cover_mask'):
+                    px, py, pw, ph = _resolve_video_mask_px(73.0, 16.0)
+                    hex_clean = re.sub(r'[^0-9A-Fa-f]', '', mask_color or '0f172a')
+                    if len(hex_clean) != 6:
+                        hex_clean = '0f172a'
+                    op_val = round(min(1.0, max(0.15, float(mask_opacity))), 2)
+                    v_filters.append(f'drawbox=x={px}:y={py}:w={pw}:h={ph}:color=0x{hex_clean}@{op_val}:t=fill')
+
+                from studio_text_clean import render_transparent_overlay_png
+                png_inputs = []
+
+                if title_text:
+                    title_png = temp_dir / 'title_overlay.png'
+                    tx_px = (width * (title_x / 100.0)) if title_x is not None else None
+                    ty_px = (height * (title_y / 100.0)) if title_y is not None else None
+                    render_transparent_overlay_png(
+                        width=width,
+                        height=height,
+                        destination_png=title_png,
+                        overlay_text=title_text,
+                        overlay_position=title_position or 'top',
+                        overlay_size=title_size,
+                        overlay_color=title_color,
+                        overlay_bg=title_bg,
+                        custom_center_x=tx_px,
+                        custom_center_y=ty_px,
+                        template=overlay_template,
+                        badge_text=title_badge,
+                        font_family=title_font,
+                        box_w_pct=title_box_w,
+                        box_h_pct=title_box_h,
+                        box_radius=title_box_radius,
+                        stroke_width=title_stroke_width,
+                        stroke_color=title_stroke_color,
+                        double_stroke_width=title_double_stroke_width,
+                        double_stroke_color=title_double_stroke_color,
+                        bold=title_bold,
+                        italic=title_italic,
+                        underline=title_underline,
+                        text_color_hex=title_text_color,
+                        bg_color_hex=title_bg_color,
+                        bg_opacity=title_bg_opacity,
+                        letter_spacing=title_letter_spacing,
+                        line_spacing=title_line_spacing,
+                        text_align=title_align,
+                        scale_pct=title_scale_pct,
+                        opacity=title_opacity,
+                    )
+                    enable_expr = ''
+                    if title_end > title_start and title_end > 0.0:
+                        enable_expr = f":enable='between(t,{round(title_start, 2)},{round(title_end, 2)})'"
+                    png_inputs.append((title_png, enable_expr))
 
                 if overlay_text:
-                    font = Path('C:/Windows/Fonts/malgunbd.ttf')
-                    if not font.is_file():
-                        font = Path('C:/Windows/Fonts/malgun.ttf')
-                    if not font.is_file():
-                        raise StudioError('한글 자막용 글꼴(맑은 고딕)을 찾지 못했습니다.', 503)
-                    font_arg = str(font).replace('\\', '/').replace(':', r'\:')
-                    text_file = temp_dir / 'overlay.txt'
-                    text_file.write_text(overlay_text, encoding='utf-8')
-                    textfile_arg = str(text_file).replace('\\', '/').replace(':', r'\:')
-                    fsize = max(18, int(round(min(width, height) * (overlay_size / 100.0))))
-                    if cover_center_y_px is not None:
-                        y_expr = f'max(12,min(h-text_h-12,{cover_center_y_px}-text_h/2))'
-                    else:
-                        y_expr = 'h*0.08' if overlay_position == 'top' else '(h-text_h)/2' if overlay_position == 'middle' else 'h-text_h-h*0.10'
-                    fcolor = {'white': 'white', 'yellow': '0xFFE840', 'black': 'black', 'mint': '0x6EFFD8'}.get(overlay_color, 'white')
-                    if erase_mode == 'cover_box':
-                        bg_col = 'white@0.96' if overlay_color == 'black' else '0x0E1016@0.94'
-                        box_part = f':box=1:boxcolor={bg_col}:boxborderw=14'
-                    else:
-                        box_part = ':box=1:boxcolor=black@0.75:boxborderw=12' if overlay_bg else ':borderw=3:bordercolor=black'
-                    v_filters.append(
-                        f"drawtext=fontfile='{font_arg}':textfile='{textfile_arg}':fontsize={fsize}:fontcolor={fcolor}{box_part}:x=(w-text_w)/2:y={y_expr}"
+                    sub_png = temp_dir / 'sub_overlay.png'
+                    ox_px = (width * (overlay_x / 100.0)) if overlay_x is not None else None
+                    oy_px = (height * (overlay_y / 100.0)) if overlay_y is not None else None
+                    render_transparent_overlay_png(
+                        width=width,
+                        height=height,
+                        destination_png=sub_png,
+                        overlay_text=overlay_text,
+                        overlay_position=overlay_position or 'bottom',
+                        overlay_size=overlay_size,
+                        overlay_color=overlay_color,
+                        overlay_bg=overlay_bg,
+                        custom_center_x=ox_px,
+                        custom_center_y=oy_px,
+                        force_opaque_bg=False,
+                        template=overlay_template,
+                        badge_text=overlay_badge,
+                        font_family=overlay_font,
+                        box_w_pct=overlay_box_w,
+                        box_h_pct=overlay_box_h,
+                        box_radius=overlay_box_radius,
+                        stroke_width=overlay_stroke_width,
+                        stroke_color=overlay_stroke_color,
+                        double_stroke_width=overlay_double_stroke_width,
+                        double_stroke_color=overlay_double_stroke_color,
+                        bold=overlay_bold,
+                        italic=overlay_italic,
+                        underline=overlay_underline,
+                        text_color_hex=overlay_text_color,
+                        bg_color_hex=overlay_bg_color,
+                        bg_opacity=overlay_bg_opacity,
+                        letter_spacing=overlay_letter_spacing,
+                        line_spacing=overlay_line_spacing,
+                        text_align=overlay_align,
+                        scale_pct=overlay_scale_pct,
+                        opacity=overlay_opacity,
                     )
+                    png_inputs.append((sub_png, ''))
 
                 output = temp_dir / 'edited.mp4'
                 args = [binary, '-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-i', str(cleaned or base_source)]
+                audio_input_idx = 0
                 if cleaned and audio:
                     args += ['-protocol_whitelist', 'file,pipe', '-i', str(base_source)]
-                args += ['-vf', ','.join(v_filters), '-map', '0:v:0']
+                    audio_input_idx = 1
+                png_start_idx = 1 + (1 if (cleaned and audio) else 0)
+                for p_file, _ in png_inputs:
+                    args += ['-protocol_whitelist', 'file,pipe', '-i', str(p_file)]
+
+                if png_inputs:
+                    chain_parts = [f'[0:v]{",".join(v_filters)}[vbase0]']
+                    last_label = 'vbase0'
+                    for i, (_, en_expr) in enumerate(png_inputs):
+                        in_idx = png_start_idx + i
+                        next_label = f'vbase{i + 1}'
+                        chain_parts.append(f'[{last_label}][{in_idx}:v]overlay=0:0:format=auto{en_expr}[{next_label}]')
+                        last_label = next_label
+                    args += ['-filter_complex', ';'.join(chain_parts), '-map', f'[{last_label}]']
+                else:
+                    args += ['-vf', ','.join(v_filters), '-map', '0:v:0']
+
                 if audio:
-                    args += ['-map', ('1:a:0' if cleaned else '0:a:0'), '-c:a', 'aac']
+                    args += ['-map', f'{audio_input_idx}:a:0', '-c:a', 'aac']
                 else:
                     args += ['-an']
                 args += ['-sn', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(output)]
@@ -4577,10 +5175,69 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 job = read(job_id)
                 job.update(sha256=digest, media=media, evidence=evidence, text_edit={
                     'erase_mode': erase_mode,
+                    'rectangle': rectangle,
+                    'mask_color': mask_color,
+                    'mask_opacity': mask_opacity,
+                    'video_zoom': video_zoom,
+                    'focus_x': focus_x,
+                    'focus_y': focus_y,
                     'overlay_text': overlay_text,
                     'overlay_position': overlay_position,
                     'overlay_size': overlay_size,
                     'overlay_color': overlay_color,
+                    'overlay_bg': overlay_bg,
+                    'overlay_x': overlay_x,
+                    'overlay_y': overlay_y,
+                    'overlay_font': overlay_font,
+                    'overlay_box_w': overlay_box_w,
+                    'overlay_box_h': overlay_box_h,
+                    'overlay_box_radius': overlay_box_radius,
+                    'overlay_stroke_width': overlay_stroke_width,
+                    'overlay_stroke_color': overlay_stroke_color,
+                    'overlay_double_stroke_width': overlay_double_stroke_width,
+                    'overlay_double_stroke_color': overlay_double_stroke_color,
+                    'overlay_bold': overlay_bold,
+                    'overlay_italic': overlay_italic,
+                    'overlay_underline': overlay_underline,
+                    'overlay_text_color': overlay_text_color,
+                    'overlay_bg_color': overlay_bg_color,
+                    'overlay_bg_opacity': overlay_bg_opacity,
+                    'overlay_letter_spacing': overlay_letter_spacing,
+                    'overlay_line_spacing': overlay_line_spacing,
+                    'overlay_align': overlay_align,
+                    'overlay_scale_pct': overlay_scale_pct,
+                    'overlay_opacity': overlay_opacity,
+                    'overlay_badge': overlay_badge,
+                    'template': overlay_template,
+                    'title_text': title_text,
+                    'title_position': title_position,
+                    'title_size': title_size,
+                    'title_color': title_color,
+                    'title_bg': title_bg,
+                    'title_x': title_x,
+                    'title_y': title_y,
+                    'title_font': title_font,
+                    'title_box_w': title_box_w,
+                    'title_box_h': title_box_h,
+                    'title_box_radius': title_box_radius,
+                    'title_stroke_width': title_stroke_width,
+                    'title_stroke_color': title_stroke_color,
+                    'title_double_stroke_width': title_double_stroke_width,
+                    'title_double_stroke_color': title_double_stroke_color,
+                    'title_bold': title_bold,
+                    'title_italic': title_italic,
+                    'title_underline': title_underline,
+                    'title_text_color': title_text_color,
+                    'title_bg_color': title_bg_color,
+                    'title_bg_opacity': title_bg_opacity,
+                    'title_letter_spacing': title_letter_spacing,
+                    'title_line_spacing': title_line_spacing,
+                    'title_align': title_align,
+                    'title_scale_pct': title_scale_pct,
+                    'title_opacity': title_opacity,
+                    'title_badge': title_badge,
+                    'title_start': title_start,
+                    'title_end': title_end,
                     'text_clean': clean_report,
                     'updated_at': time.time(),
                 })
@@ -4590,18 +5247,489 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 progress_path.write_text(json.dumps(dict(stage='completed', frame=clean_report['frames'], total=clean_report['frames'])), encoding='utf-8')
             return jsonify(job)
 
+    def _extract_rich_carousel_materials(job):
+        """Harvest all available intelligence (analysis.result, observations, OCR, product, draft, source_text) for card news synthesis."""
+        analysis_root = job.get('analysis') or {}
+        analysis_res = analysis_root.get('result') if isinstance(analysis_root.get('result'), dict) else analysis_root
+        summary_text = str(analysis_res.get('summary') or '').strip()
+        audio_summary = str(analysis_res.get('audio_summary') or '').strip()
+        raw_obs = analysis_res.get('observations') or []
+        obs_entries = []
+        for item in raw_obs:
+            if isinstance(item, dict):
+                desc = str(item.get('description') or item.get('text') or '').strip()
+                ts_raw = str(item.get('timestamp') or '').strip()
+                sec_val = None
+                m = re.search(r'(?:(\d+):)?(\d+(?:\.\d+)?)', ts_raw)
+                if m:
+                    try:
+                        mins = float(m.group(1) or 0)
+                        secs = float(m.group(2) or 0)
+                        sec_val = round(mins * 60.0 + secs, 2)
+                    except (TypeError, ValueError):
+                        sec_val = None
+                if desc:
+                    obs_entries.append({'text': desc, 'timestamp': sec_val})
+            elif str(item or '').strip():
+                obs_entries.append({'text': str(item).strip(), 'timestamp': None})
+
+        search_terms = [str(t).strip() for t in (analysis_res.get('search_terms') or []) if str(t or '').strip()]
+        product = job.get('product') or {}
+        product_name = str(product.get('name') or '').strip()
+        draft_body = str(((job.get('draft') or {}).get('body')) or '').strip()
+        source_text = str(job.get('source_text') or '').strip()
+        ocr_data = job.get('media_ocr') or {}
+        ocr_text = str(ocr_data.get('translated_text') or ocr_data.get('raw_text') or '').strip()
+        return {
+            'summary': summary_text,
+            'audio_summary': audio_summary,
+            'observations': obs_entries,
+            'search_terms': search_terms,
+            'product_name': product_name,
+            'draft_body': draft_body,
+            'source_text': source_text,
+            'ocr_text': ocr_text,
+        }
+
+    COVER_HOOK_FORMULAS = {
+        'question': '질문형 (호기심·공감 유발)',
+        'number': '숫자·공식형 (구체적 수치·법칙)',
+        'twist': '반전·통념파괴형 (상식 뒤집기)',
+        'loss_aversion': '손실회피·비교형 (모르면 손해)',
+        'direct_rule': '단도직입·핵심비결형 (강렬한 3단 타이포)',
+    }
+
+    def _apply_cover_hook_formula(hook_formula, raw_topic='', raw_sub='', product_name='', count=5):
+        """Synthesize a high-converting Slide 1 (Cover) Title + Subtitle using the 90% Cover Hook Formula."""
+        formula = str(hook_formula or '').strip().lower()
+        clean_topic = re.sub(r'[\[\]\*]', '', str(raw_topic or '').split('\n')[0].split('|')[0]).strip()
+        clean_sub = re.sub(r'[\[\]\*]', '', str(raw_sub or '').strip())
+        if not clean_topic:
+            clean_topic = product_name or '핵심 선택 기준'
+        short_kw = product_name[:14] if (product_name and len(product_name) <= 16) else clean_topic[:14]
+        pt_cnt = max(2, min(7, int(count or 5) - 2)) if int(count or 5) >= 4 else 3
+        if formula == 'question':
+            title = f'아직도 [{short_kw}] 그냥 고르세요?'
+            sub = clean_sub[:68] if len(clean_sub) >= 8 else f'실사용자가 직접 비교해보고 찾은 결정적 차이점 {pt_cnt}가지'
+            return f'{title}\n{sub}'
+        if formula == 'number':
+            title = f'잘 고르는 [{short_kw}] 핵심 공식 {pt_cnt}가지'
+            sub = clean_sub[:68] if len(clean_sub) >= 8 else '실패 없는 선택에는 반드시 공식이 있습니다!'
+            return f'{title}\n{sub}'
+        if formula == 'twist':
+            title = f'다 똑같다는 [{short_kw}]의 *의외의 반전*'
+            sub = clean_sub[:68] if len(clean_sub) >= 8 else '직접 써보고 나서야 알게 된 진짜 차이점을 공개합니다'
+            return f'{title}\n{sub}'
+        if formula == 'loss_aversion':
+            title = f'모르면 나만 손해 보는 [{short_kw}] 체크리스트'
+            sub = clean_sub[:68] if len(clean_sub) >= 8 else '구매 전 딱 10초만 투자해서 실패 확률을 줄이세요'
+            return f'{title}\n{sub}'
+        if formula == 'direct_rule':
+            title = f'잘 터지는 [{short_kw}] *핵심 비결* 총정리'
+            sub = clean_sub[:68] if len(clean_sub) >= 8 else '한눈에 이해되는 실전 핵심 포인트를 확인하세요!'
+            return f'{title}\n{sub}'
+        return ''
+
+    def _compose_slide_3tier_text(raw_text='', title='', subtitle='', body_text=''):
+        """Combine explicit title, subtitle, and body_text (or multiline text) into normalized slide text (Title\\nSubtitle\\nBody)."""
+        t = str(title or '').strip()[:70]
+        s = str(subtitle or '').strip()[:90]
+        b = str(body_text or '').strip()[:140]
+        if t or s or b:
+            lines = [x for x in (t, s, b) if x]
+            return '\n'.join(lines)[:220]
+        raw = str(raw_text or '').replace('\r\n', '\n').replace('\r', '\n').strip()
+        if '|' in raw and '\n' not in raw:
+            raw = '\n'.join(p.strip() for p in raw.split('|') if p.strip())
+        return raw[:220]
+
+    def _split_slide_3tier_fields(slide_text=''):
+        """Split normalized slide text into (title, subtitle, body_text)."""
+        raw = str(slide_text or '').replace('\r\n', '\n').replace('\r', '\n').strip()
+        if '|' in raw and '\n' not in raw:
+            lines = [p.strip() for p in raw.split('|') if p.strip()]
+        else:
+            lines = [ln.strip() for ln in raw.split('\n') if ln.strip()]
+        title = lines[0] if len(lines) >= 1 else ''
+        subtitle = lines[1] if len(lines) >= 2 else ''
+        body_text = '\n'.join(lines[2:]) if len(lines) >= 3 else ''
+        return title, subtitle, body_text
+
+    def _save_custom_slide_image_from_data_url(job_id, image_data_url, aspect='4:5', slide_hint=1):
+        """Decode a base64 image data URL (from Ctrl+V clipboard paste or file picker), fit to carousel aspect ratio, and save inside job directory."""
+        raw_url = str(image_data_url or '').strip()
+        if not raw_url:
+            return None
+        if ',' in raw_url and raw_url.startswith('data:'):
+            _, b64_part = raw_url.split(',', 1)
+        else:
+            b64_part = raw_url
+        try:
+            raw_bytes = base64.b64decode(b64_part)
+        except Exception:
+            raise StudioError('클립보드 또는 업로드 이미지 데이터를 읽지 못했습니다.', 400)
+        if not raw_bytes or len(raw_bytes) < 32:
+            raise StudioError('유효한 이미지 데이터가 아닙니다.', 400)
+        try:
+            from io import BytesIO
+            from PIL import Image, ImageOps
+            with Image.open(BytesIO(raw_bytes)) as im:
+                im_rgb = ImageOps.exif_transpose(im).convert('RGB')
+                if aspect == '4:5':
+                    target_sz = (1080, 1350)
+                    fitted = ImageOps.fit(im_rgb, target_sz, method=Image.Resampling.LANCZOS)
+                elif aspect == '1:1':
+                    target_sz = (1080, 1080)
+                    fitted = ImageOps.fit(im_rgb, target_sz, method=Image.Resampling.LANCZOS)
+                else:
+                    im_rgb.thumbnail((1080, 1920), Image.Resampling.LANCZOS)
+                    fitted = im_rgb
+                fname = f'carousel-custom-{int(slide_hint or 1)}-{uuid.uuid4().hex[:8]}.jpg'
+                dest = directory(job_id) / fname
+                fitted.save(str(dest), format='JPEG', quality=94)
+                return fname
+        except StudioError:
+            raise
+        except Exception as exc:
+            raise StudioError(f'슬라이드 사진 처리에 실패했습니다: {exc}', 422)
+
+    def _prepare_slide_source_frame(job_id, original, binary, source_media, raw_frame_dest, ts, aspect, vf_crop, custom_image_name=''):
+        """Prepare raw_frame_dest from custom uploaded/pasted slide photo, single image job, or video frame at timestamp ts."""
+        job_dir = directory(job_id)
+        if custom_image_name:
+            custom_path = job_dir / str(custom_image_name)
+            if custom_path.is_file() and custom_path.stat().st_size > 0:
+                shutil.copy2(custom_path, raw_frame_dest)
+                return True
+        if original.get('kind') == 'image':
+            img_src = job_dir / 'original'
+            if not img_src.is_file():
+                img_src = job_dir / 'frame-0.jpg'
+            if img_src.is_file():
+                from PIL import Image, ImageOps
+                with Image.open(str(img_src)) as im:
+                    im_rgb = ImageOps.exif_transpose(im).convert('RGB')
+                    if aspect == '4:5':
+                        fitted = ImageOps.fit(im_rgb, (1080, 1350), method=Image.Resampling.LANCZOS)
+                    elif aspect == '1:1':
+                        fitted = ImageOps.fit(im_rgb, (1080, 1080), method=Image.Resampling.LANCZOS)
+                    else:
+                        im_rgb.thumbnail((1080, 1920), Image.Resampling.LANCZOS)
+                        fitted = im_rgb
+                    fitted.save(str(raw_frame_dest), format='JPEG', quality=94)
+                return True
+        if not source_media or not source_media.is_file() or not binary:
+            return False
+        res = run_ffmpeg(binary, [
+            '-y', '-protocol_whitelist', 'file,pipe',
+            '-ss', str(ts),
+            '-i', str(source_media),
+            '-frames:v', '1',
+            '-vf', vf_crop,
+            '-q:v', '2',
+            str(raw_frame_dest),
+        ])
+        return bool(res.returncode == 0 and raw_frame_dest.is_file() and raw_frame_dest.stat().st_size > 0)
+
+    def _build_fallback_carousel_texts(job, count, cover_title='', body_lines=None, hook_formula=''):
+        """Deterministically construct slide 1 (cover title + subcopy) and slides 2..count (editorial headline + detail subcopy) from all job sources."""
+        body_lines = [str(x).strip() for x in (body_lines or []) if str(x or '').strip()]
+        mat = _extract_rich_carousel_materials(job)
+        product_name = mat['product_name']
+        raw_sentences = []
+
+        def _push_sentence(txt):
+            cleaned = re.sub(r'^(#광고|\[광고\]|\[자세한 정보.*?\])\s*', '', str(txt or '').strip())
+            cleaned = re.sub(r'https?://\S+', '', cleaned)
+            cleaned = re.sub(r'(?:^|\s)#[0-9A-Za-z가-힣_]+', '', cleaned).strip()
+            if len(cleaned) >= 4 and cleaned not in raw_sentences:
+                raw_sentences.append(cleaned[:95])
+
+        for chunk in (mat['draft_body'], mat['source_text'], mat['summary'], mat['ocr_text'], mat['audio_summary']):
+            if not chunk:
+                continue
+            for line in re.split(r'[\r\n]+|(?<=[.!?])\s+', chunk):
+                _push_sentence(line)
+        for ob in mat['observations']:
+            _push_sentence(ob['text'])
+
+        # Helper to pair a punchy headline with a supporting sub-line if not already 2-line
+        def _format_editorial_pair(primary, secondary=''):
+            primary = str(primary or '').strip()
+            secondary = str(secondary or '').strip()
+            if '\n' in primary:
+                return primary[:180]
+            if not secondary and len(primary) > 28:
+                # Split naturally at comma, middle space, or clause boundary into Headline + Subcopy
+                parts = re.split(r'[,·—\-]\s*|\s+(?=그래서|특히|실제로|덕분에|비결은|핵심은|바로)', primary, maxsplit=1)
+                if len(parts) == 2 and len(parts[0].strip()) >= 6 and len(parts[1].strip()) >= 6:
+                    return f"{parts[0].strip()[:48]}\n{parts[1].strip()[:80]}"
+                words = primary.split()
+                if len(words) >= 6:
+                    mid = max(2, min(len(words) - 2, len(words) // 2))
+                    return f"{' '.join(words[:mid])[:48]}\n{' '.join(words[mid:])[:80]}"
+            if secondary and secondary != primary:
+                return f"{primary[:52]}\n{secondary[:82]}"
+            return primary[:180]
+
+        if not cover_title and hook_formula in COVER_HOOK_FORMULAS:
+            seed_topic = raw_sentences[0][:36] if raw_sentences else (product_name or '')
+            seed_sub = raw_sentences[1][:68] if len(raw_sentences) > 1 else (mat['summary'][:68] if mat['summary'] else '')
+            cover_title = _apply_cover_hook_formula(hook_formula, raw_topic=seed_topic, raw_sub=seed_sub, product_name=product_name, count=count)
+
+        if not cover_title:
+            if body_lines and len(body_lines) >= count:
+                cover_title = body_lines.pop(0)
+            elif raw_sentences:
+                first_hook = raw_sentences[0][:46]
+                if product_name and product_name not in first_hook and len(product_name) <= 18:
+                    cover_sub = raw_sentences[1][:64] if len(raw_sentences) > 1 else f'{product_name} 핵심만 빠르게 정리했습니다'
+                    cover_title = _format_editorial_pair(f'[{product_name}] {first_hook}', cover_sub)
+                else:
+                    cover_sub = raw_sentences[1][:64] if len(raw_sentences) > 1 else (mat['summary'][:64] if mat['summary'] else '놓치면 아쉬운 핵심 체크 포인트')
+                    cover_title = _format_editorial_pair(first_hook, cover_sub)
+            elif product_name:
+                cover_title = f'[{product_name}] 실사용 핵심 요약\n구매 전 꼭 확인해야 할 체크 포인트'
+            else:
+                stem = re.sub(r'[-_]+', ' ', Path(str(job.get('name') or '핵심 요약')).stem).strip()
+                base_t = (stem if len(stem) >= 3 else '핵심 포인트 한눈에 보기')[:42]
+                cover_title = f'{base_t}\n슬라이드를 넘겨 상세 포인트를 확인하세요'
+
+        slides_out = [cover_title[:200]]
+        used_heads = {cover_title.split('\n')[0].strip()}
+
+        for line in body_lines:
+            if len(slides_out) >= count:
+                break
+            head_key = line.split('\n')[0].strip()
+            if line and head_key not in used_heads:
+                slides_out.append(_format_editorial_pair(line))
+                used_heads.add(head_key)
+
+        has_explicit_cta = len(slides_out) >= count
+        body_target = max(1, count - 1) if (count >= 3 and not has_explicit_cta) else count
+
+        # Pair remaining sentences + observations to build rich 2-tier body cards
+        pool_idx = 0
+        while len(slides_out) < body_target and pool_idx < len(raw_sentences):
+            cand = raw_sentences[pool_idx]
+            pool_idx += 1
+            head_key = cand.split('\n')[0].strip()
+            if head_key in used_heads:
+                continue
+            used_heads.add(head_key)
+            sub_cand = ''
+            if pool_idx < len(raw_sentences) and len(cand) <= 32:
+                next_cand = raw_sentences[pool_idx]
+                if next_cand.split('\n')[0].strip() not in used_heads and len(raw_sentences) - pool_idx >= (body_target - len(slides_out)):
+                    sub_cand = next_cand
+                    used_heads.add(next_cand.split('\n')[0].strip())
+                    pool_idx += 1
+            slides_out.append(_format_editorial_pair(cand, sub_cand))
+
+        editorial_fallbacks = [
+            ('첫눈에 체감되는 [핵심 차별점]', '기존 방식과 비교했을 때 가장 먼저 느껴지는 변화입니다'),
+            ('실사용에서 검증된 *디테일 포인트*', '매일 직접 써보며 확인한 실용성과 편의성 체크'),
+            ('장단점 & 활용 팁 한눈에 정리', '이렇게 활용하면 만족도를 200% 끌어올릴 수 있어요'),
+            ('놓치기 쉬운 [실전 체크리스트]', '구매 전 미리 확인하면 실패 없는 선택 포인트'),
+        ]
+        while len(slides_out) < body_target:
+            idx_num = len(slides_out)
+            fb_head, fb_sub = editorial_fallbacks[(idx_num - 1) % len(editorial_fallbacks)]
+            if product_name:
+                slides_out.append(f'{product_name} · {fb_head}\n{fb_sub}'[:180])
+            else:
+                slides_out.append(f'{fb_head}\n{fb_sub}'[:180])
+
+        if len(slides_out) < count:
+            summary_seed = (mat['summary'] or (raw_sentences[-1] if raw_sentences else '')).strip()
+            if product_name:
+                cta_head = f'[{product_name}] 핵심 요약 · 추천 정리'
+                cta_sub = summary_seed[:76] if len(summary_seed) >= 8 else '고민 시간을 줄여주는 핵심 체크 포인트 · 첫 댓글에서 상세 정보를 확인하세요'
+            else:
+                cta_head = '[핵심 요약] 꼭 기억할 체크 포인트 총정리'
+                cta_sub = summary_seed[:76] if len(summary_seed) >= 8 else '실사용 검증 포인트 요약 완료 · 첫 댓글에서 상세 정보를 확인하세요'
+            slides_out.append(f'{cta_head[:52]}\n{cta_sub[:82]}'[:180])
+        return slides_out[:count]
+
+    def _default_slide_badge(idx_1based, total_count, template_name):
+        if template_name in ('minimal_outline', ''):
+            return ''
+        if idx_1based == 1:
+            return 'MAIN COVER'
+        if idx_1based == total_count and total_count >= 3:
+            return 'SUMMARY · CTA'
+        return f'POINT {idx_1based - 1:02d}'
+
+    def _generate_ai_carousel_story_slides(job, data, count):
+        """Use the selected AI provider/model to synthesize Cover (slide 1), Body (slides 2..N-1), and CTA (slide N) from job analysis."""
+        rich_mat = _extract_rich_carousel_materials(job)
+        duration = max(0.5, float((job.get('media') or {}).get('duration') or 5.0))
+        body_count = max(1, count - 2) if count >= 3 else max(0, count - 1)
+        hook_formula = str(data.get('hook_formula') or '').strip().lower()
+        hook_guide_map = {
+            'question': '반드시 [질문형 후킹]으로 작성하세요 (예: "아직도 [이것] 모르고 쓰세요?" + 부제목으로 호기심 유발).',
+            'number': f'반드시 [숫자·공식형 후킹]으로 작성하세요 (예: "잘 고르는 [핵심 포인트] {body_count}가지 공식" + 부제목 "실패 없는 선택에는 공식이 있습니다!").',
+            'twist': '반드시 [반전·통념파괴형 후킹]으로 작성하세요 (예: "비쌀수록 좋다는 [착각]" + 부제목 "직접 써보고 알게 된 의외의 진실").',
+            'loss_aversion': '반드시 [손실회피·비교형 후킹]으로 작성하세요 (예: "모르면 나만 손해 보는 [필수 체크]" + 부제목 "구매 전 딱 10초만 확인하세요").',
+            'direct_rule': '반드시 [단도직입·핵심비결형 후킹]으로 작성하세요 (예: "잘 터지는 [핵심 비결] 총정리" + 부제목 "한눈에 보는 실전 가이드!").',
+        }
+        hook_instruction = hook_guide_map.get(
+            hook_formula,
+            '캐러셀의 성공은 첫 장(표지)이 90%를 결정합니다. 질문형("아직도 ~하세요?"), 숫자·공식형("~하는 3가지 공식"), 반전형("~라는 착각") 중 소재에 가장 강력한 바이럴 후킹 공식을 적용하세요.',
+        )
+        prompt = (
+            f'다음 영상 소재 분석 결과(장면 관찰·음성 요약·화면 OCR 글자·원본 본문·상품 정보)를 바탕으로 '
+            f'인스타그램·쓰레드 매거진 캐러셀 카드뉴스 총 {count}장(표지 1장 + 본문 {body_count}장 + 마지막 요약·CTA 1장)의 문구를 한국어로 작성하세요.\n'
+            f'- 반드시 슬라이드 총 {count}개 배열로 반환하세요.\n'
+            f'- 1번 슬라이드(role="cover"): {hook_instruction} 메인 표지 제목(headline, 핵심 키워드는 [대괄호] 박스 강조 또는 *별표* 색상 강조 포함, 22자 이내)과 부제목(subcopy, 36자 이내)을 작성하세요.\n'
+            f'- 2~{max(2, count - 1)}번 슬라이드(role="body"): 영상 분석에서 확인된 문제 상황 공감 → 핵심 기능·특징 → 실사용 디테일 포인트를 순서대로 배분한 제목(headline, 22자 이내)과 부제목/본문 설명(subcopy, 45자 이내).\n'
+            f'- 마지막 {count}번 슬라이드(role="cta"): 영상 전체 핵심 내용을 한눈에 요약 정리하는 결론 제목(headline, 22자 이내)과 추천 대상·확인 안내 부제목(subcopy, 45자 이내).\n'
+            f'- 각 항목의 timestamp는 해당 슬라이드 내용과 가장 잘 어울리는 영상 시점(0.0 ~ {round(max(0.1, duration - 0.1), 1)}초)으로 지정하세요.\n'
+            + json.dumps({
+                'slide_count': count,
+                'hook_formula': hook_formula or 'auto_viral',
+                'duration_seconds': round(duration, 2),
+                'product': rich_mat['product_name'],
+                'summary': rich_mat['summary'][:360],
+                'audio_summary': rich_mat['audio_summary'][:280],
+                'ocr_text': rich_mat['ocr_text'][:280],
+                'body': (rich_mat['draft_body'] or rich_mat['source_text'])[:600],
+                'observations': [
+                    {'timestamp': o.get('timestamp'), 'text': o.get('text', '')[:120]}
+                    for o in rich_mat['observations'][:10]
+                ],
+                'search_terms': rich_mat['search_terms'][:6],
+            }, ensure_ascii=False)
+        )
+        schema = {
+            'type': 'OBJECT',
+            'required': ['slides'],
+            'properties': {
+                'slides': {
+                    'type': 'ARRAY',
+                    'items': {
+                        'type': 'OBJECT',
+                        'required': ['role', 'headline', 'subcopy'],
+                        'properties': {
+                            'role': {'type': 'STRING'},
+                            'headline': {'type': 'STRING'},
+                            'subcopy': {'type': 'STRING'},
+                            'badge': {'type': 'STRING'},
+                            'timestamp': {'type': 'NUMBER'},
+                        },
+                    },
+                }
+            },
+        }
+        gen = generate_selected(
+            data,
+            [{'text': prompt}],
+            schema,
+            directory(job['id']) / ('carousel-story-' + uuid.uuid4().hex + '.json'),
+        )
+        raw_slides = gen.get('slides') if isinstance(gen, dict) else None
+        if not isinstance(raw_slides, list) or not raw_slides:
+            return [], []
+        out_texts = []
+        out_ts = []
+        for idx, item in enumerate(raw_slides[:count], start=1):
+            if isinstance(item, dict):
+                h = str(item.get('headline') or item.get('title') or '').strip()[:56]
+                s = str(item.get('subcopy') or item.get('description') or item.get('body') or '').strip()[:84]
+                combined = f'{h}\n{s}'.strip() if (h and s) else (h or s)
+                if combined:
+                    out_texts.append(combined[:180])
+                raw_t = item.get('timestamp')
+                try:
+                    t_val = float(raw_t) if raw_t is not None and not isinstance(raw_t, bool) else None
+                    if t_val is not None and math.isfinite(t_val) and 0.0 <= t_val <= max(0.1, duration - 0.08):
+                        out_ts.append(round(t_val, 2))
+                    else:
+                        out_ts.append(None)
+                except (TypeError, ValueError):
+                    out_ts.append(None)
+            elif str(item or '').strip():
+                out_texts.append(str(item).strip()[:180])
+                out_ts.append(None)
+        return out_texts, out_ts
+
+    @bp.route('/jobs/<job_id>/carousel-story-draft', methods=['POST'])
+    def carousel_story_draft(job_id):
+        with track_activity('캐러셀 표지·본문·마지막장 스토리 자동 구성', job_id):
+            with lock(job_id):
+                original = read(job_id)
+            data = request.get_json() or {}
+            try:
+                count = max(2, min(10, int(data.get('count', 5))))
+            except (TypeError, ValueError):
+                count = 5
+            hook_formula = str(data.get('hook_formula') or '').strip().lower()
+            if hook_formula not in COVER_HOOK_FORMULAS:
+                hook_formula = ''
+            use_ai = bool(data.get('use_ai', True)) and bool(data.get('provider'))
+            ai_texts, ai_timestamps = [], []
+            ai_used = False
+            ai_error = None
+            if use_ai:
+                try:
+                    ai_texts, ai_timestamps = _generate_ai_carousel_story_slides(original, data, count)
+                    if ai_texts:
+                        ai_used = True
+                except Exception as exc:
+                    ai_error = str(exc)[:200]
+            cover_seed = ai_texts[0] if ai_texts else ''
+            body_seed = ai_texts[1:] if len(ai_texts) > 1 else []
+            final_texts = _build_fallback_carousel_texts(original, count, cover_title=cover_seed, body_lines=body_seed, hook_formula=hook_formula)
+            story_slides = []
+            for idx, txt in enumerate(final_texts, start=1):
+                role = 'cover' if idx == 1 else ('cta' if idx == count and count >= 3 else 'body')
+                head, sub, body_extra = _split_slide_3tier_fields(txt)
+                ts_val = ai_timestamps[idx - 1] if idx - 1 < len(ai_timestamps) else None
+                story_slides.append({
+                    'index': idx,
+                    'role': role,
+                    'text': txt,
+                    'pipe_text': f'{head} | {sub}' if sub else head,
+                    'title': head,
+                    'subtitle': sub,
+                    'body_text': body_extra,
+                    'headline': head,
+                    'subcopy': sub,
+                    'badge': _default_slide_badge(idx, count, 'editorial_dark'),
+                    'timestamp': ts_val,
+                })
+            with lock(job_id):
+                job = read(job_id)
+                job['carousel_story_draft'] = {
+                    'count': count,
+                    'hook_formula': hook_formula or 'question',
+                    'cover_title': story_slides[0]['pipe_text'] if story_slides else '',
+                    'body_lines': [s['pipe_text'] for s in story_slides[1:]],
+                    'slides': story_slides,
+                    'ai_used': ai_used,
+                    'provider': data.get('provider') if ai_used else 'analysis_deterministic',
+                    'model': data.get('model') if ai_used else '',
+                    'ai_error': ai_error,
+                    'updated_at': time.time(),
+                }
+                save(job)
+            return jsonify(job)
+
     @bp.route('/jobs/<job_id>/carousel-generate', methods=['POST'])
     def carousel_generate(job_id):
         with track_activity('캐러셀 카드 이미지 생성', job_id):
             with lock(job_id):
                 original = read(job_id)
-            if original.get('kind') == 'image':
-                raise StudioError('이미 여러 장으로 변환할 영상 소재가 필요합니다.', 422)
+            is_single_image_job = original.get('kind') == 'image'
             source = directory(job_id) / 'video'
-            if not source.is_file():
+            raw_backup = directory(job_id) / 'video-raw'
+            if raw_backup.is_file():
+                source = raw_backup
+            if not is_single_image_job and not source.is_file():
                 raise StudioError('영상 파일을 찾지 못했습니다.', 404)
             binary = find_ffmpeg()
-            if not binary:
+            if not is_single_image_job and not binary:
                 raise StudioError('FFmpeg가 필요합니다.', 503)
             data = request.get_json() or {}
             try:
@@ -4613,49 +5741,113 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if aspect not in ('4:5', '1:1', 'original'):
                 aspect = '4:5'
             erase_mode = str(data.get('erase_mode') or 'cover_box').strip()
-            if erase_mode not in ('keep', 'cover_box', 'auto_all', 'auto_subtitles', 'auto_text'):
+            if erase_mode == 'none':
+                erase_mode = 'keep'
+            if erase_mode not in ('keep', 'title_first', 'title_all', 'cover_box', 'cover_first', 'auto_all', 'auto_subtitles', 'auto_text'):
                 erase_mode = 'cover_box'
+            caption_scope = str(data.get('caption_scope') or '').strip()
+            if caption_scope not in ('none', 'first', 'all'):
+                if erase_mode == 'keep':
+                    caption_scope = 'none'
+                elif erase_mode in ('title_first', 'cover_first'):
+                    caption_scope = 'first'
+                else:
+                    caption_scope = 'all'
+            valid_templates = (
+                'editorial_dark',
+                'magazine_gradient',
+                'clean_white',
+                'highlight_hook',
+                'mint_modern',
+                'warm_luxury',
+                'neon_pop',
+                'minimal_outline',
+                'custom',
+            )
+            template = str(data.get('template') or 'editorial_dark').strip()
+            if template not in valid_templates:
+                template = 'editorial_dark'
+            hook_formula = str(data.get('hook_formula') or '').strip().lower()
+            if hook_formula not in COVER_HOOK_FORMULAS:
+                hook_formula = ''
+            cover_title = str(data.get('cover_title') or '').strip()[:180]
             overlay_position = str(data.get('overlay_position') or 'bottom').strip()
+            if overlay_position == 'center':
+                overlay_position = 'middle'
             if overlay_position not in ('top', 'middle', 'bottom'):
                 overlay_position = 'bottom'
             overlay_color = str(data.get('overlay_color') or 'white').strip()
             overlay_bg = bool(data.get('overlay_bg', True))
+            swipe_hint = bool(data.get('swipe_hint', True))
+            font_family = str(data.get('font_family') or data.get('overlay_font') or 'malgun_bold').strip()[:60] or 'malgun_bold'
+            try:
+                stroke_width = max(0, min(24, int(data.get('stroke_width', 0))))
+            except (TypeError, ValueError):
+                stroke_width = 0
+            stroke_color = str(data.get('stroke_color') or '#000000').strip() or '#000000'
+            try:
+                double_stroke_width = max(0, min(24, int(data.get('double_stroke_width', 0))))
+            except (TypeError, ValueError):
+                double_stroke_width = 0
+            double_stroke_color = str(data.get('double_stroke_color') or '#facc15').strip() or '#facc15'
             try:
                 overlay_size = float(data.get('overlay_size', 4.6))
-                if not math.isfinite(overlay_size) or not 2.0 <= overlay_size <= 12.0:
+                if not math.isfinite(overlay_size) or not 2.0 <= overlay_size <= 14.0:
                     overlay_size = 4.6
             except (TypeError, ValueError):
                 overlay_size = 4.6
 
             raw_texts = data.get('slide_texts')
-            slide_texts = []
+            body_lines = []
             if isinstance(raw_texts, list):
-                slide_texts = [str(t or '').strip()[:140] for t in raw_texts]
+                body_lines = [str(t or '').strip()[:180] for t in raw_texts if str(t or '').strip()]
             elif isinstance(raw_texts, str) and raw_texts.strip():
-                slide_texts = [line.strip()[:140] for line in raw_texts.strip().splitlines() if line.strip()]
+                body_lines = [line.strip()[:180] for line in raw_texts.strip().splitlines() if line.strip()]
 
-            # Optional AI auto-captioning per slide if requested and slide_texts is empty
-            if not slide_texts and bool(data.get('auto_caption', False)):
-                try:
-                    obs = ((original.get('analysis') or {}).get('observations') or [])
-                    body_text = ((original.get('draft') or {}).get('body') or original.get('source_text') or '')
-                    prompt = (
-                        f'다음 영상 정보와 본문을 바탕으로 인스타그램·쓰레드 캐러셀(카드뉴스) {count}장 각각의 이미지 위에 넣을 짧고 임팩트 있는 한글 문구(각 1~2줄, 28자 이내)를 JSON의 slides 배열(문자열 {count}개)로 작성하세요.\n'
-                        + json.dumps({'slide_count': count, 'body': body_text[:600], 'observations': obs[:8]}, ensure_ascii=False)
-                    )
-                    schema = {
-                        'type': 'OBJECT',
-                        'required': ['slides'],
-                        'properties': {'slides': {'type': 'ARRAY', 'items': {'type': 'STRING'}}},
-                    }
-                    gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('carousel-cap-' + uuid.uuid4().hex + '.json'))
-                    if isinstance(gen.get('slides'), list):
-                        slide_texts = [str(s or '').strip()[:140] for s in gen['slides']]
-                except Exception:
-                    slide_texts = []
+            rich_mat = _extract_rich_carousel_materials(original)
+            slide_texts = []
+            ai_timestamps = []
+            if caption_scope != 'none':
+                need_ai = bool(data.get('auto_caption', True)) and (
+                    bool(data.get('force_ai_story', False))
+                    or not cover_title
+                    or (caption_scope == 'all' and len(body_lines) < max(1, count - 1))
+                )
+                if need_ai and data.get('provider'):
+                    target_count = 1 if caption_scope == 'first' else count
+                    try:
+                        ai_slides, ai_ts = _generate_ai_carousel_story_slides(original, data, target_count)
+                        if ai_slides:
+                            if bool(data.get('force_ai_story', False)) or not cover_title:
+                                cover_title = ai_slides[0]
+                            if (bool(data.get('force_ai_story', False)) or not body_lines) and len(ai_slides) > 1:
+                                body_lines = ai_slides[1:]
+                            ai_timestamps = ai_ts
+                    except Exception:
+                        pass
+
+                slide_texts = _build_fallback_carousel_texts(original, count, cover_title=cover_title, body_lines=body_lines, hook_formula=hook_formula)
 
             duration = max(0.5, float((original.get('media') or {}).get('duration') or 5.0))
-            timestamps = [round(duration * (idx + 0.5) / count, 2) for idx in range(count)]
+            obs_timestamps = [
+                float(o['timestamp'])
+                for o in rich_mat['observations']
+                if o.get('timestamp') is not None and 0.0 <= float(o['timestamp']) <= max(0.1, duration - 0.1)
+            ]
+            if len(obs_timestamps) >= count:
+                timestamps = [round(obs_timestamps[int(i * len(obs_timestamps) / count)], 2) for i in range(count)]
+            else:
+                timestamps = [round(duration * (idx + 0.5) / count, 2) for idx in range(count)]
+            for idx_t, t_cand in enumerate(ai_timestamps[:count]):
+                if t_cand is not None:
+                    timestamps[idx_t] = round(min(max(0.0, float(t_cand)), max(0.0, duration - 0.08)), 2)
+
+            # Preserve existing custom slide images if re-generating same slide index
+            prev_slides_by_idx = {
+                int(ps.get('index', 0)): ps
+                for ps in ((original.get('carousel') or {}).get('slides') or [])
+                if isinstance(ps, dict) and ps.get('custom_image')
+            }
 
             from studio_text_clean import clean_and_overlay_image
             vf_crop = (
@@ -4666,67 +5858,782 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 else 'scale=1080:1920:force_original_aspect_ratio=decrease'
             )
 
+            def _slide_erase_and_text(idx_1based):
+                if erase_mode in ('keep', 'title_first', 'title_all'):
+                    eff_erase = 'keep'
+                elif erase_mode == 'cover_first':
+                    eff_erase = 'cover_box' if idx_1based == 1 else 'keep'
+                else:
+                    eff_erase = erase_mode
+                if caption_scope == 'none' or (caption_scope == 'first' and idx_1based > 1):
+                    eff_text = ''
+                else:
+                    eff_text = slide_texts[idx_1based - 1] if idx_1based - 1 < len(slide_texts) else ''
+                return eff_erase, eff_text
+
             slides_meta = []
             with tempfile.TemporaryDirectory(prefix='carousel-', dir=root) as temp:
                 temp_dir = Path(temp)
+                staged_pairs = []
                 for idx, ts in enumerate(timestamps, start=1):
                     raw_frame = temp_dir / f'raw-{idx}.jpg'
-                    res = run_ffmpeg(binary, [
-                        '-y', '-protocol_whitelist', 'file,pipe',
-                        '-ss', str(min(max(0.0, ts), max(0.0, duration - 0.08))),
-                        '-i', str(source),
-                        '-frames:v', '1',
-                        '-vf', vf_crop,
-                        '-q:v', '2',
-                        str(raw_frame),
-                    ])
-                    if res.returncode or not raw_frame.is_file() or raw_frame.stat().st_size <= 0:
+                    staged_out = temp_dir / f'out-{idx}.jpg'
+                    saved_custom_img = str((prev_slides_by_idx.get(idx) or {}).get('custom_image') or '').strip()
+                    clamped_ts = min(max(0.0, ts), max(0.0, duration - 0.08))
+                    ok_frame = _prepare_slide_source_frame(
+                        job_id,
+                        original,
+                        binary,
+                        source,
+                        raw_frame,
+                        clamped_ts,
+                        aspect,
+                        vf_crop,
+                        custom_image_name=saved_custom_img,
+                    )
+                    if not ok_frame:
                         raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 이미지를 추출하지 못했습니다.', 422)
                     out_name = f'carousel-{idx}.jpg'
                     out_path = directory(job_id) / out_name
-                    s_text = slide_texts[idx - 1] if idx - 1 < len(slide_texts) else ''
-                    if erase_mode != 'keep' or s_text:
+                    slide_mode, s_text = _slide_erase_and_text(idx)
+                    s_title, s_subtitle, s_body_text = _split_slide_3tier_fields(s_text)
+                    eff_template = '' if template == 'custom' else template
+                    eff_role = 'cover' if idx == 1 else ('cta' if idx == count and count >= 3 else 'body')
+                    eff_badge = _default_slide_badge(idx, count, eff_template)
+                    eff_size = round(min(12.0, overlay_size * 1.12), 2) if eff_role == 'cover' else overlay_size
+                    if slide_mode != 'keep' or s_text:
                         try:
                             clean_and_overlay_image(
                                 raw_frame,
-                                out_path,
-                                erase_mode=erase_mode,
+                                staged_out,
+                                erase_mode=slide_mode,
                                 overlay_text=s_text,
                                 overlay_position=overlay_position,
-                                overlay_size=overlay_size,
+                                overlay_size=eff_size,
                                 overlay_color=overlay_color,
                                 overlay_bg=overlay_bg,
+                                overlay_font=font_family,
+                                overlay_stroke_width=stroke_width,
+                                overlay_stroke_color=stroke_color,
+                                overlay_double_stroke_width=double_stroke_width,
+                                overlay_double_stroke_color=double_stroke_color,
+                                template=eff_template,
+                                badge_text=eff_badge,
+                                slide_index=idx,
+                                slide_total=count,
+                                swipe_hint=swipe_hint,
+                                slide_role=eff_role,
                             )
-                        except Exception:
-                            shutil.copy2(raw_frame, out_path)
+                        except Exception as exc:
+                            raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 편집 처리에 실패했습니다: {exc}', 422)
                     else:
-                        shutil.copy2(raw_frame, out_path)
-                    if not out_path.is_file() or out_path.stat().st_size <= 0:
-                        raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 파일을 저장하지 못했습니다.', 422)
+                        shutil.copy2(raw_frame, staged_out)
+                    if not staged_out.is_file() or staged_out.stat().st_size <= 0:
+                        raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 파일을 생성하지 못했습니다.', 422)
+                    slide_sha = hashlib.sha256(staged_out.read_bytes()).hexdigest()
+                    staged_pairs.append((staged_out, out_path))
                     slides_meta.append({
+                        'slide_id': f'slide-{idx}',
                         'index': idx,
+                        'role': eff_role,
                         'file': out_name,
+                        'custom_image': saved_custom_img,
                         'timestamp': ts,
                         'text': s_text,
+                        'title': s_title,
+                        'subtitle': s_subtitle,
+                        'body_text': s_body_text,
+                        'badge': eff_badge,
+                        'erase_mode': slide_mode,
+                        'template': template,
+                        'font_family': font_family,
+                        'stroke_width': stroke_width,
+                        'stroke_color': stroke_color,
+                        'double_stroke_width': double_stroke_width,
+                        'double_stroke_color': double_stroke_color,
+                        'sha256': slide_sha,
                     })
 
-            if len(slides_meta) != count:
-                raise StudioError(f'캐러셀 전체 슬라이드({count}장)를 확보하지 못했습니다 ({len(slides_meta)}/{count}).', 422)
+                if len(slides_meta) != count:
+                    raise StudioError(f'캐러셀 전체 슬라이드({count}장)를 확보하지 못했습니다 ({len(slides_meta)}/{count}).', 422)
+
+                for staged_out, out_path in staged_pairs:
+                    tmp_target = out_path.with_suffix('.jpg.tmp')
+                    shutil.copy2(staged_out, tmp_target)
+                    tmp_target.replace(out_path)
 
             with lock(job_id):
                 job = read(job_id)
+                prev_rev = int(((job.get('carousel') or {}).get('render_revision')) or 0)
                 job['carousel'] = {
                     'count': len(slides_meta),
                     'aspect': aspect,
                     'erase_mode': erase_mode,
+                    'caption_scope': caption_scope,
+                    'template': template,
+                    'hook_formula': hook_formula or 'question',
+                    'cover_title': slides_meta[0]['text'] if slides_meta else cover_title,
                     'overlay_position': overlay_position,
                     'overlay_color': overlay_color,
+                    'overlay_bg': overlay_bg,
                     'overlay_size': overlay_size,
+                    'font_family': font_family,
+                    'stroke_width': stroke_width,
+                    'stroke_color': stroke_color,
+                    'double_stroke_width': double_stroke_width,
+                    'double_stroke_color': double_stroke_color,
+                    'swipe_hint': swipe_hint,
+                    'render_revision': prev_rev + 1,
                     'slides': slides_meta,
                     'updated_at': time.time(),
                 }
                 save(job)
             return jsonify(job)
+
+    @bp.route('/jobs/<job_id>/carousel-slide-update', methods=['POST'])
+    def carousel_slide_update(job_id):
+        with track_activity('캐러셀 슬라이드 사진·문구·역할 변경', job_id):
+            with lock(job_id):
+                original = read(job_id)
+            carousel = original.get('carousel') or {}
+            slides = list(carousel.get('slides') or [])
+            if not slides:
+                raise StudioError('먼저 캐러셀 슬라이드를 생성해 주세요.', 422)
+            is_single_image_job = original.get('kind') == 'image'
+            source = directory(job_id) / 'video-raw'
+            if not source.is_file():
+                source = directory(job_id) / 'video'
+            binary = find_ffmpeg()
+            data = request.get_json() or {}
+            try:
+                slide_idx = int(data.get('index', 1))
+            except (TypeError, ValueError):
+                raise StudioError('변경할 슬라이드 번호를 확인해 주세요.', 400)
+            target_slide = next((s for s in slides if int(s.get('index', 0)) == slide_idx), None)
+            if not target_slide:
+                raise StudioError('해당 번호의 슬라이드를 찾지 못했습니다.', 404)
+            duration = max(0.5, float((original.get('media') or {}).get('duration') or 5.0))
+            has_explicit_ts = 'timestamp' in data and data.get('timestamp') is not None
+            raw_ts = data.get('timestamp') if has_explicit_ts else target_slide.get('timestamp', 0.0)
+            try:
+                parsed_ts = float(raw_ts)
+                if not math.isfinite(parsed_ts):
+                    raise ValueError()
+                ts = round(min(max(0.0, parsed_ts), max(0.0, duration - 0.08)), 2)
+            except (TypeError, ValueError):
+                raise StudioError('유효한 프레임 시각(초)을 입력해 주세요.', 400)
+
+            aspect = str(carousel.get('aspect') or '4:5')
+            custom_image_name = str(target_slide.get('custom_image') or '').strip()
+            if data.get('image_data_url'):
+                custom_image_name = _save_custom_slide_image_from_data_url(
+                    job_id,
+                    data.get('image_data_url'),
+                    aspect=aspect,
+                    slide_hint=slide_idx,
+                ) or ''
+            elif data.get('clear_custom_image') or (has_explicit_ts and abs(ts - float(target_slide.get('timestamp', 0.0))) > 0.005):
+                custom_image_name = ''
+
+            req_erase = str(data.get('erase_mode') or '').strip()
+            erase_mode = ('keep' if req_erase == 'none' else req_erase) if req_erase else str(carousel.get('erase_mode') or 'keep')
+            caption_scope = str(carousel.get('caption_scope') or ('none' if erase_mode == 'keep' else ('first' if erase_mode in ('title_first', 'cover_first') else 'all')))
+            template = str(data.get('template') or target_slide.get('template') or carousel.get('template') or 'editorial_dark').strip()
+            overlay_position = str(data.get('overlay_position') or carousel.get('overlay_position') or 'bottom')
+            overlay_color = str(data.get('overlay_color') or carousel.get('overlay_color') or 'white')
+            overlay_bg = bool(carousel.get('overlay_bg', True))
+            overlay_size = float(carousel.get('overlay_size') or 4.6)
+            swipe_hint = bool(carousel.get('swipe_hint', True))
+            font_family = str(data.get('font_family') or data.get('overlay_font') or target_slide.get('font_family') or carousel.get('font_family') or 'malgun_bold').strip()[:60] or 'malgun_bold'
+            try:
+                stroke_width = max(0, min(24, int(data.get('stroke_width') if 'stroke_width' in data and data.get('stroke_width') is not None else (target_slide.get('stroke_width') if target_slide.get('stroke_width') is not None else carousel.get('stroke_width', 0)))))
+            except (TypeError, ValueError):
+                stroke_width = 0
+            stroke_color = str(data.get('stroke_color') or target_slide.get('stroke_color') or carousel.get('stroke_color') or '#000000').strip() or '#000000'
+            try:
+                double_stroke_width = max(0, min(24, int(data.get('double_stroke_width') if 'double_stroke_width' in data and data.get('double_stroke_width') is not None else (target_slide.get('double_stroke_width') if target_slide.get('double_stroke_width') is not None else carousel.get('double_stroke_width', 0)))))
+            except (TypeError, ValueError):
+                double_stroke_width = 0
+            double_stroke_color = str(data.get('double_stroke_color') or target_slide.get('double_stroke_color') or carousel.get('double_stroke_color') or '#facc15').strip() or '#facc15'
+            if erase_mode in ('keep', 'title_first', 'title_all'):
+                slide_mode = 'keep'
+            elif erase_mode == 'cover_first':
+                slide_mode = 'cover_box' if slide_idx == 1 else 'keep'
+            else:
+                slide_mode = erase_mode
+
+            has_3tier_fields = any(k in data and data.get(k) is not None for k in ('title', 'subtitle', 'body_text'))
+            if has_3tier_fields:
+                prev_title, prev_sub, prev_body = _split_slide_3tier_fields(target_slide.get('text') or '')
+                eff_title = data.get('title') if 'title' in data and data.get('title') is not None else (target_slide.get('title') if target_slide.get('title') is not None else prev_title)
+                eff_sub = data.get('subtitle') if 'subtitle' in data and data.get('subtitle') is not None else (target_slide.get('subtitle') if target_slide.get('subtitle') is not None else prev_sub)
+                eff_body = data.get('body_text') if 'body_text' in data and data.get('body_text') is not None else (target_slide.get('body_text') if target_slide.get('body_text') is not None else prev_body)
+                s_text = _compose_slide_3tier_text('', title=eff_title, subtitle=eff_sub, body_text=eff_body)
+            elif 'text' in data and data.get('text') is not None:
+                s_text = _compose_slide_3tier_text(data.get('text'))
+            elif caption_scope == 'none' or (caption_scope == 'first' and slide_idx > 1):
+                s_text = ''
+            else:
+                s_text = _compose_slide_3tier_text(target_slide.get('text') or '')
+
+            hook_formula = str(data.get('hook_formula') or '').strip().lower()
+            if hook_formula in COVER_HOOK_FORMULAS:
+                cur_t, cur_s, cur_b = _split_slide_3tier_fields(s_text)
+                product_name = str((original.get('product') or {}).get('name') or '').strip()
+                hooked_pair = _apply_cover_hook_formula(hook_formula, raw_topic=cur_t, raw_sub=cur_s, product_name=product_name, count=len(slides))
+                if hooked_pair:
+                    h_t, h_s, _ = _split_slide_3tier_fields(hooked_pair)
+                    s_text = _compose_slide_3tier_text('', title=h_t, subtitle=h_s, body_text=cur_b)
+
+            s_title, s_subtitle, s_body_text = _split_slide_3tier_fields(s_text)
+
+            vf_crop = (
+                'scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350'
+                if aspect == '4:5'
+                else 'scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080'
+                if aspect == '1:1'
+                else 'scale=1080:1920:force_original_aspect_ratio=decrease'
+            )
+            from studio_text_clean import clean_and_overlay_image
+            out_name = target_slide.get('file') or f'carousel-{slide_idx}.jpg'
+            out_path = directory(job_id) / out_name
+            eff_template = '' if template == 'custom' else template
+            total_slides = len(slides)
+            req_role = str(data.get('role') or target_slide.get('role') or '').strip().lower()
+            if req_role not in ('cover', 'body', 'cta'):
+                req_role = 'cover' if slide_idx == 1 else ('cta' if slide_idx == total_slides and total_slides >= 3 else 'body')
+            if 'badge' in data and data.get('badge') is not None:
+                eff_badge = str(data.get('badge')).strip()[:36]
+            elif target_slide.get('badge'):
+                eff_badge = str(target_slide.get('badge')).strip()[:36]
+            else:
+                eff_badge = _default_slide_badge(slide_idx, total_slides, eff_template)
+            eff_size = round(min(12.0, overlay_size * 1.12), 2) if req_role == 'cover' else overlay_size
+            with tempfile.TemporaryDirectory(prefix='carousel-slide-', dir=root) as temp:
+                raw_frame = Path(temp) / f'raw-{slide_idx}.jpg'
+                staged_out = Path(temp) / f'out-{slide_idx}.jpg'
+                ok_frame = _prepare_slide_source_frame(
+                    job_id,
+                    original,
+                    binary,
+                    source,
+                    raw_frame,
+                    ts,
+                    aspect,
+                    vf_crop,
+                    custom_image_name=custom_image_name,
+                )
+                if not ok_frame:
+                    raise StudioError(f'슬라이드 #{slide_idx} 배경 이미지를 준비하지 못했습니다.', 422)
+                if slide_mode != 'keep' or s_text:
+                    try:
+                        clean_and_overlay_image(
+                            raw_frame,
+                            staged_out,
+                            erase_mode=slide_mode,
+                            overlay_text=s_text,
+                            overlay_position=overlay_position,
+                            overlay_size=eff_size,
+                            overlay_color=overlay_color,
+                            overlay_bg=overlay_bg,
+                            overlay_font=font_family,
+                            overlay_stroke_width=stroke_width,
+                            overlay_stroke_color=stroke_color,
+                            overlay_double_stroke_width=double_stroke_width,
+                            overlay_double_stroke_color=double_stroke_color,
+                            template=eff_template,
+                            badge_text=eff_badge,
+                            slide_index=slide_idx,
+                            slide_total=total_slides,
+                            swipe_hint=swipe_hint,
+                            slide_role=req_role,
+                        )
+                    except Exception as exc:
+                        raise StudioError(f'슬라이드 #{slide_idx} 편집 처리에 실패했습니다: {exc}', 422)
+                else:
+                    shutil.copy2(raw_frame, staged_out)
+                if not staged_out.is_file() or staged_out.stat().st_size <= 0:
+                    raise StudioError(f'슬라이드 #{slide_idx} 결과 파일을 생성하지 못했습니다.', 422)
+                slide_sha = hashlib.sha256(staged_out.read_bytes()).hexdigest()
+                tmp_target = out_path.with_suffix('.jpg.tmp')
+                shutil.copy2(staged_out, tmp_target)
+                tmp_target.replace(out_path)
+
+            with lock(job_id):
+                job = read(job_id)
+                for s in (job.get('carousel') or {}).get('slides') or []:
+                    if int(s.get('index', 0)) == slide_idx:
+                        s['timestamp'] = ts
+                        s['custom_image'] = custom_image_name
+                        s['text'] = s_text
+                        s['title'] = s_title
+                        s['subtitle'] = s_subtitle
+                        s['body_text'] = s_body_text
+                        s['badge'] = eff_badge
+                        s['role'] = req_role
+                        s['erase_mode'] = slide_mode
+                        s['template'] = template
+                        s['font_family'] = font_family
+                        s['stroke_width'] = stroke_width
+                        s['stroke_color'] = stroke_color
+                        s['double_stroke_width'] = double_stroke_width
+                        s['double_stroke_color'] = double_stroke_color
+                        s['sha256'] = slide_sha
+                if 'carousel' in job:
+                    if slide_idx == 1 and s_text:
+                        job['carousel']['cover_title'] = s_text
+                    if hook_formula in COVER_HOOK_FORMULAS:
+                        job['carousel']['hook_formula'] = hook_formula
+                    job['carousel']['font_family'] = font_family
+                    job['carousel']['stroke_width'] = stroke_width
+                    job['carousel']['stroke_color'] = stroke_color
+                    job['carousel']['double_stroke_width'] = double_stroke_width
+                    job['carousel']['double_stroke_color'] = double_stroke_color
+                    job['carousel']['render_revision'] = int(job['carousel'].get('render_revision') or 0) + 1
+                    job['carousel']['updated_at'] = time.time()
+                save(job)
+            return jsonify(job)
+
+    @bp.route('/jobs/<job_id>/carousel-slide-action', methods=['POST'])
+    def carousel_slide_action(job_id):
+        with track_activity('캐러셀 스토리보드 구성 편집', job_id):
+            with lock(job_id):
+                original = read(job_id)
+            carousel = original.get('carousel') or {}
+            slides = list(carousel.get('slides') or [])
+            if not slides:
+                raise StudioError('먼저 캐러셀 슬라이드를 생성해 주세요.', 422)
+            source = directory(job_id) / 'video-raw'
+            if not source.is_file():
+                source = directory(job_id) / 'video'
+            binary = find_ffmpeg()
+
+            data = request.get_json() or {}
+            action = str(data.get('action') or '').strip()
+            duration = max(0.5, float((original.get('media') or {}).get('duration') or 5.0))
+            aspect = str(carousel.get('aspect') or '4:5')
+
+            if action == 'move':
+                idx = int(data.get('index', 1))
+                direction = int(data.get('direction', 1))
+                pos = next((i for i, s in enumerate(slides) if int(s.get('index', 0)) == idx), -1)
+                target_pos = pos + direction
+                if pos < 0 or target_pos < 0 or target_pos >= len(slides):
+                    return jsonify(original)
+                slides[pos], slides[target_pos] = slides[target_pos], slides[pos]
+            elif action == 'delete':
+                if len(slides) <= 2:
+                    raise StudioError('캐러셀은 최소 2장 이상의 슬라이드가 필요합니다.', 422)
+                idx = int(data.get('index', 1))
+                slides = [s for s in slides if int(s.get('index', 0)) != idx]
+            elif action == 'add':
+                if len(slides) >= 10:
+                    raise StudioError('캐러셀은 최대 10장까지 구성할 수 있습니다.', 422)
+                raw_ts = data.get('timestamp')
+                try:
+                    ts = round(min(max(0.0, float(raw_ts)), max(0.0, duration - 0.08)), 2) if raw_ts is not None else round(duration * 0.5, 2)
+                except (TypeError, ValueError):
+                    ts = round(duration * 0.5, 2)
+                new_custom_img = ''
+                if data.get('image_data_url'):
+                    new_custom_img = _save_custom_slide_image_from_data_url(
+                        job_id,
+                        data.get('image_data_url'),
+                        aspect=aspect,
+                        slide_hint=len(slides) + 1,
+                    ) or ''
+                new_text = _compose_slide_3tier_text(
+                    data.get('text') or '[추가 체크 포인트]\n이 장면에서 주목해야 할 핵심 디테일',
+                    title=data.get('title') or '',
+                    subtitle=data.get('subtitle') or '',
+                    body_text=data.get('body_text') or '',
+                )
+                n_title, n_sub, n_body = _split_slide_3tier_fields(new_text)
+                req_role = str(data.get('role') or 'body').strip().lower()
+                if req_role not in ('cover', 'body', 'cta'):
+                    req_role = 'body'
+                new_slide_obj = {
+                    'timestamp': ts,
+                    'custom_image': new_custom_img,
+                    'text': new_text,
+                    'title': n_title,
+                    'subtitle': n_sub,
+                    'body_text': n_body,
+                    'role': req_role,
+                    'badge': str(data.get('badge') or '').strip()[:36],
+                    'erase_mode': str(carousel.get('erase_mode') or 'cover_box'),
+                    'template': str(carousel.get('template') or 'editorial_dark'),
+                    'font_family': str(carousel.get('font_family') or 'malgun_bold'),
+                    'stroke_width': int(carousel.get('stroke_width') or 0),
+                    'stroke_color': str(carousel.get('stroke_color') or '#000000'),
+                    'double_stroke_width': int(carousel.get('double_stroke_width') or 0),
+                    'double_stroke_color': str(carousel.get('double_stroke_color') or '#facc15'),
+                }
+                if len(slides) >= 2 and req_role == 'body' and slides[-1].get('role') == 'cta':
+                    slides.insert(len(slides) - 1, new_slide_obj)
+                else:
+                    slides.append(new_slide_obj)
+            else:
+                raise StudioError('지원하지 않는 캐러셀 슬라이드 작업입니다.', 400)
+
+            # Re-index and re-render all slides so slide counters (01 / 0N) and roles stay accurate
+            template = str(carousel.get('template') or 'editorial_dark')
+            eff_template = '' if template == 'custom' else template
+            overlay_position = str(carousel.get('overlay_position') or 'bottom')
+            overlay_color = str(carousel.get('overlay_color') or 'white')
+            overlay_bg = bool(carousel.get('overlay_bg', True))
+            overlay_size = float(carousel.get('overlay_size') or 4.6)
+            swipe_hint = bool(carousel.get('swipe_hint', True))
+            def_font = str(carousel.get('font_family') or 'malgun_bold')
+            def_stroke_w = int(carousel.get('stroke_width') or 0)
+            def_stroke_c = str(carousel.get('stroke_color') or '#000000')
+            def_d_stroke_w = int(carousel.get('double_stroke_width') or 0)
+            def_d_stroke_c = str(carousel.get('double_stroke_color') or '#facc15')
+            vf_crop = (
+                'scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350'
+                if aspect == '4:5'
+                else 'scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080'
+                if aspect == '1:1'
+                else 'scale=1080:1920:force_original_aspect_ratio=decrease'
+            )
+            from studio_text_clean import clean_and_overlay_image
+            total_count = len(slides)
+            new_meta = []
+            with tempfile.TemporaryDirectory(prefix='carousel-act-', dir=root) as temp:
+                temp_dir = Path(temp)
+                staged_pairs = []
+                for new_idx, s in enumerate(slides, start=1):
+                    ts = round(min(max(0.0, float(s.get('timestamp', 0.0))), max(0.0, duration - 0.08)), 2)
+                    s_text = _compose_slide_3tier_text(s.get('text') or '', title=s.get('title') or '', subtitle=s.get('subtitle') or '', body_text=s.get('body_text') or '')
+                    s_title, s_subtitle, s_body_text = _split_slide_3tier_fields(s_text)
+                    s_custom_img = str(s.get('custom_image') or '').strip()
+                    slide_mode = str(s.get('erase_mode') or 'cover_box')
+                    if slide_mode in ('none', 'title_first', 'title_all'):
+                        slide_mode = 'keep'
+                    raw_frame = temp_dir / f'raw-{new_idx}.jpg'
+                    staged_out = temp_dir / f'out-{new_idx}.jpg'
+                    ok_frame = _prepare_slide_source_frame(
+                        job_id,
+                        original,
+                        binary,
+                        source,
+                        raw_frame,
+                        ts,
+                        aspect,
+                        vf_crop,
+                        custom_image_name=s_custom_img,
+                    )
+                    if not ok_frame:
+                        raise StudioError(f'슬라이드 #{new_idx} 프레임을 추출하지 못했습니다.', 422)
+                    saved_badge = str(s.get('badge') or '').strip()[:36]
+                    auto_badges = {'MAIN COVER', 'SUMMARY · CTA', 'CURATED PICK', 'EDITOR PICK', 'KEY POINT', 'MUST CHECK', 'LUXURY PICK', 'HOT TREND', 'CLEAN VIEW'}
+                    is_auto_badge = (not saved_badge) or (saved_badge in auto_badges) or bool(re.fullmatch(r'(?:POINT|STEP|CHECK|DETAIL|SCENE)\s+\d+', saved_badge))
+                    eff_badge = _default_slide_badge(new_idx, total_count, eff_template) if is_auto_badge else saved_badge
+                    eff_role = 'cover' if new_idx == 1 else ('cta' if new_idx == total_count and total_count >= 3 else 'body')
+                    s_tpl = str(s.get('template') or template).strip()
+                    eff_s_tpl = '' if s_tpl == 'custom' else s_tpl
+                    s_font = str(s.get('font_family') or def_font).strip() or 'malgun_bold'
+                    s_stroke_w = int(s.get('stroke_width') if s.get('stroke_width') is not None else def_stroke_w)
+                    s_stroke_c = str(s.get('stroke_color') or def_stroke_c)
+                    s_d_stroke_w = int(s.get('double_stroke_width') if s.get('double_stroke_width') is not None else def_d_stroke_w)
+                    s_d_stroke_c = str(s.get('double_stroke_color') or def_d_stroke_c)
+                    eff_size = round(min(12.0, overlay_size * 1.12), 2) if eff_role == 'cover' else overlay_size
+                    if slide_mode != 'keep' or s_text:
+                        clean_and_overlay_image(
+                            raw_frame,
+                            staged_out,
+                            erase_mode=slide_mode,
+                            overlay_text=s_text,
+                            overlay_position=overlay_position,
+                            overlay_size=eff_size,
+                            overlay_color=overlay_color,
+                            overlay_bg=overlay_bg,
+                            overlay_font=s_font,
+                            overlay_stroke_width=s_stroke_w,
+                            overlay_stroke_color=s_stroke_c,
+                            overlay_double_stroke_width=s_d_stroke_w,
+                            overlay_double_stroke_color=s_d_stroke_c,
+                            template=eff_s_tpl,
+                            badge_text=eff_badge,
+                            slide_index=new_idx,
+                            slide_total=total_count,
+                            swipe_hint=swipe_hint,
+                            slide_role=eff_role,
+                        )
+                    else:
+                        shutil.copy2(raw_frame, staged_out)
+                    out_name = f'carousel-{new_idx}.jpg'
+                    out_path = directory(job_id) / out_name
+                    slide_sha = hashlib.sha256(staged_out.read_bytes()).hexdigest()
+                    staged_pairs.append((staged_out, out_path))
+                    new_meta.append({
+                        'slide_id': f'slide-{new_idx}',
+                        'index': new_idx,
+                        'role': eff_role,
+                        'file': out_name,
+                        'custom_image': s_custom_img,
+                        'timestamp': ts,
+                        'text': s_text,
+                        'title': s_title,
+                        'subtitle': s_subtitle,
+                        'body_text': s_body_text,
+                        'badge': eff_badge,
+                        'erase_mode': slide_mode,
+                        'template': s_tpl,
+                        'font_family': s_font,
+                        'stroke_width': s_stroke_w,
+                        'stroke_color': s_stroke_c,
+                        'double_stroke_width': s_d_stroke_w,
+                        'double_stroke_color': s_d_stroke_c,
+                        'sha256': slide_sha,
+                    })
+                for staged_out, out_path in staged_pairs:
+                    tmp_target = out_path.with_suffix('.jpg.tmp')
+                    shutil.copy2(staged_out, tmp_target)
+                    tmp_target.replace(out_path)
+
+            with lock(job_id):
+                job = read(job_id)
+                prev_rev = int(((job.get('carousel') or {}).get('render_revision')) or 0)
+                job['carousel'] = {
+                    **carousel,
+                    'count': len(new_meta),
+                    'cover_title': new_meta[0]['text'] if new_meta else '',
+                    'render_revision': prev_rev + 1,
+                    'slides': new_meta,
+                    'updated_at': time.time(),
+                }
+                save(job)
+            return jsonify(job)
+
+    @bp.route('/jobs/<job_id>/attachments-config', methods=['POST'])
+    def attachments_config_route(job_id):
+        with track_activity('첨부 미디어 조합·배치 설정', job_id):
+            data = request.get_json() or {}
+            action = str(data.get('action') or 'set').strip()
+            folder = directory(job_id)
+            with lock(job_id):
+                job = read(job_id)
+                current = list(job.get('attachments') or [])
+                if action == 'preset_video_plus_images':
+                    # Compose Threads recommended: Primary Video + N companion images (from carousel or extracted frames)
+                    img_count = max(1, min(9, int(data.get('image_count', 1) or 1)))
+                    candidate_files = []
+                    for s in ((job.get('carousel') or {}).get('slides') or []):
+                        sf = str(s.get('file') or '')
+                        if sf and (folder / sf).is_file():
+                            candidate_files.append((sf, f'캐러셀 {s.get("index", 1)}번 이미지'))
+                    for f_idx in range(12):
+                        fn = f'frame-{f_idx}.jpg'
+                        if (folder / fn).is_file() and not any(cf == fn for cf, _ in candidate_files):
+                            candidate_files.append((fn, f'추출 프레임 #{f_idx + 1}'))
+                    if not candidate_files and (folder / 'video').is_file():
+                        binary = find_ffmpeg()
+                        if binary:
+                            dur = max(0.5, float((job.get('media') or {}).get('duration') or 3.0))
+                            for k in range(img_count):
+                                ts = round(dur * (k + 0.5) / max(1, img_count), 2)
+                                target_fn = f'companion-{k + 1}.jpg'
+                                run_ffmpeg(binary, [
+                                    '-y', '-protocol_whitelist', 'file,pipe',
+                                    '-ss', str(ts), '-i', str(folder / 'video'),
+                                    '-frames:v', '1', '-q:v', '2', str(folder / target_fn),
+                                ])
+                                if (folder / target_fn).is_file():
+                                    candidate_files.append((target_fn, f'동반 이미지 #{k + 1} ({ts}초)'))
+                    new_atts = []
+                    for idx_c, (cf, label) in enumerate(candidate_files[:img_count], start=1):
+                        src_p = folder / cf
+                        dest_fn = f'bundle-img-{idx_c}.jpg'
+                        if src_p.resolve() != (folder / dest_fn).resolve():
+                            shutil.copy2(src_p, folder / dest_fn)
+                        new_atts.append({
+                            'index': idx_c,
+                            'kind': 'image',
+                            'file': dest_fn,
+                            'name': label,
+                            'source_file': cf,
+                        })
+                    current = new_atts
+                elif action == 'add_frame':
+                    frame_file = str(data.get('file') or '').strip()
+                    if not re.fullmatch(r'(frame-\d+\.jpg|carousel-\d+\.jpg|companion-[\w-]+\.jpg|attachment-\d+\.jpg)', frame_file):
+                        raise StudioError('추가할 이미지 파일 형식을 확인해 주세요.', 400)
+                    if not (folder / frame_file).is_file():
+                        raise StudioError('선택한 이미지 파일을 찾지 못했습니다.', 404)
+                    if len(current) >= 9:
+                        raise StudioError('동반 첨부 이미지는 최대 9장(영상 포함 총 10개)까지 추가할 수 있습니다.', 422)
+                    next_idx = len(current) + 1
+                    dest_fn = f'bundle-img-{int(time.time() * 1000) % 100000}-{next_idx}.jpg'
+                    shutil.copy2(folder / frame_file, folder / dest_fn)
+                    label = str(data.get('label') or frame_file)
+                    current.append({
+                        'index': next_idx,
+                        'kind': 'image',
+                        'file': dest_fn,
+                        'name': label,
+                        'source_file': frame_file,
+                    })
+                elif action == 'capture_time':
+                    if not (folder / 'video').is_file():
+                        raise StudioError('캡처할 원본 영상 파일이 없습니다.', 400)
+                    binary = find_ffmpeg()
+                    if not binary:
+                        raise StudioError('FFmpeg가 필요합니다.', 503)
+                    try:
+                        ts = max(0.0, float(data.get('timestamp', 0.0) or 0.0))
+                    except (TypeError, ValueError):
+                        ts = 0.0
+                    dur = float((job.get('media') or {}).get('duration') or 0.0)
+                    if dur > 0.0:
+                        ts = min(ts, max(0.0, dur - 0.05))
+                    ts_round = round(ts, 2)
+                    stamp = int(time.time() * 1000) % 1000000
+                    cap_fn = f'companion-cap-{stamp}.jpg'
+                    run_ffmpeg(binary, [
+                        '-y', '-protocol_whitelist', 'file,pipe',
+                        '-ss', str(ts_round), '-i', str(folder / 'video'),
+                        '-frames:v', '1', '-q:v', '2', str(folder / cap_fn),
+                    ])
+                    if not (folder / cap_fn).is_file():
+                        raise StudioError('해당 시점의 프레임 캡처에 실패했습니다.', 422)
+                    add_to_bundle = bool(data.get('add_to_bundle', True))
+                    if add_to_bundle:
+                        if len(current) >= 9:
+                            raise StudioError('동반 첨부 이미지는 최대 9장(영상 포함 총 10개)까지 추가할 수 있습니다.', 422)
+                        next_idx = len(current) + 1
+                        dest_fn = f'bundle-img-{stamp}-{next_idx}.jpg'
+                        shutil.copy2(folder / cap_fn, folder / dest_fn)
+                        label = str(data.get('label') or f'영상 캡처 ({ts_round}초)')
+                        current.append({
+                            'index': next_idx,
+                            'kind': 'image',
+                            'file': dest_fn,
+                            'name': label,
+                            'source_file': cap_fn,
+                            'timestamp': ts_round,
+                        })
+                    ev = dict(job.get('evidence') or {})
+                    frames_list = list(ev.get('frames') or [])
+                    frames_list.append({
+                        'index': len(frames_list),
+                        'timestamp': ts_round,
+                        'file': cap_fn,
+                        'url': f'/studio/jobs/{job_id}/media/{cap_fn}',
+                    })
+                    ev['frames'] = frames_list
+                    job['evidence'] = ev
+                    job['last_captured_frame'] = cap_fn
+                elif action == 'clear':
+                    current = []
+                elif action == 'remove':
+                    rem_idx = int(data.get('index', -1))
+                    if 0 <= rem_idx < len(current):
+                        current.pop(rem_idx)
+                elif action == 'move':
+                    from_idx = int(data.get('from_index', -1))
+                    to_idx = int(data.get('to_index', -1))
+                    if 0 <= from_idx < len(current) and 0 <= to_idx < len(current):
+                        item = current.pop(from_idx)
+                        current.insert(to_idx, item)
+                for i, att in enumerate(current, start=1):
+                    att['index'] = i
+                job['attachments'] = current
+                save(job)
+            return jsonify(job)
+
+    @bp.route('/saved-products', methods=['GET', 'POST', 'DELETE'])
+    def saved_products_route():
+        products_file = root / 'saved-products.json'
+        with lock('saved-products'):
+            items = []
+            if products_file.is_file():
+                try:
+                    loaded = json.loads(products_file.read_text(encoding='utf-8'))
+                    if isinstance(loaded, list):
+                        items = loaded
+                except Exception:
+                    items = []
+            if request.method == 'GET':
+                return jsonify(products=items)
+            data = request.get_json() or {}
+            if request.method == 'DELETE':
+                target_id = str(data.get('id') or '').strip()
+                if not target_id:
+                    raise StudioError('삭제할 주력 상품 ID를 선택해 주세요.', 400)
+                before_len = len(items)
+                items = [x for x in items if str(x.get('id') or '') != target_id]
+                if len(items) == before_len:
+                    raise StudioError('삭제할 주력 상품을 찾지 못했습니다.', 404)
+                tmp = products_file.with_suffix('.json.tmp')
+                tmp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding='utf-8')
+                tmp.replace(products_file)
+                return jsonify(products=items, deleted=target_id)
+
+            # POST: save or migrate
+            migrate_items = data.get('migrate')
+            if isinstance(migrate_items, list):
+                for m in migrate_items:
+                    if not isinstance(m, dict):
+                        continue
+                    m_name = str(m.get('name') or '').strip()[:200]
+                    m_aff = str(m.get('affiliate_url') or '').strip()[:2000]
+                    m_url = str(m.get('url') or '').strip()[:2000]
+                    if not m_name and not m_aff:
+                        continue
+                    if any(x.get('name') == m_name and x.get('affiliate_url') == m_aff for x in items):
+                        continue
+                    if len(items) >= 50:
+                        break
+                    items.append({
+                        'id': uuid.uuid4().hex[:16],
+                        'name': m_name or '주력 상품',
+                        'platform': str(m.get('platform') or 'coupang').strip()[:40],
+                        'link_entry_mode': 'api' if m.get('link_entry_mode') == 'api' else 'manual',
+                        'url': m_url,
+                        'affiliate_url': m_aff,
+                        'saved_at': float(m.get('saved_at') or time.time()),
+                    })
+                tmp = products_file.with_suffix('.json.tmp')
+                tmp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding='utf-8')
+                tmp.replace(products_file)
+                return jsonify(products=items)
+
+            name = str(data.get('name') or '').strip()[:200]
+            platform = str(data.get('platform') or 'coupang').strip()[:40]
+            link_entry_mode = 'api' if data.get('link_entry_mode') == 'api' else 'manual'
+            url = str(data.get('url') or '').strip()[:2000]
+            affiliate_url = str(data.get('affiliate_url') or '').strip()[:2000]
+            if not name:
+                raise StudioError('보관할 상품명을 입력해 주세요.', 400)
+            if link_entry_mode == 'manual' and not affiliate_url:
+                raise StudioError('보관할 제휴 링크를 입력해 주세요.', 400)
+            if link_entry_mode == 'api' and not url and not affiliate_url:
+                raise StudioError('보관할 원본 상품 URL 또는 제휴 링크를 입력해 주세요.', 400)
+
+            existing = next((x for x in items if x.get('name') == name and x.get('affiliate_url') == affiliate_url and x.get('platform') == platform), None)
+            if existing:
+                existing['url'] = url
+                existing['link_entry_mode'] = link_entry_mode
+                existing['saved_at'] = time.time()
+                saved_id = existing['id']
+            else:
+                if len(items) >= 50:
+                    raise StudioError('주력 상품 보관함은 최대 50개까지 저장할 수 있습니다. 사용하지 않는 상품을 먼저 삭제해 주세요.', 409)
+                saved_id = uuid.uuid4().hex[:16]
+                items.insert(0, {
+                    'id': saved_id,
+                    'name': name,
+                    'platform': platform,
+                    'link_entry_mode': link_entry_mode,
+                    'url': url,
+                    'affiliate_url': affiliate_url,
+                    'saved_at': time.time(),
+                })
+            tmp = products_file.with_suffix('.json.tmp')
+            tmp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding='utf-8')
+            tmp.replace(products_file)
+            return jsonify(products=items, saved_id=saved_id)
 
     @bp.route('/jobs/<job_id>/hook-frame')
     def hook_frame(job_id):
@@ -5015,10 +6922,31 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if affiliation and product['attribution'] not in ('user_confirmed', 'api_issued'):
                 raise StudioError('본인 제휴 계정에서 발급한 링크인지 확인해 주세요.')
             changed_product = bool(previous and previous.get('name') != product['name'])
-            next_draft = None if changed_product else job.get('draft')
+            next_draft = job.get('draft')
+            if next_draft and changed_product:
+                next_draft = dict(next_draft)
+                next_draft['needs_review'] = True
+                next_draft['review_reason'] = '연결된 상품 정보가 변경되었습니다. 초안 내용 및 상품명을 재검토해 주세요.'
             job.update(product=product, draft=next_draft, comment='', status='draft_ready' if next_draft else ('product_ready' if job['analysis'] else 'media_ready'))
+
             save(job)
             return jsonify(job)
+
+    def _append_draft_history(job, body_text, comment_text='', action='save'):
+        body_clean = str(body_text or '').strip()
+        if not body_clean:
+            return
+        hist = list(job.get('draft_history') or [])
+        comment_clean = str(comment_text or '').strip()
+        if hist and hist[-1].get('body') == body_clean and hist[-1].get('comment', '') == comment_clean:
+            return
+        hist.append({
+            'body': body_clean,
+            'comment': comment_clean,
+            'action': action,
+            'timestamp': time.time(),
+        })
+        job['draft_history'] = hist[-10:]
 
     @bp.route('/jobs/<job_id>/draft', methods=['POST'])
     def draft(job_id):
@@ -5068,7 +6996,11 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 if not isinstance(variants,list) or len(variants)!=3 or any(not isinstance(v,str) or not v.strip() for v in variants):raise StudioError('AI 소개 글 3안 형식이 올바르지 않습니다.',502)
                 variants=[format_post(v,advertising=include_ad_tag,style=style) for v in variants]
                 if any(len(v)>500 for v in variants):raise StudioError('AI가 500자 제한을 지키지 않았습니다. 저장된 초안은 유지했습니다.',422)
+                prev_body = (job.get('draft') or {}).get('body') or (job.get('draft') or {}).get('script') or ''
+                if prev_body:
+                    _append_draft_history(job, prev_body, job.get('comment', ''), action='before_draft')
                 job.update(draft={'script':variants[0],'body':variants[0],'variants':variants,'selected':0,'provider':data.get('provider','gemini_api'),'model':data.get('model',model),'style':style,'style_snapshot':custom,'include_ad_tag':include_ad_tag,'quality_notes':audit_draft(variants[0],variants[0]),'generated_at':time.time()},status='draft_ready')
+                _append_draft_history(job, variants[0], job.get('comment', ''), action='draft')
                 save(job)
                 return jsonify(job)
 
@@ -5085,6 +7017,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 raise StudioError('게시 본문은 500자 이하로 입력해 주세요.')
             if not isinstance(script, str) or not script.strip() or len(script) > 500:
                 script = body
+            prev_body = (job.get('draft') or {}).get('body') or (job.get('draft') or {}).get('script') or ''
+            if prev_body and prev_body != body:
+                _append_draft_history(job, prev_body, job.get('comment', ''), action='before_prepare')
             if not job.get('draft'):
                 job['draft'] = {'script': script, 'body': body, 'variants': [body], 'selected': 0, 'generated_at': time.time()}
             job['draft'].update(body=body, script=script, selected=data.get('selected', 0))
@@ -5110,6 +7045,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 raise StudioError('첫 댓글이 500자를 넘습니다. 내용을 500자 이하로 줄여 주세요.')
             job['comment'] = final_comment
             job.update(status='publish_ready', disclosure=disclosure)
+            _append_draft_history(job, body, final_comment, action='prepare')
             save(job)
             return jsonify(job)
 

@@ -39,18 +39,55 @@
   let discoveryArchiveMode=true;
   const nativeBrowser=Boolean(window.takohNative);
   const connectionName=nativeBrowser?'전용 앱':'확장';
-  const stages=['reference','analysis','writing','product'],stageNames=['수집한 레퍼런스','원본 분석','대본·게시문','상품·제휴 링크'];
+  const stages=['analysis','editing','carousel','writing','product'],stageNames=['01 영상·소재 분석','02-A 미디어(영상) 편집','02-B 캐러셀·뉴스카드 편집','03 대본·게시문','04 상품·제휴 링크'];
   let stage='analysis';
+  let lastSourceSubtab='reference';
   function selectStage(name){
-    if(name==='publish'){selectWorkspace('publish');return;}if(!stages.includes(name))return;
+    if(name==='publish'){selectWorkspace('publish');return;}
+    if(name==='reference'){selectWorkspace('reference');return;}
+    if(!stages.includes(name))name='analysis';
     stage=name;
-    document.querySelectorAll('[data-production-section]').forEach(section=>{const hide=section.dataset.productionSection!=='publish'&&section.dataset.productionSection!==name;section.dataset.stageHidden=String(hide);if(section.dataset.productionSection!=='publish')section.hidden=hide;});
+    window.currentProductionStage=name;
+    document.body.dataset.activeStage=name;
+    const isMediaStage=(name==='analysis'||name==='editing'||name==='carousel');
+    const createLivePreview=document.querySelector('#create-workspace > .content-studio-layout > .content-live-preview');
+    if(createLivePreview){
+      createLivePreview.hidden=isMediaStage;
+    }
+    const createLayout=document.querySelector('#create-workspace > .content-studio-layout');
+    if(createLayout){
+      createLayout.classList.toggle('full-width-studio-stage',isMediaStage);
+    }
+    document.querySelectorAll('#create-workspace [data-production-section]').forEach(section=>{
+      const secKey=section.dataset.productionSection;
+      const show=(secKey===name)||(isMediaStage&&secKey==='analysis');
+      const hide=secKey!=='publish'&&!show;
+      section.dataset.stageHidden=String(hide);
+      if(secKey!=='publish')section.hidden=hide;
+    });
+    if(isMediaStage){
+      document.querySelectorAll('[data-stage-view]').forEach(el=>{
+        const view=el.dataset.stageView;
+        el.hidden=Boolean(!document.body.classList.contains('quick-sidebar-mode')&&view!==name);
+      });
+    }
+    const snapToolbar=document.querySelector('.player-canvas-toolbar-right');
+    if(snapToolbar)snapToolbar.hidden=(name==='carousel');
+    const carScrubBtn=document.getElementById('btn-capture-scrubber-carousel');
+    if(carScrubBtn)carScrubBtn.hidden=(name!=='carousel');
+    document.querySelectorAll('.frame-replace-slide-btn').forEach(btn=>{btn.hidden=(name!=='carousel');});
     document.querySelectorAll('[data-production-stage]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.productionStage===name)));
     const next=stages.indexOf(name)+1;$('production-next').hidden=false;
     $('production-next').textContent=next===stages.length?'게시·예약으로 이동 →':'다음: '+stageNames[next]+' →';
+    try{localStorage.setItem('takoh-active-stage',name);}catch{}
+    if(name==='carousel'){
+      if(window.ensureCarouselStoryAutoPopulated)window.ensureCarouselStoryAutoPopulated(false);
+    }
+    if(window.syncDraggableOverlayCanvas)setTimeout(()=>window.syncDraggableOverlayCanvas(),20);
   }
+  window.selectStage=selectStage;
   document.querySelectorAll('[data-production-stage]').forEach(button=>button.onclick=()=>selectStage(button.dataset.productionStage));
-  $('new-job').addEventListener('click',()=>{selectWorkspace('create');selectStage('analysis');($('fetch-url')||$('video-file'))?.focus();});
+  $('new-job').addEventListener('click',()=>{try{localStorage.removeItem('takoh-active-job-id');}catch{}selectWorkspace('create');selectStage('analysis');($('fetch-url')||$('video-file'))?.focus();});
   $('production-next').onclick=()=>stages.indexOf(stage)===stages.length-1?selectWorkspace('publish'):selectStage(stages[stages.indexOf(stage)+1]);
   function bridge(kind,downloadId){return new Promise((resolve,reject)=>{
     const requestId=crypto.randomUUID(),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('타코 확장을 새로고침한 뒤 다시 연결하세요. 다른 위치의 파일은 제작 화면에서 직접 선택할 수 있습니다.'));},5000);
@@ -69,9 +106,19 @@
     clearTimeout(waiter.timer);pending.delete(event.data.requestId);
     if(event.data.success)waiter.resolve(event.data.data);else waiter.reject(new Error(event.data.error||'파일 연결 실패'));
   });
+  const sourceSubtabs=['reference','discovery','research','download'];
+  const productionTabs=['jobs','create','publish','scheduler'];
   function selectWorkspace(name){
-    if(!['download','discovery','research','jobs','create','publish','scheduler','settings'].includes(name))name='download';
+    if(name==='source')name=lastSourceSubtab||'reference';
+    if(!['reference','download','discovery','research','jobs','create','publish','scheduler','settings'].includes(name))name='jobs';
+    const isSourceGroup=sourceSubtabs.includes(name);
+    const isProductionGroup=productionTabs.includes(name);
+    if(isSourceGroup)lastSourceSubtab=name;
     const download=name==='download';
+    const prodNav=document.querySelector('.workspace-tabs');
+    if(prodNav)prodNav.hidden=!isProductionGroup;
+    if($('source-hub-subnav'))$('source-hub-subnav').hidden=!isSourceGroup;
+    if($('reference-workspace'))$('reference-workspace').hidden=name!=='reference';
     if($('jobs-workspace'))$('jobs-workspace').hidden=name!=='jobs';
     $('download-workspace').hidden=!download;
     if($('discovery-workspace'))$('discovery-workspace').hidden=name!=='discovery';
@@ -79,12 +126,27 @@
     $('create-workspace').hidden=name!=='create';if($('publish-workspace'))$('publish-workspace').hidden=name!=='publish';
     $('settings-workspace').hidden=name!=='settings';if($('scheduler-workspace'))$('scheduler-workspace').hidden=name!=='scheduler';
     if(name==='scheduler'&&window.refreshStudioCalendar)window.refreshStudioCalendar();
-    document.querySelectorAll('[data-workspace]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.workspace===name)));
+    document.querySelectorAll('.workspace-tabs [data-workspace]').forEach(button=>{
+      const bw=button.dataset.workspace;
+      const selected=(bw===name)||(bw==='source'&&isSourceGroup);
+      button.setAttribute('aria-selected',String(selected));
+    });
+    document.querySelectorAll('[data-source-subtab]').forEach(button=>{
+      const active=button.dataset.sourceSubtab===name;
+      button.classList.toggle('active',active);
+      button.setAttribute('aria-selected',String(active));
+    });
     try{localStorage.setItem('takoh-workspace',name);}catch{}
+    if(window.takohNative?.request){
+      window.takohNative.request({action:'studioWorkspaceChanged',workspace:name}).catch(()=>{});
+    }
+    if(name==='jobs'&&typeof refreshJobs==='function')refreshJobs().catch(()=>{});
+    if(name==='reference'&&typeof refreshReferences==='function')refreshReferences().catch(()=>{});
     if(download)refreshDownloads();
     if(name==='discovery')refreshDiscovery();
     if(name==='settings'){refreshUsage();refreshCommerceSettings().catch(error=>{$('commerce-status').textContent=error.message;});refreshYoutubeSettings();if(window.refreshConnectionsStatus)window.refreshConnectionsStatus();if(window.populateSearchAndFallbackModels)window.populateSearchAndFallbackModels();}
   }
+  window.selectWorkspace=selectWorkspace;
   let discoveryLoading=false;
   let currentDiscoveryPage=1;
   let currentDiscoveryItems=[];
@@ -665,7 +727,7 @@
 
     const isHashtagQuery=/^#|^https?:\/\/(?:www\.|m\.)?youtube\.com\/hashtag\//i.test(q);
     const activeParts=[
-      activeDiscoveryChannelName?`📺 채널: ${activeDiscoveryChannelName}`:'',
+      activeDiscoveryChannelName?`채널: ${activeDiscoveryChannelName}`:'',
       (mode==='hashtag'||isHashtagQuery)?'YouTube 해시태그 피드':providerLabel,
       countryLabel,
       rangeText,
@@ -874,7 +936,7 @@
     const chDrawer=$('discovery-channel-drawer');
     if(chBtn){
       const isOpen=chDrawer&&!chDrawer.hidden;
-      chBtn.textContent=`📺 채널 관리 (${cachedRegisteredChannels.length}) ${isOpen?'▴':'▾'}`;
+      chBtn.textContent=`채널 관리 (${cachedRegisteredChannels.length}) ${isOpen?'▴':'▾'}`;
     }
     renderRegisteredChannelsList();
   }
@@ -928,7 +990,7 @@
     if(catGroup)catGroup.style.display=(mode==='shopping'||mode==='hashtag')?'flex':'none';
     if(mode==='hashtag'&&$('discovery-hashtag-drawer')){
       $('discovery-hashtag-drawer').hidden=false;
-      if($('btn-toggle-hashtag-drawer'))$('btn-toggle-hashtag-drawer').textContent='🔥 인기 해시태그 48개 ▴';
+      if($('btn-toggle-hashtag-drawer'))$('btn-toggle-hashtag-drawer').textContent='인기 해시태그 48개 ▴';
     }
     updateQuotaPreview();
     refreshDiscovery(false);
@@ -1169,8 +1231,8 @@
   function toggleDiscoveryDrawer(targetDrawerId){
     const drawers=[
       {id:'discovery-advanced-drawer',btnId:'btn-toggle-adv-filters',label:()=>'상세 조건'},
-      {id:'discovery-hashtag-drawer',btnId:'btn-toggle-hashtag-drawer',label:()=>'🔥 인기 해시태그 48개'},
-      {id:'discovery-channel-drawer',btnId:'btn-toggle-channel-drawer',label:()=>`📺 채널 관리 (${cachedRegisteredChannels.length})`}
+      {id:'discovery-hashtag-drawer',btnId:'btn-toggle-hashtag-drawer',label:()=>'인기 해시태그 48개'},
+      {id:'discovery-channel-drawer',btnId:'btn-toggle-channel-drawer',label:()=>`채널 관리 (${cachedRegisteredChannels.length})`}
     ];
     const targetDrawer=$(targetDrawerId);
     const willOpen=targetDrawer?targetDrawer.hidden:false;
@@ -1229,7 +1291,7 @@
 
   async function refreshUsage(){try{const result=await api('usage');$('usage-note').textContent=result.scope+' · '+result.note;$('ai-usage').replaceChildren();if(!result.groups?.length){$('ai-usage').append(text('p','아직 기록된 AI 요청이 없습니다.'));return;}const table=document.createElement('table');table.className='usage-table';const header=document.createElement('tr');for(const label of ['연결 / 모델','시도 / 반환 / 오류','입력 토큰','출력 토큰','전체 토큰','토큰 기록'])header.append(text('th',label));table.append(header);for(const group of result.groups){const row=document.createElement('tr');const known=group.reported_calls>0;for(const value of [group.provider+' / '+group.model,`${group.calls} / ${group.successful} / ${group.failed}`,group.token_available?.input_tokens?group.input_tokens.toLocaleString():'미제공',group.token_available?.output_tokens?group.output_tokens.toLocaleString():'미제공',group.token_available?.total_tokens?group.total_tokens.toLocaleString():'미제공',`${group.reported_calls}/${group.calls}회`])row.append(text('td',String(value)));table.append(row);}$('ai-usage').append(table);}catch(error){$('usage-note').textContent=error.message;}}
   $('reload-usage').onclick=refreshUsage;
-  document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>selectWorkspace(button.dataset.workspace));document.querySelector('.workspace-tabs')?.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=[...document.querySelectorAll('.workspace-tabs [role=tab]')];const i=tabs.indexOf(document.activeElement);if(i<0)return;event.preventDefault();const n=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[n].focus();tabs[n].click();});
+  document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>selectWorkspace(button.dataset.workspace));document.querySelector('.workspace-tabs')?.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=[...document.querySelectorAll('.workspace-tabs [role=tab]:not([hidden])')];const i=tabs.indexOf(document.activeElement);if(i<0)return;event.preventDefault();const n=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[n].focus();tabs[n].click();});
   async function importFile(downloadId, local){
     await act('다운로드한 실제 파일을 불러오는 중…',async()=>{
       const file=local||await bridge('download-file',downloadId);
@@ -1311,7 +1373,7 @@
       const info=document.createElement('div');info.style.minWidth='0';
       info.append(text('h3',ref.username?'@'+ref.username:'수집한 게시물'),text('p',ref.text?.slice(0,200)||ref.permalink));
       left.append(info);
-      const button=text('button','이 콘텐츠로 제작 →');button.onclick=async()=>{selectedReference=ref;selectWorkspace('create');selectStage('reference');$('source').value=ref.permalink;$('fetch-url').value=ref.permalink;await refreshReferences();message('사용할 영상 또는 이미지를 선택하고 원본 준비를 눌러 주세요.');};
+      const button=text('button','이 콘텐츠로 제작 →');button.onclick=async()=>{selectedReference=ref;selectWorkspace('reference');$('source').value=ref.permalink;$('fetch-url').value=ref.permalink;await refreshReferences();message('사용할 영상 또는 이미지를 선택하고 원본 준비를 눌러 주세요.');};
       row.append(left,button);$('collected-files').append(row);
     }
     $('collection-connection').textContent=`수집 ${refs.length}개 · 제작 화면과 동기화 완료`;
@@ -1320,10 +1382,11 @@
   window.addEventListener('focus',()=>{refreshDownloads();syncCollections();});
   $('choose-local-file').onclick=()=>{selectWorkspace('create');$('video-file').focus();};
   const transfer=location.hash.startsWith('#reference=');
-  let saved='download';try{saved=localStorage.getItem('takoh-workspace')||'download';}catch{}
+  let saved='jobs';try{saved=localStorage.getItem('takoh-workspace')||'jobs';}catch{}
+  let savedStage='analysis';try{savedStage=localStorage.getItem('takoh-active-stage')||'analysis';}catch{}
   const requested=location.hash.startsWith('#workspace=')?location.hash.slice(11):null;
-  selectWorkspace(transfer||$('incoming-reference').hidden===false?'create':requested==='publish'?'publish':requested==='create'?'create':requested==='research'?'research':requested==='discovery'?'discovery':requested==='download'?'download':saved);
-  selectStage('reference');
+  selectWorkspace(transfer||$('incoming-reference').hidden===false?'reference':requested||'jobs'===saved?requested||saved:saved);
+  selectStage(savedStage);
   syncCollections();
 })();
 
@@ -1331,11 +1394,12 @@
 (()=>{
   const host=document.getElementById('research-workspace');if(!host||document.getElementById('threads-research'))return;
   const panel=document.createElement('section');panel.id='threads-research';panel.className='threads-research';
-  panel.innerHTML='<h2>Threads 상품 레퍼런스 탐색</h2><p class="hint">제품 게시물의 관련 콘텐츠와 작성 계정을 누적합니다. 공개 문구·링크는 상업성 단서이며 광고 여부나 법적 적합성을 확정하지 않습니다. 원문 확인 창에서 표시된 작성자 댓글을 추가 검사할 수 있습니다. 프로필 링크와 접힌 댓글은 검사하지 않습니다. 한국·해외 구분은 본문 언어 기준이며 계정 소재국을 뜻하지 않습니다. 수치 미확인은 비공개 확정이 아닙니다.</p><div class="research-inputs"><label>시작할 제품 게시물 주소<input id="research-url" type="url" placeholder="Threads 게시물 주소 또는 /share/ 공유 링크"></label><label>제품명·분류<input id="research-product" maxlength="120" placeholder="예: 틈새 청소 도구"></label></div><div class="research-actions"><button id="research-open" type="button">비로그인 관련 화면 열기</button><button id="research-capture" type="button" class="secondary">현재 관련 목록 수집 · 최대 50개</button><button id="research-review-capture" type="button" class="secondary">원문 확인 창의 문구·작성자 댓글 검사</button><button id="research-list" type="button" class="secondary">저장 자료 보기 · 외부 호출 없음</button></div><p id="research-status" role="status">관련 화면에서 목록이 표시되면 수집하세요. 로그인 요구 시 중단하며 기존 결과는 유지됩니다.</p><div class="research-inputs"><label>보기<select id="research-filter"><option value="all">전체 후보</option><option value="commercial">광고 문구 또는 외부 링크 있음</option><option value="both">광고·경제적 이해 문구와 링크 모두 있음</option><option value="disclosure">광고·경제적 이해 문구 있음</option><option value="same">동일 제품 확인됨</option></select></label><label>콘텐츠 언어<select id="research-region"><option value="all">전체</option><option value="korean">한국어 콘텐츠</option><option value="overseas">해외 언어 콘텐츠</option><option value="unknown">언어 미확인</option></select></label><label>정렬<select id="research-sort"><option value="latest">최근 수집순</option><option value="likes">좋아요 많은 순</option><option value="replies">댓글 많은 순</option><option value="reposts">재게시 많은 순</option><option value="views">공개 조회수 많은 순</option></select></label></div><details><summary id="research-accounts-summary">수집 계정 0개</summary><div id="research-accounts"></div></details><div id="research-results" class="research-results"></div>';
-  const continuous=document.createElement('div');continuous.className='research-continuous';continuous.innerHTML='<h3>관련 게시물과 계정을 이어서 탐색</h3><p class="hint">관련 계정 프로필에서 아직 방문하지 않은 새 게시물을 먼저 열고, 그 게시물의 관련 콘텐츠로 확장합니다. 제품 문구·링크 단서가 있는 게시물을 우선합니다. 수집 후보는 제품 일치 검토 전까지 확정 레퍼런스가 아닙니다.</p><div class="research-inputs"><label>한 번에 방문할 페이지<input id="research-max-pages" type="number" min="1" max="100" value="20"></label><label>탐색 깊이<select id="research-max-depth"><option value="3">3단계 · 좁게</option><option value="5" selected>5단계 · 기본</option><option value="8">8단계 · 넓게</option></select></label></div><details><summary>탐색 한도 설정</summary><div class="research-inputs"><label>프로필당 게시물 수<input id="research-profile-limit" type="number" min="1" max="30" value="10"></label><label>한 번에 탐색할 시간 · 분<input id="research-time-limit" type="number" min="1" max="10" value="3"></label></div></details><div class="research-actions"><button id="research-crawl-start" type="button">이 링크에서 확장 탐색 시작</button><button id="research-crawl-resume" type="button" class="secondary">중단한 탐색 이어서</button><button id="research-crawl-pause" type="button" class="secondary">일시정지</button></div><p id="research-crawl-status" role="status">탐색 대기 중 · 자동 실행하지 않습니다.</p>';
+  panel.innerHTML='<h2>Threads 동일·연관 쇼핑계정 및 영상 레퍼런스 탐색</h2><p class="hint">단순 쇼핑몰 상품 검색이 아니라, 선택한 영상과 동일·유사한 영상을 올리는 쇼핑 콘텐츠 계정들과 연관 게시물(실제 영상·이미지 미디어, 조회수, 좋아요·댓글·재게시 반응)을 정밀 추적하고 수집한 계정의 신규 콘텐츠를 매일 갱신합니다.</p><div class="research-inputs"><label>출발할 쇼핑 영상 게시물 주소<input id="research-url" type="url" placeholder="Threads 게시물 주소 또는 /share/ 공유 링크"></label><label>제품·카테고리 메모<input id="research-product" maxlength="120" placeholder="예: 틈새 청소 도구"></label></div><div class="research-actions"><button id="research-open" type="button">비로그인 관련 화면 열기</button><button id="research-capture" type="button" class="secondary">현재 목록 정밀 수집 (미디어·조회수·반응 확인)</button><button id="research-review-capture" type="button" class="secondary">원문 확인 창의 문구·작성자 댓글 검사</button><button id="research-list" type="button" class="secondary">저장 자료 보기 · 외부 호출 없음</button></div><p id="research-status" role="status">관련 화면에서 목록이 표시되면 수집하세요. 속도가 조금 걸리더라도 미디어·조회수·사용자 반응을 정밀 확인합니다.</p><div class="research-inputs"><label>보기<select id="research-filter"><option value="all">전체 후보</option><option value="commercial">광고 문구 또는 외부 링크 있음</option><option value="both">광고·경제적 이해 문구와 링크 모두 있음</option><option value="disclosure">광고·경제적 이해 문구 있음</option><option value="same">동일 제품 확인됨</option></select></label><label>콘텐츠 언어<select id="research-region"><option value="all">전체</option><option value="korean">한국어 콘텐츠</option><option value="overseas">해외 언어 콘텐츠</option><option value="unknown">언어 미확인</option></select></label><label>정렬<select id="research-sort"><option value="latest">최근 수집순</option><option value="likes">좋아요 많은 순</option><option value="replies">댓글 많은 순</option><option value="reposts">재게시 많은 순</option><option value="views">공개 조회수 많은 순</option></select></label></div><details id="research-accounts-drawer" open><summary id="research-accounts-summary">수집한 쇼핑 계정 0개 · 매일 자동 갱신</summary><div class="research-account-sync-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 10px;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;"><label class="check" style="margin:0;font-size:12px;color:#f8fafc;"><input id="research-auto-daily-sync" type="checkbox" checked> <span>수집한 계정 매일 자동 갱신 (24시간 주기 신규 콘텐츠·조회수·반응 추가)</span></label><button id="research-sync-accounts-now" type="button" class="secondary btn-xs" style="margin-left:auto;">수집 계정 신규 콘텐츠 지금 일괄 갱신</button><span id="research-account-sync-status" class="hint" style="width:100%;margin:2px 0 0;font-size:11px;">수집된 쇼핑 계정 프로필을 방문해 새로 올라온 영상·이미지 게시물과 조회수·사용자 반응을 자동으로 누적합니다.</span></div><div id="research-accounts"></div></details><div id="research-results" class="research-results"></div>';
+  const continuous=document.createElement('div');continuous.className='research-continuous';continuous.innerHTML='<h3>동일·연관 쇼핑계정과 게시물을 이어서 확장 탐색</h3><p class="hint">연관 쇼핑 계정 프로필에서 아직 방문하지 않은 새 게시물을 먼저 열고, 각 게시물의 실제 미디어(영상/이미지)·조회수·좋아요·댓글·재게시 수치를 정밀 수집하며 확장합니다.</p><div class="research-inputs"><label>한 번에 방문할 페이지<input id="research-max-pages" type="number" min="1" max="100" value="20"></label><label>탐색 깊이<select id="research-max-depth"><option value="3">3단계 · 좁게</option><option value="5" selected>5단계 · 기본</option><option value="8">8단계 · 넓게</option></select></label></div><details><summary>탐색 한도 설정</summary><div class="research-inputs"><label>프로필당 게시물 수<input id="research-profile-limit" type="number" min="1" max="30" value="10"></label><label>한 번에 탐색할 시간 · 분<input id="research-time-limit" type="number" min="1" max="10" value="3"></label></div></details><div class="research-actions"><button id="research-crawl-start" type="button">이 링크에서 쇼핑계정·영상 확장 탐색 시작</button><button id="research-crawl-resume" type="button" class="secondary">중단한 탐색 이어서</button><button id="research-crawl-pause" type="button" class="secondary">일시정지</button></div><p id="research-crawl-status" role="status">탐색 대기 중 · 자동 실행하지 않습니다.</p>';
   panel.querySelector('.research-inputs').after(continuous);
   const manual=document.createElement('details');manual.className='research-manual';manual.innerHTML='<summary>직접 화면 확인 · 한 페이지 수집</summary>';const oldActions=panel.querySelector('#research-open').parentElement;if(oldActions){oldActions.before(manual);manual.append(oldActions);}const tools=document.createElement('div');tools.className='research-actions';tools.innerHTML='<button id="research-mobile" type="button" class="secondary">모바일 폭으로 보기</button><button id="research-desktop" type="button" class="secondary">넓게 보기</button><button id="research-close-prompt" type="button" class="secondary">보이는 로그인 안내 X 닫기 · 1회</button>';manual.append(tools);
-  const library=document.createElement('div');library.className='research-library';library.innerHTML='<h3>찾은 제품 콘텐츠</h3><p class="hint">새로운 콘텐츠는 수집 목록 안에서 중복이 발견되지 않은 미디어입니다. 같은 제품만으로 묶지 않습니다. 반응이 좋아도 재게시 성과를 보장하지 않습니다.</p><div class="research-inputs"><label>콘텐츠 목록<select id="research-view"><option value="new">새로운 콘텐츠</option><option value="popular">반응 좋은 콘텐츠 · 조회수 순</option><option value="duplicates">중복·유사 묶음</option><option value="review">제품 관련성 검토</option><option value="pending">미디어·썸네일 확인 대기</option><option value="excluded">미디어 없는 글 · 제외 기록</option></select></label></div><p id="research-media-summary" role="status"></p><button id="research-audit" type="button" class="secondary">기존 자료 미디어 확인 · 최대 5개</button>';const languageFilters=panel.querySelector('#research-filter').closest('.research-inputs');library.append(languageFilters);const capture=document.createElement('details');capture.className='research-discovery-settings';capture.innerHTML='<summary>탐색 설정 · 직접 주소 입력 (고급)</summary>';const startInputs=panel.querySelector('.research-inputs');capture.append(startInputs,continuous,manual,panel.querySelector('#research-status'));panel.querySelector('h2').nextElementSibling.after(library);library.after(capture);const intro=panel.querySelector('h2').nextElementSibling;const guide=document.createElement('details');guide.className='research-guide';guide.innerHTML='<summary>사용 안내 · 수집 기준</summary>';intro.before(guide);guide.append(intro);const entry=document.createElement('div');entry.className='research-entry';entry.innerHTML='<h3>1. Threads에서 제품 찾기</h3><p>마음에 드는 제품 게시물의 <strong>제품 찾기</strong>를 누르면, 그 게시물부터 비로그인 관련 탐색을 시작합니다.</p><button id="research-browse" type="button">Threads 열기</button><p id="research-entry-status" role="status">게시물을 선택해 주세요.</p>';guide.after(entry);entry.append(panel.querySelector('#research-crawl-resume'),panel.querySelector('#research-crawl-pause'));const libraryHint=library.querySelector('.hint');const criteria=document.createElement('details');criteria.innerHTML='<summary>목록 구분 기준</summary>';libraryHint.before(criteria);criteria.append(libraryHint);host.append(panel);const q=id=>document.getElementById(id);let data={posts:[],accounts:[]},busy=false,polling=false;
+  const apiBox=document.createElement('details');apiBox.className='research-api-collector';apiBox.innerHTML='<summary>수집 전용 Threads API 설정 및 키워드 수집 (선택 · 업로드 미사용)</summary><div style="padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;margin-top:6px;"><p class="hint" style="margin:0 0 8px;"><strong>계정 일일 갱신에 Threads API가 필수인가요?</strong> 아닙니다. Meta 공식 Threads API는 타인 계정의 피드 전체 열람이나 타인 게시물의 공개 조회수(Views) 조회를 제한하므로, <strong>수집 계정의 일일 신규 콘텐츠·조회수·반응 갱신은 API 키 없이 내장 브라우저 정밀 수집기로 100% 작동</strong>합니다.<br>다만 본인의 <strong>Threads API 액세스 토큰(수집 전용)</strong>을 입력해 두면, 공식 <code>keyword_search</code> 엔드포인트로 키워드별 최신 쇼핑 게시물을 빠르게 보조 수집할 수 있습니다 (게시·업로드 권한은 일절 사용하지 않으며 오직 읽기 전용 수집에만 사용됩니다).</p><div class="research-inputs"><label>수집 전용 Threads API Access Token<input id="research-api-token" type="password" placeholder="THQ... (읽기·수집 전용 액세스 토큰 입력)" autocomplete="off"></label><label>API 키워드 검색어 (선택)<input id="research-api-query" type="text" maxlength="100" placeholder="예: 쿠팡 추천템, 다이소 꿀템, 청소템"></label></div><div class="research-actions"><button id="research-api-save" type="button" class="secondary">수집 전용 API 키 저장</button><button id="research-api-collect" type="button" class="secondary">API로 키워드 게시물 수집 + 브라우저 정밀 수치 보강</button><span id="research-api-status" class="hint" style="margin:0;">API 키 미설정 (내장 브라우저 수집기로 모든 기능 사용 가능)</span></div></div>';
+  const library=document.createElement('div');library.className='research-library';library.innerHTML='<h3>찾은 쇼핑 계정·영상 콘텐츠</h3><p class="hint">새로운 콘텐츠는 수집 목록 안에서 중복이 발견되지 않은 미디어입니다. 같은 제품만으로 묶지 않으며, 각 카드에 미디어 미리보기·조회수·좋아요·댓글·재게시 반응이 표시됩니다.</p><div class="research-inputs"><label>콘텐츠 목록<select id="research-view"><option value="new">새로운 콘텐츠</option><option value="popular">반응 좋은 콘텐츠 · 조회수 순</option><option value="duplicates">동일·유사 영상 묶음 (쇼핑계정 비교)</option><option value="review">제품 관련성 검토</option><option value="pending">미디어·썸네일 확인 대기</option><option value="excluded">미디어 없는 글 · 제외 기록</option></select></label></div><p id="research-media-summary" role="status"></p><button id="research-audit" type="button" class="secondary">미확인 미디어·조회수·반응 정밀 재수집 · 최대 12개</button>';const languageFilters=panel.querySelector('#research-filter').closest('.research-inputs');library.append(languageFilters);const capture=document.createElement('details');capture.className='research-discovery-settings';capture.innerHTML='<summary>탐색 설정 · 직접 주소 입력 · 수집 전용 API (고급)</summary>';const startInputs=panel.querySelector('.research-inputs');capture.append(startInputs,continuous,manual,apiBox,panel.querySelector('#research-status'));panel.querySelector('h2').nextElementSibling.after(library);library.after(capture);const intro=panel.querySelector('h2').nextElementSibling;const guide=document.createElement('details');guide.className='research-guide';guide.innerHTML='<summary>사용 안내 · 수집 기준</summary>';intro.before(guide);guide.append(intro);const entry=document.createElement('div');entry.className='research-entry';entry.innerHTML='<h3>1. Threads에서 동일·연관 쇼핑계정 찾기</h3><p>마음에 드는 쇼핑 영상 게시물 하단의 <strong>동일·연관 쇼핑계정 찾기</strong> 버튼을 누르면, 동일한 영상이나 연관 쇼핑 콘텐츠를 올리는 계정들과 게시물(미디어·조회수·사용자 반응)을 정밀 수집합니다.</p><button id="research-browse" type="button">Threads 열기</button><p id="research-entry-status" role="status">게시물을 선택해 주세요.</p>';guide.after(entry);entry.append(panel.querySelector('#research-crawl-resume'),panel.querySelector('#research-crawl-pause'));const libraryHint=library.querySelector('.hint');const criteria=document.createElement('details');criteria.innerHTML='<summary>목록 구분 기준</summary>';libraryHint.before(criteria);criteria.append(libraryHint);host.append(panel);const q=id=>document.getElementById(id);let data={posts:[],accounts:[]},busy=false,polling=false;
   const native=window.takohNative;
   async function request(action,packet={}){if(!native?.request)throw Error('전용 브라우저에서 사용할 수 있습니다.');const r=await native.request({action:'studioThreadsResearch',packet:{action,...packet}});if(!r?.success)throw Error(r?.error||'연결 실패. 최신 앱으로 정상 재실행한 뒤 확인하세요.');return r.data;}
   async function run(task){if(busy)return;busy=true;for(const id of ['research-open','research-capture','research-list','research-review-capture'])q(id).disabled=true;try{await task();}catch(e){q('research-status').textContent=e.message;q('research-entry-status').textContent=e.message;}finally{busy=false;for(const id of ['research-open','research-capture','research-list','research-review-capture'])q(id).disabled=!native?.request;}}
@@ -1346,12 +1410,14 @@
     let posts=(data.posts||[]).map(p=>{const body=String(p.text||'').replace(/https?:\/\/\S+/g,'').replace(/\d+\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?/g,'').replace(/작성자|번역하기|더 보기|답글 보기/g,'');return {...p,content_region:/[가-힣]/.test(body)?'korean':/[A-Za-z\u3040-\u30ff\u4e00-\u9fff]/.test(body)?'overseas':'unknown'};});const view=q('research-view').value;const region=q('research-region').value;if(region!=='all')posts=posts.filter(p=>p.content_region===region);const filter=q('research-filter').value,key=q('research-sort').value;
     if(filter==='commercial')posts=posts.filter(p=>p.checks.commercial_candidate);if(filter==='both')posts=posts.filter(p=>p.checks.disclosure_observed&&p.links.length>0);if(filter==='disclosure')posts=posts.filter(p=>p.checks.disclosure_observed);if(filter==='same')posts=posts.filter(p=>p.product_match==='same');
     const summary=data.media_summary||{};q('research-media-summary').textContent='미디어·미리보기 확인 '+(summary.ready||0)+'개 · 제품 검토 '+(summary.review||0)+'개 · 확인 대기 '+(summary.pending??data.posts.length)+'개 · 미디어 없는 글 '+(summary.excluded||0)+'개 · 썸네일 비교는 영상 전체의 동일성을 확정하지 않습니다.';
+    if(q('research-auto-daily-sync')&&data.account_sync){q('research-auto-daily-sync').checked=data.account_sync.auto_daily!==false;}
+    if(q('research-api-status')&&data.api_collector){q('research-api-status').textContent=data.api_collector.has_token?('수집 전용 API 토큰 연결됨 ('+data.api_collector.masked_token+') · 읽기 전용'):'API 키 미설정 (내장 브라우저 수집기로 모든 기능 사용 가능)';}
     const byId=new Map(posts.map(p=>[p.id,p]));let groups=(data.media_groups||[]).map(g=>({...g,members:g.member_ids.map(id=>byId.get(id)).filter(Boolean)})).filter(g=>g.members.length);for(const g of groups){g.members.sort((a,b)=>((b.display_metrics||b.metrics).views??-1)-((a.display_metrics||a.metrics).views??-1));g.representative=g.members[0];}if(view==='pending'||view==='excluded'){posts=posts.filter(p=>(p.media_state||'pending')===view);}else{groups=groups.filter(g=>view==='review'?g.members.some(p=>p.media_state==='review'):g.members.some(p=>p.media_state==='ready'));if(view==='new')groups=groups.filter(g=>g.member_ids.length===1);if(view==='duplicates')groups=groups.filter(g=>g.member_ids.length>1);posts=groups.map(g=>({...g.representative,media_group:g}));}
     posts=[...posts].sort((a,b)=>view==='popular'?((b.display_metrics||b.metrics).views??-1)-((a.display_metrics||a.metrics).views??-1):key==='latest'?b.observed_at.localeCompare(a.observed_at):((b.display_metrics||b.metrics)[key]??-1)-((a.display_metrics||a.metrics)[key]??-1));
-    q('research-accounts-summary').textContent='수집 계정 '+data.accounts.length+'개 · 콘텐츠 '+data.posts.length+'개';q('research-accounts').replaceChildren();for(const a of data.accounts){const row=document.createElement('p');link(row,'@'+a.username,'https://www.threads.com/@'+a.username);text(row,'span',' · 수집 '+a.posts+'개 · 상업성 단서 '+a.commercial_candidates+'개 · 문구·링크 모두 '+a.evidence_and_link+'개 · 동일 제품 확인 '+a.confirmed_products+'개');q('research-accounts').append(row);}
+    q('research-accounts-summary').textContent='수집 계정 '+data.accounts.length+'개 · 콘텐츠 '+data.posts.length+'개 · '+(data.account_sync?.auto_daily!==false?'매일 자동 갱신 켜짐':'수동 갱신');q('research-accounts').replaceChildren();for(const a of data.accounts){const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.14);font-size:12px;';link(row,'@'+a.username,'https://www.threads.com/@'+a.username);text(row,'span',' · 수집 '+a.posts+'개 · 상업성 단서 '+a.commercial_candidates+'개 · 문구·링크 모두 '+a.evidence_and_link+'개 · 동일 제품 확인 '+a.confirmed_products+'개'+(a.last_synced_at?' · 최근 갱신 '+new Date(a.last_synced_at).toLocaleDateString('ko-KR')+' (+'+(a.last_added||0)+'개)':' · 미갱신'));const syncBtn=text(row,'button','지금 갱신');syncBtn.type='button';syncBtn.className='secondary btn-xs';syncBtn.style.marginLeft='auto';syncBtn.onclick=()=>run(async()=>{q('research-account-sync-status').textContent='@'+a.username+' 계정의 최신 게시물과 미디어·조회수·반응을 수집하는 중...';data=await request('sync-accounts',{username:a.username,maxAccounts:1,postsPerAccount:6});render();q('research-account-sync-status').textContent='@'+a.username+' 계정 갱신 완료: 신규 게시물 '+(data.added_posts||0)+'개 추가, 상세 수치 '+(data.enriched_posts||0)+'개 보강';});q('research-accounts').append(row);}
     q('research-results').replaceChildren();if(!posts.length)text(q('research-results'),'p','현재 목록에 표시할 콘텐츠가 없습니다. 기존 자료는 미디어·썸네일 확인 대기에서 확인할 수 있습니다.');
     for(const p of posts){const card=document.createElement('article');card.className='research-card';if(view==='pending'||view==='excluded'){card.classList.add('research-pending');link(card,'@'+p.username+' · 원문 확인',p.permalink);text(card,'p',view==='excluded'?'영상·이미지 없는 글 또는 작성자 댓글 · 기본 목록 제외':p.preview_error||'미디어와 미리보기 확인이 필요합니다.');const check=text(card,'button','원문 열어 확인');check.onclick=()=>run(async()=>{await request('review-open',{id:p.id});q('research-status').textContent='원문 확인 후 직접 화면 확인의 원문 검사 버튼을 누르면 미디어와 썸네일을 갱신합니다.';});q('research-results').append(card);continue;}const preview=p.media_preview?.data_url;if(!preview)continue;const image=document.createElement('img');image.className='research-thumbnail';image.alt='@'+p.username+' 실제 미디어 미리보기';image.loading='lazy';image.src=preview;image.onerror=()=>{card.replaceChildren();text(card,'p','미리보기 표시 실패 · 확인 대기');};card.append(image);if(p.media_group?.member_ids.length>1){const g=p.media_group;const duplicates=document.createElement('details');duplicates.className='research-duplicates';text(duplicates,'summary',(g.reason==='same_asset'?'같은 미디어':'썸네일 중복·유사 후보')+' '+(g.member_ids.length-1)+'개 더 있음 · 조회수 높은 글 대표');for(const id of g.member_ids){const other=(data.posts||[]).find(x=>x.id===id);if(!other)continue;const row=document.createElement('div');link(row,'@'+other.username+' · 조회 '+number((other.display_metrics||other.metrics).views),other.permalink);const split=text(row,'button',other.separate_media?'묶음 비교 복원':'다른 콘텐츠로 분리');split.type='button';split.className='secondary';split.onclick=()=>run(async()=>{data=await request('separate-media',{id:other.id});render();});duplicates.append(row);}card.append(duplicates);}
-      const metrics=p.display_metrics||p.metrics;const details=document.createElement('details');details.className='research-card-detail';text(details,'summary','자세히 보기');link(card,'@'+p.username+' · 원문 확인',p.permalink);text(card,'p','조회 '+number(metrics.views)+' · 좋아요 '+number(metrics.likes)+' · 댓글 '+number(metrics.replies));text(details,'p',({korean:'한국어 콘텐츠',overseas:'해외 언어 콘텐츠',unknown:'언어 미확인'}[p.content_region]||'언어 미확인')+' · 본문 언어 기준');text(details,'p','제품 분류: '+(p.products.join(' · ')||'미지정'));text(details,'p',p.text);text(details,'p','재게시 '+number(metrics.reposts)+' · 관측 '+new Date(p.observed_at).toLocaleString('ko-KR'));text(details,'p','상업성 단서 '+(p.checks.commercial_candidate?'있음':'미확인')+' · '+(p.comments_checked?'표시된 작성자 댓글만 검사':'댓글 미검사'));
+      const metrics=p.display_metrics||p.metrics;const mediaKindLabel=(p.media_assets||[]).some(a=>a.kind==='video')?'영상':'이미지';const details=document.createElement('details');details.className='research-card-detail';text(details,'summary','자세히 보기');link(card,'@'+p.username+' · '+mediaKindLabel+' 원문 확인',p.permalink);text(card,'p','조회 '+number(metrics.views)+' · 좋아요 '+number(metrics.likes)+' · 댓글 '+number(metrics.replies)+' · 재게시 '+number(metrics.reposts));text(details,'p',({korean:'한국어 콘텐츠',overseas:'해외 언어 콘텐츠',unknown:'언어 미확인'}[p.content_region]||'언어 미확인')+' · 본문 언어 기준');text(details,'p','제품 분류: '+(p.products.join(' · ')||'미지정'));text(details,'p',p.text);text(details,'p','재게시 '+number(metrics.reposts)+' · 인용 '+number(metrics.quotes)+' · 관측 '+new Date(p.observed_at).toLocaleString('ko-KR'));text(details,'p','상업성 단서 '+(p.checks.commercial_candidate?'있음':'미확인')+' · '+(p.comments_checked?'표시된 작성자 댓글만 검사':'댓글 미검사'));
       for(const e of p.checks.evidence)text(details,'p',e.kind+': '+e.excerpt);for(const evidence of p.detail_evidence||[])text(details,'p',evidence.scope+' · '+evidence.at+' · '+evidence.text.slice(0,400));for(const url of p.links)link(details,new URL(url).hostname+' 링크',url);for(const source of p.sources)link(details,'출발 게시물',source);card.append(details);
       const controls=document.createElement('div');controls.className='research-actions';const label=text(controls,'label','제품 일치 확인');const select=document.createElement('select');select.setAttribute('aria-label','@'+p.username+' 제품 일치 확인');for(const [value,name]of [['unreviewed','검토 전'],['same','동일 제품'],['similar','유사 제품'],['different','다른 제품']]){const option=text(select,'option',name);option.value=value;}select.value=p.product_match;label.append(select);select.onchange=()=>run(async()=>{data=await request('mark',{id:p.id,match:select.value});render();});
       const inspect=text(controls,'button','로그인 세션으로 원문 확인');inspect.type='button';inspect.className='secondary';inspect.onclick=()=>run(async()=>{await request('review-open',{id:p.id});q('research-status').textContent='원문을 확인한 뒤 이 화면의 원문 문구·작성자 댓글 검사 버튼을 누르세요. 표시된 작성자 댓글만 검사합니다.';});
@@ -1359,18 +1425,22 @@
       const save=text(controls,'button',p.saved_reference?'레퍼런스 저장됨':'레퍼런스로 수집');save.type='button';save.disabled=p.saved_reference||!['same','similar'].includes(p.product_match);save.onclick=()=>run(async()=>{await request('reference',{id:p.id});data=await request('list');render();q('research-status').textContent='수집한 레퍼런스에 저장했습니다. 콘텐츠 제작 → 수집한 레퍼런스에서 원본을 준비하세요.';});details.append(controls);card.append(save);q('research-results').append(card);
     }
   }
-  function paintProgress(){const f=data.frontier;q('research-entry-status').textContent=f?.seed?(f.state==='running'?'선택한 게시물에서 탐색 중':'탐색 '+(f.state==='paused'?'일시정지':f.state==='blocked'?'화면 확인 필요':'대기'))+' · 확인 '+f.visited+'페이지 · 남은 후보 '+f.remaining+'개'+(f.profile_fallbacks?' · 관련 미표시로 프로필 탐색 '+f.profile_fallbacks+'회':''):'Threads 게시물의 제품 찾기를 눌러 시작하세요.';const active=f?.state==='running';const names={idle:'대기',running:'탐색 중',paused:'일시정지 · 이어서 탐색 가능',blocked:'화면 확인 필요 · 대기열 보존',completed:'현재 대기열 완료',finished_with_errors:'탐색 종료 · 오류 항목 있음'};q('research-crawl-status').textContent=f?(names[f.state]||f.state)+' · 정상 X 닫기 '+(f.normal_closes||0)+'회 · 방문 '+f.visited+'/'+f.total+' · 대기 '+f.remaining+' · 누적 계정 '+data.accounts.length+' · 누적 콘텐츠 '+data.posts.length+' · 이번 탐색 새 계정 '+(f.new_accounts||0)+' / 콘텐츠 '+(f.new_posts||0)+(f.pause_reason?' · '+({user:'사용자 일시정지',page_limit:'방문 한도 도달',time_limit:'시간 한도 도달'}[f.pause_reason]||f.pause_reason):'')+(f.current?' · 현재 '+f.current:'')+(f.last_error?' · '+f.last_error:''):'탐색 대기 중 · 자동 실행하지 않습니다.';for(const id of ['research-crawl-start','research-crawl-resume'])q(id).disabled=!native?.request||active;q('research-crawl-pause').disabled=!active;}
+  function paintProgress(){const f=data.frontier;q('research-entry-status').textContent=f?.seed?(f.state==='running'?'선택한 게시물에서 쇼핑계정·영상 탐색 중':'탐색 '+(f.state==='paused'?'일시정지':f.state==='blocked'?'화면 확인 필요':'대기'))+' · 확인 '+f.visited+'페이지 · 남은 후보 '+f.remaining+'개'+(f.profile_fallbacks?' · 관련 미표시로 프로필 탐색 '+f.profile_fallbacks+'회':''):'Threads 게시물의 [동일·연관 쇼핑계정 찾기]를 눌러 시작하세요.';const active=f?.state==='running';const names={idle:'대기',running:'탐색 중',paused:'일시정지 · 이어서 탐색 가능',blocked:'화면 확인 필요 · 대기열 보존',completed:'현재 대기열 완료',finished_with_errors:'탐색 종료 · 오류 항목 있음'};q('research-crawl-status').textContent=f?(names[f.state]||f.state)+' · 정상 X 닫기 '+(f.normal_closes||0)+'회 · 방문 '+f.visited+'/'+f.total+' · 대기 '+f.remaining+' · 누적 계정 '+data.accounts.length+' · 누적 콘텐츠 '+data.posts.length+' · 이번 탐색 새 계정 '+(f.new_accounts||0)+' / 콘텐츠 '+(f.new_posts||0)+(f.pause_reason?' · '+({user:'사용자 일시정지',page_limit:'방문 한도 도달',time_limit:'시간 한도 도달'}[f.pause_reason]||f.pause_reason):'')+(f.current?' · 현재 '+f.current:'')+(f.last_error?' · '+f.last_error:''):'탐색 대기 중 · 자동 실행하지 않습니다.';for(const id of ['research-crawl-start','research-crawl-resume'])q(id).disabled=!native?.request||active;q('research-crawl-pause').disabled=!active;}
   async function updateStatus(){if(polling)return;polling=true;try{const next=await request('crawl-status');const changed=JSON.stringify(next.posts)!==JSON.stringify(data.posts)||next.accounts.length!==data.accounts.length;data=next;paintProgress();if(changed)render();}catch(e){q('research-crawl-status').textContent=e.message;}finally{polling=false;}}
-  q('research-crawl-start').onclick=()=>run(async()=>{data=await request('crawl-start',{url:q('research-url').value.trim(),product:q('research-product').value.trim(),limits:{maxPages:Number(q('research-max-pages').value),maxDepth:Number(q('research-max-depth').value),postsPerProfile:Number(q('research-profile-limit').value),maxSeconds:Number(q('research-time-limit').value)*60}});paintProgress();q('research-status').textContent='모바일 폭에서 연속 탐색을 시작했습니다. 정상 X가 있을 때만 한 번 닫으며 로그인·제한이 유지되면 대기열을 보존하고 멈춥니다.';});
+  q('research-crawl-start').onclick=()=>run(async()=>{data=await request('crawl-start',{url:q('research-url').value.trim(),product:q('research-product').value.trim(),limits:{maxPages:Number(q('research-max-pages').value),maxDepth:Number(q('research-max-depth').value),postsPerProfile:Number(q('research-profile-limit').value),maxSeconds:Number(q('research-time-limit').value)*60}});paintProgress();q('research-status').textContent='모바일 폭에서 연속 탐색을 시작했습니다. 각 게시물의 미디어·조회수·반응을 정밀 수집합니다.';});
   q('research-crawl-resume').onclick=()=>run(async()=>{data=await request('crawl-start');paintProgress();});q('research-crawl-pause').onclick=()=>run(async()=>{data=await request('crawl-pause');paintProgress();q('research-status').textContent='일시정지를 요청했습니다. 현재 페이지 처리 후 대기열이 유지됩니다.';});
   q('research-mobile').onclick=()=>run(async()=>{await request('viewport',{mode:'mobile'});q('research-status').textContent='모바일 폭으로 전환했습니다. 페이지와 세션은 그대로 유지됩니다.';});q('research-desktop').onclick=()=>run(async()=>{await request('viewport',{mode:'desktop'});});q('research-close-prompt').onclick=()=>run(async()=>{const r=await request('close-prompt');q('research-status').textContent=r.message;});
+  if(q('research-auto-daily-sync'))q('research-auto-daily-sync').onchange=()=>run(async()=>{data=await request('set-account-sync',{auto_daily:q('research-auto-daily-sync').checked});render();});
+  if(q('research-sync-accounts-now'))q('research-sync-accounts-now').onclick=()=>run(async()=>{q('research-sync-accounts-now').disabled=true;q('research-account-sync-status').textContent='수집된 쇼핑 계정들을 순서대로 방문해 신규 게시물·미디어·조회수·반응을 정밀 갱신 중입니다...';try{data=await request('sync-accounts',{maxAccounts:10,postsPerAccount:6});render();q('research-account-sync-status').textContent='일괄 갱신 완료: '+data.synced_accounts+'개 계정 확인 · 신규 콘텐츠 '+(data.added_posts||0)+'개 추가 · 상세 수치 '+(data.enriched_posts||0)+'개 보강';}finally{q('research-sync-accounts-now').disabled=false;}});
+  if(q('research-api-save'))q('research-api-save').onclick=()=>run(async()=>{const token=q('research-api-token').value.trim();data=await request('save-api-token',{token});q('research-api-token').value='';render();});
+  if(q('research-api-collect'))q('research-api-collect').onclick=()=>run(async()=>{const query=q('research-api-query').value.trim()||q('research-product').value.trim();q('research-api-status').textContent='공식 Threads API(수집 전용)로 게시물을 조회하는 중...';data=await request('api-keyword-collect',{query,limit:25});render();q('research-api-status').textContent='API 수집 완료: '+data.api_collected+'개 조회 · 신규 '+(data.added||0)+'개 추가 (조회수는 [미확인 미디어·조회수 정밀 재수집]으로 보강 가능)';});
   setInterval(()=>{if(data.frontier?.state==='running')updateStatus();},2000);
   q('research-browse').onclick=()=>run(async()=>{if(!native?.request)throw Error('전용 브라우저에서 사용할 수 있습니다.');const r=await native.request({action:'studioBrowseThreadsForResearch'});if(!r?.success)throw Error(r?.error||'Threads 화면을 열지 못했습니다.');});window.addEventListener('takoh-research-started',()=>updateStatus());
   paintProgress();
   q('research-open').onclick=()=>run(async()=>{const r=await request('open',{url:q('research-url').value.trim(),product:q('research-product').value.trim()});if(r.canonical_url)q('research-url').value=r.canonical_url;q('research-status').textContent=r.message;});
-  q('research-capture').onclick=()=>run(async()=>{data=await request('capture');render();const states={login_required:'로그인 안내 팝업이 감지되어 중단했습니다. 탐색 창에서 팝업 바깥을 클릭하거나 Esc로 닫은 뒤 [관련 스레드] 영역을 화면에 표시하고 다시 수집하세요. (기존 결과는 보존됨)',related_not_observed:'관련 영역의 게시물을 확인하지 못했습니다. 댓글을 무한 탐색하지 않습니다.',captured:'현재 관련 목록을 저장했습니다.',invalid_page:'게시물 상세 화면을 확인하세요.'};q('research-status').textContent=(states[data.status]||'수집 상태를 확인하세요.')+' 새 게시물 '+(data.added||0)+'개';});
+  q('research-capture').onclick=()=>run(async()=>{q('research-status').textContent='현재 목록과 각 게시물의 미디어·조회수·반응을 정밀 수집 중입니다...';data=await request('capture',{deep:true});render();const states={login_required:'로그인 안내 팝업이 감지되어 중단했습니다. 탐색 창에서 팝업 바깥을 클릭하거나 Esc로 닫은 뒤 [관련 스레드] 영역을 화면에 표시하고 다시 수집하세요. (기존 결과는 보존됨)',related_not_observed:'관련 영역의 게시물을 확인하지 못했습니다. 댓글을 무한 탐색하지 않습니다.',captured:'현재 관련 목록과 상세 미디어·반응을 저장했습니다.',invalid_page:'게시물 상세 화면을 확인하세요.'};q('research-status').textContent=(states[data.status]||'수집 상태를 확인하세요.')+' 새 게시물 '+(data.added||0)+'개'+(data.deep_checked?' · 정밀 확인 '+data.deep_checked+'개':'');});
   q('research-review-capture').onclick=()=>run(async()=>{data=await request('review-capture');render();q('research-status').textContent=data.status==='detail_checked'?'원문과 표시된 작성자 댓글의 근거를 저장했습니다. 접힌 댓글과 프로필 링크는 미검사입니다.':data.status==='login_required'?'원문 확인 창에 로그인이 필요합니다. 기존 결과는 유지됩니다.':'원문 근거를 확인하지 못했습니다. 기존 결과는 유지됩니다.';});
-  q('research-list').onclick=()=>run(async()=>{data=await request('list');render();q('research-status').textContent='로컬 저장 자료를 불러왔습니다. 외부 검색 호출 없음.';});q('research-filter').onchange=render;q('research-sort').onchange=render;q('research-view').onchange=render;q('research-audit').onclick=()=>run(async()=>{q('research-audit').disabled=true;q('research-status').textContent='원문을 천천히 확인하고 미리보기를 저장하는 중입니다. 최대 5개만 처리합니다.';try{data=await request('audit-media');render();q('research-status').textContent=(data.checked||0)+'개 원문 확인 완료. 남은 자료는 확인 대기에 보존됩니다.';}finally{q('research-audit').disabled=false;}});q('research-region').onchange=render;
+  q('research-list').onclick=()=>run(async()=>{data=await request('list');render();q('research-status').textContent='로컬 저장 자료를 불러왔습니다. 외부 검색 호출 없음.';});q('research-filter').onchange=render;q('research-sort').onchange=render;q('research-view').onchange=render;q('research-audit').onclick=()=>run(async()=>{q('research-audit').disabled=true;q('research-status').textContent='원문을 천천히 확인하고 미디어·조회수·반응을 정밀 저장하는 중입니다. 최대 12개씩 처리합니다.';try{data=await request('audit-media',{limit:12});render();q('research-status').textContent=(data.checked||0)+'개 원문 정밀 확인 완료. 남은 자료는 확인 대기에 보존됩니다.';}finally{q('research-audit').disabled=false;}});q('research-region').onchange=render;
   if(native?.request)request('crawl-status').then(next=>{data=next;render();paintProgress();}).catch(()=>{});
   if(!native?.request){for(const id of ['research-open','research-capture','research-list','research-review-capture'])q(id).disabled=true;q('research-status').textContent='이 기능은 전용 브라우저에서 사용할 수 있습니다.';}render();
 })();

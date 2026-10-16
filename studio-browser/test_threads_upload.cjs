@@ -204,9 +204,55 @@ async function main() {
     assert.match(partialItem.error || '', /2\/2.*다운로드 실패/);
     assert.strictEqual(executedScripts.length, scriptsBeforePartial, 'Should block publishing before calling executeJavaScript');
 
+    // 5. Test HTML error page corruption blocks publishing
+    const token4 = 'd'.repeat(48);
+    const urlCorrupt = `http://127.0.0.1:5006/studio/delivery/${token4}`;
+    const managerCorrupt = createThreadsUploadManager({
+      dataDir: tmpDir,
+      ensureThreadsView: mockEnsureThreadsView,
+      fetchImpl: async (url) => {
+        const u = String(url);
+        if (u === urlCorrupt) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: 'upload-corrupt',
+              when: immediateWhen,
+              name: 'Corrupt Upload',
+              text: 'test',
+              filename: 'video.mp4',
+            }),
+          };
+        }
+        if (u === urlCorrupt + '/video') {
+          const buf = Buffer.from('<!DOCTYPE html><html><body>Error 500</body></html>');
+          return {
+            ok: true,
+            status: 200,
+            arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+          };
+        }
+        return { ok: false, status: 404 };
+      },
+    });
+    await managerCorrupt.init();
+    await managerCorrupt.queueUpload({
+      id: 'upload-corrupt',
+      url: urlCorrupt,
+      when: immediateWhen,
+    });
+    await managerCorrupt.run('upload-corrupt');
+    const corruptList = await managerCorrupt.status();
+    const corruptItem = corruptList.find((x) => x.id === 'upload-corrupt');
+    assert.ok(corruptItem);
+    assert.strictEqual(corruptItem.state, 'uncertain');
+    assert.match(corruptItem.error || '', /HTML 오류 응답으로 손상/);
+
     manager.dispose();
     recoveredManager.dispose();
     managerPartial.dispose();
+    managerCorrupt.dispose();
     console.log('PASS: studio-browser/test_threads_upload.cjs');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
