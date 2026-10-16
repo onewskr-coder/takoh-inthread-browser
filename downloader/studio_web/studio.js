@@ -4452,6 +4452,7 @@ function applyStudioPreviewWidth(rawPx,{save=true}={}){
   if(mediaCard)mediaCard.style.setProperty('--studio-player-width',`${px}px`);
   if($('studio-preview-width-range'))$('studio-preview-width-range').value=String(px);
   if($('studio-preview-width-val'))$('studio-preview-width-val').textContent=`${px}px`;
+  if($('studio-resizer-width-pill'))$('studio-resizer-width-pill').textContent=`${px}px`;
   document.querySelectorAll('.btn-preview-size').forEach(btn=>{
     const targetPx=Number(btn.dataset.previewWidth||btn.dataset.previewSize||0);
     btn.classList.toggle('active',Math.abs(targetPx-px)<=14);
@@ -4482,12 +4483,13 @@ function applyStudioPreviewWidth(rawPx,{save=true}={}){
   const resizer=$('studio-player-resizer');
   const playerCol=$('studio-player-column');
   if(resizer&&playerCol){
-    let dragging=false,startX=0,startW=430;
+    let dragging=false,startX=0,startW=430,lastW=savedPx;
     resizer.addEventListener('pointerdown',e=>{
       e.preventDefault();
       dragging=true;
       startX=e.clientX;
       startW=playerCol.getBoundingClientRect().width||430;
+      lastW=startW;
       resizer.classList.add('dragging');
       document.body.classList.add('resizing-studio-player');
       try{resizer.setPointerCapture(e.pointerId);}catch{}
@@ -4496,6 +4498,7 @@ function applyStudioPreviewWidth(rawPx,{save=true}={}){
       if(!dragging)return;
       e.preventDefault();
       const nextW=startW+(e.clientX-startX);
+      lastW=nextW;
       applyStudioPreviewWidth(nextW,{save:false});
     });
     const endResize=e=>{
@@ -4504,7 +4507,7 @@ function applyStudioPreviewWidth(rawPx,{save=true}={}){
       resizer.classList.remove('dragging');
       document.body.classList.remove('resizing-studio-player');
       try{resizer.releasePointerCapture(e.pointerId);}catch{}
-      const curW=Number($('studio-preview-width-range')?.value||430);
+      const curW=playerCol.getBoundingClientRect().width||lastW||430;
       applyStudioPreviewWidth(curW,{save:true});
     };
     resizer.addEventListener('pointerup',endResize);
