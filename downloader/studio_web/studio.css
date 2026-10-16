@@ -4532,7 +4532,8 @@ body.resizing-studio-player {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55) !important;
 }
 .draggable-multi-text-chip:hover .chip-floating-del-btn,
-.draggable-multi-text-chip.active-inspector-layer .chip-floating-del-btn {
+.draggable-multi-text-chip.active-inspector-layer .chip-floating-del-btn,
+.draggable-mask-chip .chip-floating-del-btn {
   display: inline-flex !important;
 }
 .chip-floating-del-btn:hover {

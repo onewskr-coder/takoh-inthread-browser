@@ -1920,7 +1920,7 @@ function applyEditorStateSnapshot(snap){
       $('erase-mask-opacity').value=snap.mask_opacity;
       if($('erase-mask-opacity-range'))$('erase-mask-opacity-range').value=snap.mask_opacity;
     }
-    if($('toggle-mask-box')&&snap.toggle_mask_box!==undefined)$('toggle-mask-box').checked=Boolean(snap.toggle_mask_box);
+    if($('toggle-mask-box')&&snap.toggle_mask_box!==undefined)$('toggle-mask-box').checked=Boolean(snap.toggle_mask_box)&&(activeEditTab==='erase');
     if($('video-zoom-scale')&&snap.video_zoom!==undefined){
       $('video-zoom-scale').value=snap.video_zoom;
       if($('video-zoom-scale-range'))$('video-zoom-scale-range').value=snap.video_zoom;
@@ -2315,7 +2315,8 @@ function syncDraggableOverlayCanvas(){
     chip.classList.toggle('active',isMatch);
   });
   const maskToggleChecked=Boolean($('toggle-mask-box')?.checked);
-  const showMaskBox=Boolean(job)&&!hideForCarousel&&(eraseMode!=='none'||maskToggleChecked);
+  const onEraseTab=(curStage==='editing'&&activeEditTab==='erase');
+  const showMaskBox=Boolean(job)&&!hideForCarousel&&(maskToggleChecked||(onEraseTab&&eraseMode!=='none'));
   const mx=Math.max(0,Math.min(95,Number($('mask-x')?.value??6)));
   const my=Math.max(0,Math.min(95,Number($('mask-y')?.value??72)));
   const mw=Math.max(5,Math.min(100-mx,Number($('mask-w')?.value??88)));
@@ -2448,6 +2449,10 @@ function selectEditTab(tabName){
   document.querySelectorAll('[data-edit-panel]').forEach(panel=>{
     panel.hidden=(panel.dataset.editPanel!==activeEditTab);
   });
+  if(activeEditTab!=='erase'&&$('toggle-mask-box')){
+    $('toggle-mask-box').checked=false;
+  }
+  syncDraggableOverlayCanvas();
 }
 document.querySelectorAll('[data-edit-tab]').forEach(btn=>{
   btn.addEventListener('click',()=>selectEditTab(btn.dataset.editTab));
@@ -2564,6 +2569,7 @@ function render(){
     }
   }
   ensureCarouselStoryAutoPopulated(false);
+  if($('toggle-mask-box'))$('toggle-mask-box').checked=false;
   if(job?.text_edit){
     if($('text-erase-mode')&&job.text_edit.erase_mode){
       const rawEm=job.text_edit.erase_mode;
@@ -3610,12 +3616,26 @@ for(const id of [
     saveActiveJobLocalDraft();
   });
 }
+function disableMaskBoxAndErase(){
+  pushEditorUndoSnapshot();
+  if($('toggle-mask-box'))$('toggle-mask-box').checked=false;
+  if($('text-erase-mode'))$('text-erase-mode').value='none';
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+  message('자막 지우기 마스크 영역을 껐습니다 (원본 유지). 필요할 때만 켜서 사용하세요.');
+}
+if($('btn-disable-mask-box'))$('btn-disable-mask-box').addEventListener('click',disableMaskBoxAndErase);
+if($('text-erase-mode'))$('text-erase-mode').addEventListener('change',()=>{
+  if($('text-erase-mode').value==='none'&&$('toggle-mask-box'))$('toggle-mask-box').checked=false;
+  syncDraggableOverlayCanvas();
+  saveActiveJobLocalDraft();
+});
 document.querySelectorAll('.erase-mode-chip').forEach(btn=>{
   btn.addEventListener('click',()=>{
     pushEditorUndoSnapshot();
     const pick=btn.dataset.eraseModePick||'none';
     if($('text-erase-mode'))$('text-erase-mode').value=pick;
-    if(pick!=='none'&&$('toggle-mask-box'))$('toggle-mask-box').checked=true;
+    if($('toggle-mask-box'))$('toggle-mask-box').checked=(pick!=='none');
     syncDraggableOverlayCanvas();
     saveActiveJobLocalDraft();
     const modeNames={
@@ -4269,6 +4289,13 @@ function bindDraggableMaskBox(){
     syncDraggableOverlayCanvas();
   };
   chip.addEventListener('pointerdown',e=>{
+    const closeBtn=e.target.closest('[data-close-mask-box]');
+    if(closeBtn){
+      e.preventDefault();
+      e.stopPropagation();
+      disableMaskBoxAndErase();
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     pushEditorUndoSnapshot();
