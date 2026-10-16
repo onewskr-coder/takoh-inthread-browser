@@ -288,7 +288,7 @@ function renderCarouselIntelBar(){
     {label:`상품 정보${job.product?.name?' ('+job.product.name.slice(0,12)+')':''}`,ok:Boolean(job.product?.name)}
   ];
   for(const it of items){
-    const badge=text('span',`${it.ok?'✓ ':'· '}${it.label}`);
+    const badge=text('span',`${it.ok?'':'· '}${it.label}`);
     badge.className='intel-pill'+(it.ok?' active':'');
     wrap.append(badge);
   }
@@ -427,6 +427,25 @@ let carouselRealtimeTimer=null;
 let carouselSilentInflight=false;
 let singleCardModeOverrideJobId=null;
 
+function getSavedCarouselInspectorWidth(){
+  try{
+    const v=Number(localStorage.getItem('takoh-carousel-inspector-width'));
+    if(Number.isFinite(v)&&v>=280&&v<=620)return Math.round(v);
+  }catch{}
+  return 360;
+}
+function applyCarouselInspectorWidth(rawPx,{save=true}={}){
+  const px=Math.round(Math.max(280,Math.min(620,Number(rawPx)||360)));
+  document.documentElement.style.setProperty('--carousel-inspector-width',`${px}px`);
+  const pill=$('carousel-inspector-width-pill');
+  if(pill)pill.textContent=`${px}px`;
+  if(save){
+    try{localStorage.setItem('takoh-carousel-inspector-width',String(px));}catch{}
+  }
+  return px;
+}
+applyCarouselInspectorWidth(getSavedCarouselInspectorWidth(),{save:false});
+
 function enforceSingleCardModeIfActive(targetJob){
   if(!targetJob||!targetJob.carousel)return;
   const wantSingle=(singleCardModeOverrideJobId===targetJob.id)||(Number($('carousel-count')?.value||0)===1&&Number(targetJob.carousel.count||0)<=2);
@@ -442,6 +461,16 @@ function renderCarouselPreview(){
   const globalDrawer=$('carousel-global-plan-drawer');
   const storyboardDock=$('carousel-storyboard-dock');
   if(!wrap||!grid)return;
+  if(!grid.dataset.wheelBound){
+    grid.dataset.wheelBound='1';
+    grid.addEventListener('wheel',e=>{
+      if(grid.scrollWidth<=grid.clientWidth+2)return;
+      if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)&&e.deltaY!==0){
+        e.preventDefault();
+        grid.scrollLeft+=e.deltaY;
+      }
+    },{passive:false});
+  }
   if(storyboardDock&&workbench&&workbench.contains(storyboardDock))wrap.append(storyboardDock);
   if(globalDrawer&&workbench&&workbench.contains(globalDrawer))wrap.after(globalDrawer);
   grid.replaceChildren();
@@ -490,10 +519,10 @@ function renderCarouselPreview(){
   const activeSlide=effectiveSlides.find(s=>Number(s.index)===activeCarouselSlideIndex)||effectiveSlides[0];
   const isSingleCard=(effectiveSlides.length===1&&Number($('carousel-count')?.value||0)===1);
   if(label)label.textContent=!hasRealSlides
-    ?`하단 슬라이드 스토리보드 (중앙 카드에서 직접 문구 수정 후 [이미지로 저장] 클릭)`
+    ?`하단 슬라이드 스토리보드 (가로 스크롤 · 마우스 휠로 이동 · 중앙 카드에서 수정 후 [이미지 저장] 클릭)`
     :(isSingleCard
       ?`단독 카드 스토리보드 (1장 · ${job.carousel?.aspect||'4:5'} · 테마: ${tplLabel.split(' (')[0]})`
-      :`하단 슬라이드 스토리보드 (${effectiveSlides.length}장 · ${job.carousel?.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`);
+      :`하단 슬라이드 스토리보드 (${effectiveSlides.length}장 · 마우스 휠로 좌우 이동 · ${job.carousel?.aspect||'4:5'} · 기본 테마: ${tplLabel.split(' (')[0]})`);
 
   // 1. Render Bottom Horizontal Storyboard Filmstrip Deck ([1] [2] [3] [4] [+ 슬라이드 추가])
   for(const s of effectiveSlides){
@@ -580,12 +609,12 @@ function renderCarouselPreview(){
 
     const slideNavWrap=document.createElement('div');
     slideNavWrap.className='wb-slide-nav-btns';
-    const btnPrevSlide=text('button','◀ 이전');btnPrevSlide.type='button';btnPrevSlide.className='secondary btn-xs';
+    const btnPrevSlide=text('button','이전');btnPrevSlide.type='button';btnPrevSlide.className='secondary btn-xs';
     btnPrevSlide.disabled=activeSlide.index<=1;
     btnPrevSlide.onclick=()=>{activeCarouselSlideIndex=Math.max(1,activeSlide.index-1);renderCarouselPreview();};
     const slideIdxLabel=text('strong',`0${activeSlide.index} / 0${effectiveSlides.length}`);
     slideIdxLabel.style.cssText='font-size:12px;white-space:nowrap;';
-    const btnNextSlide=text('button','다음 ▶');btnNextSlide.type='button';btnNextSlide.className='secondary btn-xs';
+    const btnNextSlide=text('button','다음');btnNextSlide.type='button';btnNextSlide.className='secondary btn-xs';
     btnNextSlide.disabled=activeSlide.index>=effectiveSlides.length;
     btnNextSlide.onclick=()=>{activeCarouselSlideIndex=Math.min(effectiveSlides.length,activeSlide.index+1);renderCarouselPreview();};
     slideNavWrap.append(liveSyncBadge,btnPrevSlide,slideIdxLabel,btnNextSlide);
@@ -838,7 +867,7 @@ function renderCarouselPreview(){
             canvaBox.classList.remove('is-editing-canvas');
             wbStage.classList.remove('is-canvas-editing');
             if(liveSyncBadge){
-              liveSyncBadge.textContent='✓ 이미지 저장 완료';
+              liveSyncBadge.textContent='이미지 저장 완료';
               liveSyncBadge.classList.remove('syncing');
             }
             if(showSavedToast){
@@ -944,7 +973,7 @@ function renderCarouselPreview(){
     const orderGroup=document.createElement('div');
     orderGroup.style.cssText='display:flex;gap:5px;flex-wrap:wrap;align-items:center;';
     if(hasRealSlides&&activeSlide.index>1){
-      const bLeft=text('button','◀ 앞으로 이동');bLeft.type='button';bLeft.className='secondary btn-xs';
+      const bLeft=text('button','앞으로 이동');bLeft.type='button';bLeft.className='secondary btn-xs';
       bLeft.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
         const nextIdx=activeSlide.index-1;
         await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:-1});
@@ -954,7 +983,7 @@ function renderCarouselPreview(){
       orderGroup.append(bLeft);
     }
     if(hasRealSlides&&activeSlide.index<effectiveSlides.length){
-      const bRight=text('button','뒤로 이동 ▶');bRight.type='button';bRight.className='secondary btn-xs';
+      const bRight=text('button','뒤로 이동');bRight.type='button';bRight.className='secondary btn-xs';
       bRight.onclick=()=>act('슬라이드 순서 이동 중…',async()=>{
         const nextIdx=activeSlide.index+1;
         await update('carousel-slide-action',{action:'move',index:activeSlide.index,direction:1});
@@ -1360,7 +1389,49 @@ function renderCarouselPreview(){
     if(globalDrawer){
       wbInspectorCol.append(globalDrawer);
     }
-    wbGrid.append(wbPreviewCol,wbInspectorCol);
+    const curInspW=applyCarouselInspectorWidth(getSavedCarouselInspectorWidth(),{save:false});
+    const inspResizer=document.createElement('div');
+    inspResizer.id='carousel-inspector-resizer';
+    inspResizer.className='studio-player-resizer carousel-inspector-resizer';
+    inspResizer.setAttribute('role','separator');
+    inspResizer.setAttribute('aria-orientation','vertical');
+    inspResizer.setAttribute('aria-label','우측 디자인·사진 편집 폭 조절바');
+    inspResizer.title='좌우로 드래그하여 가운데 미리보기 창과 우측 편집 폭을 조절하세요 (더블클릭: 기본 360px 초기화)';
+    inspResizer.innerHTML=`<div class="resizer-rail-line"></div><div class="resizer-grip" aria-hidden="true"><span class="resizer-arrows">&lt;&gt;</span><span class="resizer-dots">⋮⋮</span><span id="carousel-inspector-width-pill" class="resizer-width-pill">${curInspW}px</span></div>`;
+    let inspDragging=false,inspStartX=0,inspStartW=curInspW,inspLastW=curInspW;
+    inspResizer.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      inspDragging=true;
+      inspStartX=e.clientX;
+      inspStartW=wbInspectorCol.getBoundingClientRect().width||getSavedCarouselInspectorWidth();
+      inspLastW=inspStartW;
+      inspResizer.classList.add('dragging');
+      document.body.classList.add('resizing-studio-player');
+      try{inspResizer.setPointerCapture(e.pointerId);}catch{}
+    });
+    inspResizer.addEventListener('pointermove',e=>{
+      if(!inspDragging)return;
+      e.preventDefault();
+      // Moving resizer to the left increases right inspector width; moving right decreases right inspector width
+      const nextW=inspStartW-(e.clientX-inspStartX);
+      inspLastW=applyCarouselInspectorWidth(nextW,{save:false});
+    });
+    const endInspResize=e=>{
+      if(!inspDragging)return;
+      inspDragging=false;
+      inspResizer.classList.remove('dragging');
+      document.body.classList.remove('resizing-studio-player');
+      try{inspResizer.releasePointerCapture(e.pointerId);}catch{}
+      applyCarouselInspectorWidth(inspLastW,{save:true});
+    };
+    inspResizer.addEventListener('pointerup',endInspResize);
+    inspResizer.addEventListener('pointercancel',endInspResize);
+    inspResizer.addEventListener('dblclick',()=>{
+      applyCarouselInspectorWidth(360,{save:true});
+      message('우측 디자인·배경 편집 폭을 기본(360px)으로 초기화했습니다.');
+    });
+
+    wbGrid.append(wbPreviewCol,inspResizer,wbInspectorCol);
     workbench.append(wbGrid);
   }
 }
@@ -1444,18 +1515,18 @@ function renderAttachmentsPreview(){
     const actions=document.createElement('div');
     actions.className='attachment-slot-actions';
     if(idx>0){
-      const btnLeft=text('button','◀ 앞으로');btnLeft.type='button';btnLeft.className='secondary btn-xs';
+      const btnLeft=text('button','앞으로');btnLeft.type='button';btnLeft.className='secondary btn-xs';
       btnLeft.title='순서 앞으로 이동';
       btnLeft.onclick=()=>act('첨부 순서 변경 중…',()=>update('attachments-config',{action:'move',from_index:idx,to_index:idx-1}));
       actions.append(btnLeft);
     }
     if(idx<items.length-1){
-      const btnRight=text('button','뒤로 ▶');btnRight.type='button';btnRight.className='secondary btn-xs';
+      const btnRight=text('button','뒤로');btnRight.type='button';btnRight.className='secondary btn-xs';
       btnRight.title='순서 뒤로 이동';
       btnRight.onclick=()=>act('첨부 순서 변경 중…',()=>update('attachments-config',{action:'move',from_index:idx,to_index:idx+1}));
       actions.append(btnRight);
     }
-    const btnDel=text('button','✕ 첨부 제외');btnDel.type='button';btnDel.className='secondary btn-xs btn-danger-ghost';
+    const btnDel=text('button','첨부 제외');btnDel.type='button';btnDel.className='secondary btn-xs btn-danger-ghost';
     btnDel.onclick=()=>act('첨부 미디어 제외 중…',()=>update('attachments-config',{action:'remove',index:idx}));
     actions.append(btnDel);
 
@@ -2170,7 +2241,7 @@ function performEditorUndo(){
     if(prev&&prev.jobId===job.id){
       lastUndoSnapshotJson=JSON.stringify(prev);
       applyEditorStateSnapshot(prev);
-      message('↩ 이전 편집 상태로 되돌렸습니다 (Ctrl+Z).');
+      message('이전 편집 상태로 되돌렸습니다 (Ctrl+Z).');
       return true;
     }
   }
@@ -2986,7 +3057,7 @@ function render(){
     head.className='draft-variant-head';
     head.append(text('h3',`게시글 ${index+1}안`),text('span',`${Array.from(value).length}자`));
     const bodyP=text('p',value);
-    const select=text('button',index===selectedIdx?'✓ 현재 선택된 초안':'이 초안으로 편집하기');
+    const select=text('button',index===selectedIdx?'현재 선택된 초안':'이 초안으로 편집하기');
     select.type='button';
     select.className=index===selectedIdx?'secondary btn-variant-selected':'secondary';
     select.onclick=()=>{
@@ -2995,7 +3066,7 @@ function render(){
       document.querySelectorAll('#draft-variants .draft-variant').forEach((el,i)=>{
         el.classList.toggle('selected',i===index);
         const btn=el.querySelector('button');
-        if(btn){btn.textContent=i===index?'✓ 현재 선택된 초안':'이 초안으로 편집하기';btn.className=i===index?'secondary btn-variant-selected':'secondary';}
+        if(btn){btn.textContent=i===index?'현재 선택된 초안':'이 초안으로 편집하기';btn.className=i===index?'secondary btn-variant-selected':'secondary';}
       });
       writingCounts();$('extension-upload').disabled=true;if($('extension-batch-upload'))$('extension-batch-upload').disabled=true;
       saveActiveJobLocalDraft();
@@ -3126,7 +3197,7 @@ function render(){
     const img=document.createElement('img');
     img.src=base+frame.file+'?t='+encodeURIComponent(job.sha256||'1');
     img.alt=`${frame.timestamp}초 추출 프레임`;
-    const cap=text('figcaption',isImage?'원본':`${frame.timestamp}초 ▶`);
+    const cap=text('figcaption',isImage?'원본':`${frame.timestamp}초`);
     figure.append(img,cap);
     if(!isImage){
       img.onclick=()=>{
@@ -3189,7 +3260,7 @@ function render(){
       for(const item of data.observations){
         const row=document.createElement('div');
         row.className='analysis-timeline-row';
-        const timeBtn=text('button',`${item.timestamp}초 ▶`);
+        const timeBtn=text('button',`${item.timestamp}초`);
         timeBtn.type='button';
         timeBtn.className='analysis-time-chip';
         timeBtn.title='클릭하면 이 장면으로 영상 이동';
@@ -3253,15 +3324,15 @@ function render(){
   const hasOcr=Boolean(job?.media_ocr?.translated_text||job?.media_ocr?.raw_text||($('ocr-original-text')?.value||'').trim());
   const hasCaption=Boolean((job?.source_text||$('source-post-text')?.value||'').trim());
   if($('badge-status-scene')){
-    $('badge-status-scene').textContent=hasSceneAnalysis?'✓ 분석 완료':'분석 대기';
+    $('badge-status-scene').textContent=hasSceneAnalysis?'분석 완료':'분석 대기';
     $('badge-status-scene').className='analysis-state-badge'+(hasSceneAnalysis?' done':'');
   }
   if($('badge-status-ocr')){
-    $('badge-status-ocr').textContent=hasOcr?'✓ 인식·번역됨':'선택 실행';
+    $('badge-status-ocr').textContent=hasOcr?'인식·번역됨':'선택 실행';
     $('badge-status-ocr').className='analysis-state-badge'+(hasOcr?' done':'');
   }
   if($('badge-status-caption')){
-    $('badge-status-caption').textContent=hasCaption?'✓ 본문 준비됨':'입력 대기';
+    $('badge-status-caption').textContent=hasCaption?'본문 준비됨':'입력 대기';
     $('badge-status-caption').className='analysis-state-badge'+(hasCaption?' done':'');
   }
   if($('overview-step-scene'))$('overview-step-scene').classList.toggle('done',hasSceneAnalysis);
@@ -3508,7 +3579,7 @@ function ensureCarouselStoryAutoPopulated(force=false){
     lastAutoPopulatedCarouselSignature=analysisSig;
     const story=buildEditorialStoryboardLines(count);
     const hasAnalysis=Boolean(job.analysis?.result||job.media_ocr?.translated_text||job.source_text);
-    applyCarouselStoryPlanToInputs(story,hasAnalysis?'✓ 영상 소재 분석 내용 자동 반영됨':'기본 스토리 구성됨');
+    applyCarouselStoryPlanToInputs(story,hasAnalysis?'영상 소재 분석 내용 자동 반영됨':'기본 스토리 구성됨');
   }
 }
 window.ensureCarouselStoryAutoPopulated=ensureCarouselStoryAutoPopulated;
@@ -3831,7 +3902,7 @@ async function captureCurrentVideoMomentToBundle({switchToBundleTab=false}={}){
     selectEditTab('bundle');
   }
   const newCount=(next?.attachments||[]).length;
-  showScrubberCaptureStatus(`✓ ${tsRound.toFixed(2)}초 장면 캡처 완료 · 동반 이미지 #${newCount} 추가됨`);
+  showScrubberCaptureStatus(`${tsRound.toFixed(2)}초 장면 캡처 완료 · 동반 이미지 #${newCount} 추가됨`);
 }
 if($('btn-capture-scrubber-bundle'))$('btn-capture-scrubber-bundle').onclick=()=>act('현재 영상 시점을 고화질 캡처해 동반 첨부 이미지 및 프레임에 추가하는 중…',async()=>{
   await captureCurrentVideoMomentToBundle();
@@ -3845,7 +3916,7 @@ if($('btn-capture-scrubber-carousel'))$('btn-capture-scrubber-carousel').onclick
   if((job.carousel?.slides||[]).length>0){
     const targetIdx=activeCarouselSlideIndex||1;
     await update('carousel-slide-update',{index:targetIdx,timestamp:ts});
-    showScrubberCaptureStatus(`✓ 슬라이드 #${targetIdx} 배경을 ${ts.toFixed(2)}초 장면으로 교체 완료`);
+    showScrubberCaptureStatus(`슬라이드 #${targetIdx} 배경을 ${ts.toFixed(2)}초 장면으로 교체 완료`);
   }else{
     await captureCurrentVideoMomentToBundle();
   }
@@ -4850,7 +4921,7 @@ if($('carousel-count')){
     }
     updateCarouselStorySlotLabels(count);
     const story=buildEditorialStoryboardLines(count);
-    applyCarouselStoryPlanToInputs(story,count===1?'✓ 이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨':`✓ ${count}장 구조(표지·본문·마지막장) 자동 반영됨`);
+    applyCarouselStoryPlanToInputs(story,count===1?'이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨':`${count}장 구조(표지·본문·마지막장) 자동 반영됨`);
   });
 }
 if($('carousel-body-texts')){
@@ -4862,7 +4933,7 @@ if($('carousel-cta-text')){
 if($('btn-autofill-carousel-texts'))$('btn-autofill-carousel-texts').onclick=()=>{
   const count=Number($('carousel-count')?.value||5);
   const story=buildEditorialStoryboardLines(count);
-  applyCarouselStoryPlanToInputs(story,count===1?'✓ 이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨':'✓ 영상 소재 분석 + 첫장 90% 후킹 자동 반영됨');
+  applyCarouselStoryPlanToInputs(story,count===1?'이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨':'영상 소재 분석 + 첫장 90% 후킹 자동 반영됨');
   if($('carousel-erase-mode')&&$('carousel-erase-mode').value==='none'){
     $('carousel-erase-mode').value='cover_box';
   }
@@ -4890,7 +4961,7 @@ if($('btn-ai-compose-carousel-story'))$('btn-ai-compose-carousel-story').onclick
       bodySlides,
       cta:ctaLine,
       body:bLines
-    },draft.ai_used?`✓ AI(${draft.model||'선택 모델'}) 구성 완료`:'✓ 영상 분석 내용 자동 반영됨');
+    },draft.ai_used?`AI(${draft.model||'선택 모델'}) 구성 완료`:'영상 분석 내용 자동 반영됨');
   }else{
     ensureCarouselStoryAutoPopulated(true);
   }
@@ -4913,7 +4984,7 @@ if($('btn-carousel-single-card'))$('btn-carousel-single-card').onclick=()=>{
   }
   updateCarouselStorySlotLabels(1);
   const story=buildEditorialStoryboardLines(1);
-  applyCarouselStoryPlanToInputs(story,'✓ 이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨');
+  applyCarouselStoryPlanToInputs(story,'이미지 1장 + 캡션(설명) 단독 카드 자동 반영됨');
   if(!busy){
     $('btn-generate-carousel')?.click();
   }else{
@@ -5902,7 +5973,7 @@ async function refreshConnectionsStatus(){
       const titleEl=text('strong',c.title);
       const badgeWrap=document.createElement('div');
       badgeWrap.style.display='flex';badgeWrap.style.alignItems='center';badgeWrap.style.gap='6px';
-      const badge=text('span',c.ok?'✓ 등록됨 (숨김)':'미등록');
+      const badge=text('span',c.ok?'등록됨 (숨김)':'미등록');
       badge.className='conn-badge '+(c.ok?'ok':'missing');
       badgeWrap.append(badge);
       if(c.ok&&c.apiKey&&apiClearPayloads[c.apiKey]){
@@ -5992,17 +6063,20 @@ function setQuickSidebarMode(enabled){
       panel.hidden=false;
     });
   }else{
-    const activeStage=document.querySelector('[data-production-stage][aria-pressed="true"]')?.getAttribute('data-production-stage')||'analysis';
+    const activeStage=document.querySelector('[data-production-stage][aria-pressed="true"]')?.getAttribute('data-production-stage')||window.currentProductionStage||'analysis';
+    const isMediaStage=(activeStage==='analysis'||activeStage==='editing'||activeStage==='carousel');
     document.querySelectorAll('#create-workspace [data-production-section]').forEach(sec=>{
       const key=sec.getAttribute('data-production-section');
-      const show=(activeStage==='editing'?key==='analysis':key===activeStage);
+      const show=(key===activeStage)||(isMediaStage&&key==='analysis');
       sec.hidden=!show;
       sec.dataset.stageHidden=String(!show);
     });
-    document.querySelectorAll('#create-workspace [data-stage-view]').forEach(panel=>{
-      const v=panel.getAttribute('data-stage-view');
-      panel.hidden=(activeStage==='editing'?v!=='editing':v!=='analysis');
-    });
+    if(isMediaStage){
+      document.querySelectorAll('#create-workspace [data-stage-view]').forEach(panel=>{
+        const v=panel.getAttribute('data-stage-view');
+        panel.hidden=(v!==activeStage);
+      });
+    }
   }
 }
 window.setQuickSidebarMode=setQuickSidebarMode;
@@ -6277,8 +6351,8 @@ window.addEventListener('message',event=>{
       const st=isCli?connections.clis?.[activeProv]:connections.apis?.[activeProv];
       const isReady=Boolean(isCli?st?.logged_in:st?.configured);
       connBadge.textContent=isCli
-        ?(isReady?'✓ 구독 CLI 연결됨':(st?.installed?'CLI 로그인 확인 필요':'CLI 상태 확인 대기'))
-        :(isReady?'✓ API 키 등록됨':'API 키 확인/등록 필요');
+        ?(isReady?'구독 CLI 연결됨':(st?.installed?'CLI 로그인 확인 필요':'CLI 상태 확인 대기'))
+        :(isReady?'API 키 등록됨':'API 키 확인/등록 필요');
       connBadge.className='analysis-conn-pill '+(isReady?'ok':'warn');
     }
   }
@@ -6381,11 +6455,11 @@ window.addEventListener('message',event=>{
   const instances=[];
   function previewPanel(context){
     const panel=document.createElement('aside');panel.className='content-live-preview';panel.setAttribute('aria-label','플랫폼별 콘텐츠 미리보기');
-    panel.innerHTML='<div class="preview-heading"><h2>실시간 미리보기</h2><span>모바일 게시 화면</span></div><div class="preview-platform-tabs" role="group" aria-label="미리보기 플랫폼"></div><p class="preview-note">게시될 화면을 확인하세요. 반응 수는 게시 전이므로 표시하지 않습니다.</p><article class="platform-preview"><div class="preview-view-top"></div><header><strong class="preview-service"></strong><span class="preview-account">내 계정</span><span class="preview-follow">팔로우</span><span class="preview-more" aria-hidden="true">•••</span></header><p class="preview-body"></p><div class="preview-media"></div><span class="preview-ad-label" hidden>[광고]</span><div class="preview-player"><button type="button" class="preview-play" aria-label="미리보기 영상 재생">▶</button><button type="button" class="preview-mute" aria-label="미리보기 음소거 해제">♪</button></div><div class="preview-dots" aria-label="미디어 페이지"></div><button type="button" class="preview-expand" hidden>더 보기</button><div class="preview-media-nav"><button type="button" class="secondary preview-prev" aria-label="이전 미디어">←</button><span class="preview-media-count"></span><button type="button" class="secondary preview-next" aria-label="다음 미디어">→</button></div><footer class="preview-engagement"></footer><div class="preview-audio"><span>♫</span><span class="preview-audio-label">원본 오디오</span><i></i></div><div class="preview-bottom-nav"></div><div class="preview-comment"><strong>첫 댓글</strong><p></p></div></article><div class="preview-quick-copy-bar"><button type="button" class="secondary btn-xs preview-quick-copy-body">본문 복사</button><button type="button" class="secondary btn-xs preview-quick-copy-comment">첫 댓글 복사</button></div><p class="preview-source-note hint"></p>';
+    panel.innerHTML='<div class="preview-heading"><h2>실시간 미리보기</h2><span>모바일 게시 화면</span></div><div class="preview-platform-tabs" role="group" aria-label="미리보기 플랫폼"></div><p class="preview-note">게시될 화면을 확인하세요. 반응 수는 게시 전이므로 표시하지 않습니다.</p><article class="platform-preview"><div class="preview-view-top"></div><header><strong class="preview-service"></strong><span class="preview-account">내 계정</span><span class="preview-follow">팔로우</span><span class="preview-more" aria-hidden="true">•••</span></header><p class="preview-body"></p><div class="preview-media"></div><span class="preview-ad-label" hidden>[광고]</span><div class="preview-player"><button type="button" class="preview-play" aria-label="미리보기 영상 재생">재생</button><button type="button" class="preview-mute" aria-label="미리보기 음소거 해제">음소거</button></div><div class="preview-dots" aria-label="미디어 페이지"></div><button type="button" class="preview-expand" hidden>더 보기</button><div class="preview-media-nav"><button type="button" class="secondary preview-prev" aria-label="이전 미디어">←</button><span class="preview-media-count"></span><button type="button" class="secondary preview-next" aria-label="다음 미디어">→</button></div><footer class="preview-engagement"></footer><div class="preview-audio"><span>AUDIO</span><span class="preview-audio-label">원본 오디오</span><i></i></div><div class="preview-bottom-nav"></div><div class="preview-comment"><strong>첫 댓글</strong><p></p></div></article><div class="preview-quick-copy-bar"><button type="button" class="secondary btn-xs preview-quick-copy-body">본문 복사</button><button type="button" class="secondary btn-xs preview-quick-copy-comment">첫 댓글 복사</button></div><p class="preview-source-note hint"></p>';
     panel.querySelector('.preview-quick-copy-body').onclick=()=>act('본문 복사 중…',async()=>{const raw=get('script')?.value?.trim()||'';if(!raw)throw new Error('복사할 본문이 없습니다.');await navigator.clipboard.writeText(raw);},'본문을 클립보드에 복사했습니다.');
     panel.querySelector('.preview-quick-copy-comment').onclick=()=>act('첫 댓글 복사 중…',async()=>{const raw=(get('comment')?.value?.trim()||buildDefaultComment()||'').trim();if(!raw)throw new Error('복사할 첫 댓글이 없습니다.');await navigator.clipboard.writeText(raw);},'첫 댓글을 클립보드에 복사했습니다.');
     panel.querySelector('.preview-play').onclick=async()=>{const v=panel.querySelector('video');if(!v)return;try{if(v.paused)await v.play();else v.pause();}catch{panel.querySelector('.preview-source-note').textContent='영상을 재생하지 못했습니다. 파일 상태를 확인하세요.';}};
-    panel.querySelector('.preview-mute').onclick=()=>{const v=panel.querySelector('video');if(v){v.muted=!v.muted;panel.querySelector('.preview-mute').setAttribute('aria-label',v.muted?'미리보기 음소거 해제':'미리보기 음소거');panel.querySelector('.preview-mute').textContent=v.muted?'♪':'♫';}};
+    panel.querySelector('.preview-mute').onclick=()=>{const v=panel.querySelector('video');if(v){v.muted=!v.muted;panel.querySelector('.preview-mute').setAttribute('aria-label',v.muted?'미리보기 음소거 해제':'미리보기 음소거');panel.querySelector('.preview-mute').textContent=v.muted?'음소거':'소리';}};
     panel.querySelector('.preview-expand').onclick=()=>{panel.classList.toggle('preview-expanded');panel.querySelector('.preview-expand').textContent=panel.classList.contains('preview-expanded')?'접기':'더 보기';};
     const state={panel,context,platform:'threads',index:0,mediaKey:''};
     for(const [key,label]of Object.entries(platforms)){const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.previewPlatform=key;b.setAttribute('aria-pressed',String(key==='threads'));b.onclick=()=>{state.platform=key;state.index=0;refreshPreview(state);};panel.querySelector('.preview-platform-tabs').append(b);}
@@ -6421,7 +6495,7 @@ window.addEventListener('message',event=>{
     const shortView=(['tiktok','naver_clip'].includes(state.platform)&&!isCarouselMode)||(state.platform==='instagram'&&!isCarouselMode);p.dataset.view=shortView?'short':'feed';
     p.querySelector('.preview-account').textContent=state.platform==='threads'?'내 계정　· 지금':'내 계정';
     p.querySelector('.preview-follow').hidden=state.platform==='threads';
-    p.querySelector('.preview-view-top').innerHTML=state.platform==='threads'?'<span class="preview-threads-mark">@</span><span>추천 <small>⌄</small></span><span>⋯</span>':state.platform==='instagram'?(shortView?'<strong>Reels</strong><span>⌕</span>':'<strong class="preview-instagram-mark">Instagram</strong><span>♡　✉</span>'):state.platform==='tiktok'?'<span>LIVE</span><strong>팔로잉　<span class="preview-active-tab">추천</span></strong><span>⌕</span>':'<strong class="preview-clip-mark">◉ Clip</strong><span>×</span>';
+    p.querySelector('.preview-view-top').innerHTML=state.platform==='threads'?'<span class="preview-threads-mark">@</span><span>추천 <small>⌄</small></span><span>⋯</span>':state.platform==='instagram'?(shortView?'<strong>Reels</strong><span>검색</span>':'<strong class="preview-instagram-mark">Instagram</strong><span>DM</span>'):state.platform==='tiktok'?'<span>LIVE</span><strong>팔로잉　<span class="preview-active-tab">추천</span></strong><span>검색</span>':'<strong class="preview-clip-mark">Clip</strong><span>×</span>';
     const icon=(path)=>'<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';
     const home=icon('<path d="m3 10 9-7 9 7v11h-6v-7H9v7H3V10Z"/>'),searchIcon=icon('<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/>'),plus=icon('<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 7v10M7 12h10"/>'),profile=icon('<circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/>');
     const heart=icon('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>'),commentIcon=icon('<path d="M21 11.5a8.5 8.5 0 1 1-3.7-7L21 3v8.5Z"/>'),share=icon('<path d="m21 3-7 18-4-7-7-4 18-7ZM10 14 21 3"/>'),repost=icon('<path d="m3 7 3-3 3 3M6 4v12h8m7 1-3 3-3-3m3 3V8h-8"/>'),save=icon('<path d="M6 3h12v18l-6-4-6 4V3Z"/>');
@@ -6442,8 +6516,8 @@ window.addEventListener('message',event=>{
     p.querySelector('.preview-comment').hidden=state.platform!=='threads'&&state.platform!=='instagram';
     const items=mediaItems(state);state.index=Math.max(0,Math.min(state.index,items.length-1));const item=items[state.index];
     const key=JSON.stringify([state.platform,job?.id,job?.edit,job?.text_edit?.updated_at,job?.carousel?.updated_at,(job?.attachments||[]).length,get('upload-format').value,state.platform==='threads'?items:item]);p.dataset.mediaCount=items.length;p.querySelector('.preview-media').classList.toggle('preview-thread-gallery',state.platform==='threads'&&items.length>1);
-    if(key!==state.mediaKey){state.mediaKey=key;const box=p.querySelector('.preview-media');for(const v of box.querySelectorAll('video'))v.pause();box.replaceChildren();if(item){for(const shown of (state.platform==='threads'?items:[item])){const item=shown;const el=document.createElement(item.kind==='video'?'video':'img');el.src=item.url;if(item.kind==='video'){el.controls=false;el.muted=true;el.preload='metadata';el.playsInline=true;el.onplay=()=>{p.querySelector('.preview-play').textContent='Ⅱ';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 일시 정지');};el.onpause=el.onended=()=>{p.querySelector('.preview-play').textContent='▶';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 재생');};if(item.poster)el.poster=item.poster;}else el.alt='게시 미디어 '+(state.index+1);el.onerror=()=>{p.querySelector('.preview-source-note').textContent='미디어를 표시하지 못했습니다. 원본 준비와 파일 상태를 확인하세요.';};el.onclick=()=>{if(el.tagName==='VIDEO'){if(el.paused)el.play().catch(()=>{});else el.pause();}};box.append(el);}}else box.append(text('p',job?'선택한 미디어 구성에 준비된 파일이 없습니다.':'레퍼런스를 선택하거나 원본을 불러오세요.'));}
-    const currentVideo=p.querySelector('video');p.querySelector('.preview-play').textContent=currentVideo&&!currentVideo.paused?'Ⅱ':'▶';p.querySelector('.preview-player').hidden=item?.kind!=='video';p.querySelector('.preview-media-nav').hidden=items.length<2||state.platform==='threads';const dots=p.querySelector('.preview-dots');dots.replaceChildren();dots.hidden=items.length<2||state.platform==='threads';for(let i=0;i<items.length;i++){const dot=document.createElement('button');dot.type='button';dot.setAttribute('aria-label',(i+1)+'번째 미디어');dot.setAttribute('aria-pressed',String(i===state.index));dot.onclick=()=>{state.index=i;refreshPreview(state);};dots.append(dot);}
+    if(key!==state.mediaKey){state.mediaKey=key;const box=p.querySelector('.preview-media');for(const v of box.querySelectorAll('video'))v.pause();box.replaceChildren();if(item){for(const shown of (state.platform==='threads'?items:[item])){const item=shown;const el=document.createElement(item.kind==='video'?'video':'img');el.src=item.url;if(item.kind==='video'){el.controls=false;el.muted=true;el.preload='metadata';el.playsInline=true;el.onplay=()=>{p.querySelector('.preview-play').textContent='일시정지';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 일시 정지');};el.onpause=el.onended=()=>{p.querySelector('.preview-play').textContent='재생';p.querySelector('.preview-play').setAttribute('aria-label','미리보기 영상 재생');};if(item.poster)el.poster=item.poster;}else el.alt='게시 미디어 '+(state.index+1);el.onerror=()=>{p.querySelector('.preview-source-note').textContent='미디어를 표시하지 못했습니다. 원본 준비와 파일 상태를 확인하세요.';};el.onclick=()=>{if(el.tagName==='VIDEO'){if(el.paused)el.play().catch(()=>{});else el.pause();}};box.append(el);}}else box.append(text('p',job?'선택한 미디어 구성에 준비된 파일이 없습니다.':'레퍼런스를 선택하거나 원본을 불러오세요.'));}
+    const currentVideo=p.querySelector('video');p.querySelector('.preview-play').textContent=currentVideo&&!currentVideo.paused?'일시정지':'재생';p.querySelector('.preview-player').hidden=item?.kind!=='video';p.querySelector('.preview-media-nav').hidden=items.length<2||state.platform==='threads';const dots=p.querySelector('.preview-dots');dots.replaceChildren();dots.hidden=items.length<2||state.platform==='threads';for(let i=0;i<items.length;i++){const dot=document.createElement('button');dot.type='button';dot.setAttribute('aria-label',(i+1)+'번째 미디어');dot.setAttribute('aria-pressed',String(i===state.index));dot.onclick=()=>{state.index=i;refreshPreview(state);};dots.append(dot);}
     p.querySelector('.preview-media-count').textContent=items.length?(state.index+1)+' / '+items.length:'미디어 없음';p.querySelector('.preview-prev').disabled=state.index<=0;p.querySelector('.preview-next').disabled=state.index>=items.length-1;
     p.querySelector('.preview-source-note').textContent=job?(job.name||'선택한 작업')+(isCarouselMode?' · 캐러셀 슬라이드 미리보기 ('+items.length+'장)':items.length>1?' · 다중 미디어 묶음 ('+items.length+'개)':' · 현재 준비된 미디어'):'아직 선택한 작업이 없습니다.';
   }
@@ -6460,7 +6534,10 @@ window.addEventListener('message',event=>{
   new MutationObserver(updateStart).observe(originals[0],{attributes:true,attributeFilter:['disabled']});new MutationObserver(updateStart).observe(originals[1],{attributes:true,attributeFilter:['disabled']});
   new MutationObserver(()=>{for(const state of instances)if(state.panel.closest('main').hidden)for(const video of state.panel.querySelectorAll('video'))video.pause();}).observe(document.body,{subtree:true,attributes:true,attributeFilter:['hidden']});
   // Calendar consumes the existing persisted native upload queue; no second scheduling engine.
-  const tab=document.createElement('button');tab.id='workspace-scheduler-tab';tab.dataset.workspace='scheduler';tab.setAttribute('role','tab');tab.setAttribute('aria-controls','scheduler-workspace');tab.textContent='예약 달력';get('workspace-publish-tab').after(tab);
+  let tab=get('workspace-scheduler-tab');
+  if(!tab){
+    tab=document.createElement('button');tab.id='workspace-scheduler-tab';tab.dataset.workspace='scheduler';tab.setAttribute('role','tab');tab.setAttribute('aria-controls','scheduler-workspace');tab.textContent='예약 달력';get('workspace-publish-tab')?.after(tab);
+  }
   const calendar=document.createElement('main');calendar.id='scheduler-workspace';calendar.hidden=true;calendar.setAttribute('role','tabpanel');calendar.setAttribute('aria-labelledby',tab.id);calendar.innerHTML='<div class="workspace-heading"><div><h1>예약 달력</h1><p>이 컴퓨터의 실제 게시 대기열 · 현지 시간 기준</p></div><button id="calendar-refresh" type="button" class="secondary">예약 상태 새로고침</button></div><p id="calendar-status" role="status">예약 목록을 불러오세요.</p><div class="calendar-layout"><section><div class="calendar-toolbar"><button id="calendar-prev" type="button" class="secondary" aria-label="이전 달">←</button><h2 id="calendar-month"></h2><button id="calendar-next" type="button" class="secondary" aria-label="다음 달">→</button><button id="calendar-today" type="button" class="secondary">오늘</button></div><div class="calendar-weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div id="calendar-days" class="calendar-days" role="group" aria-label="예약 날짜 선택"></div></section><section class="calendar-detail"><h2 id="calendar-selected"></h2><div id="calendar-events"></div><button id="calendar-use-date" type="button" class="secondary">이 날짜로 예약 설정</button><p class="hint">앱이 닫혀 있으면 예약을 실행할 수 없습니다. ‘확인 필요’는 게시 완료가 아닙니다.</p></section></div>';
   get('settings-workspace').before(calendar);
   let queue=[],month=new Date(),selected=new Date(),queueLoaded=false,queueError='',queuePending=null,queueCheckedAt=null;month=new Date(month.getFullYear(),month.getMonth(),1);
@@ -6525,7 +6602,7 @@ window.addEventListener('message',event=>{
   };
   const scriptActions=document.querySelector('.writing-editor-actions');
   if(scriptActions&&!get('btn-undo-script')){
-    const undoBtn=text('button','↩ 이전 본문 복원');
+    const undoBtn=text('button','이전 본문 복원');
     undoBtn.id='btn-undo-script';
     undoBtn.type='button';
     undoBtn.className='secondary btn-xs';
@@ -6656,5 +6733,37 @@ window.addEventListener('message',event=>{
       }
     };
     loadServerProducts();
+  }
+
+  // 3) Global Dark Mode / Light Mode Toggle (persisted in localStorage)
+  const THEME_STORAGE_KEY='takoh-theme-mode';
+  function applyStudioTheme(mode,{save=true}={}){
+    const resolved=mode==='dark'?'dark':'light';
+    document.documentElement.dataset.theme=resolved;
+    document.body.dataset.theme=resolved;
+    const btn=get('btn-theme-toggle');
+    if(btn){
+      btn.textContent=resolved==='dark'?'라이트 모드':'다크 모드';
+      btn.setAttribute('aria-pressed',String(resolved==='dark'));
+      btn.title=resolved==='dark'?'클릭하여 라이트 모드로 전환':'클릭하여 다크 모드로 전환';
+    }
+    if(save){
+      try{localStorage.setItem(THEME_STORAGE_KEY,resolved);}catch{}
+    }
+    return resolved;
+  }
+  window.applyStudioTheme=applyStudioTheme;
+  let initTheme='light';
+  try{
+    const savedTheme=localStorage.getItem(THEME_STORAGE_KEY);
+    if(savedTheme==='dark'||savedTheme==='light')initTheme=savedTheme;
+  }catch{}
+  applyStudioTheme(initTheme,{save:false});
+  const themeBtn=get('btn-theme-toggle');
+  if(themeBtn){
+    themeBtn.onclick=()=>{
+      const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
+      applyStudioTheme(next,{save:true});
+    };
   }
 })();

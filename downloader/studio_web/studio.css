@@ -324,7 +324,7 @@
 
 /* Production Step Badges & Clean Reference Discovery Meta */
 .production-steps button{position:relative;display:inline-flex;align-items:center;gap:6px;font-weight:650;border-radius:10px;padding:10px 15px;transition:all .15s ease}
-.production-steps button.step-done::after{content:"✓";display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#cfe3cc;color:#1e4628;font-size:10px;font-weight:800}
+.production-steps button.step-done::after{content:"";display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#cfe3cc;color:#1e4628;font-size:10px;font-weight:800}
 .production-steps button[aria-pressed="true"].step-done::after{background:rgba(255,255,255,0.24);color:#fff}
 .ref-discovery-meta{display:flex;flex-direction:column;gap:3px;padding:8px 0;margin:2px 0;border-top:1px dashed #e3ebe1;border-bottom:1px dashed #e3ebe1;font-size:11px;color:#4e6354;line-height:1.4}
 .ref-discovery-meta strong{color:#26422e;font-weight:700}
@@ -711,7 +711,7 @@ body.busy .workspace-tabs button,body.busy .production-steps button{pointer-even
 .preview-quick-copy-bar button{flex:1 1 0;min-height:36px!important;padding:6px 10px!important;font-size:12px!important}
 .saved-product-library-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;margin:0 0 16px;background:#eef5f0;border:1px solid #cce0d2;border-radius:10px}
 .saved-product-library-bar select{width:100%;min-height:38px!important;font-size:13px!important}
-.production-steps button.step-done::after{content:' ✓';color:#2b7a4b;font-weight:800}
+.production-steps button.step-done::after{content:' ';color:#2b7a4b;font-weight:800}
 .production-steps button[aria-selected="true"].step-done::after{color:#a8f0c6}
 body.quick-sidebar-mode #create-workspace,body.quick-sidebar-mode #publish-workspace{padding:0 12px;margin:12px 0 24px}
 body.quick-sidebar-mode #create-workspace section,body.quick-sidebar-mode #publish-workspace section{padding:16px;border-radius:12px}
@@ -4237,6 +4237,22 @@ body.resizing-studio-player {
   border-right: 2px solid #e2e8f0;
   user-select: none;
 }
+html[data-theme="dark"] .pro-prop-sheet {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] .pro-prop-row {
+  background: #111827 !important;
+  border-bottom-color: #334155 !important;
+  color: #f8fafc !important;
+}
+html[data-theme="dark"] .pro-prop-row:hover {
+  background: #1e293b !important;
+}
+html[data-theme="dark"] .pro-prop-label {
+  color: #f8fafc !important;
+  border-right-color: #334155 !important;
+}
 .pro-prop-sub {
   font-size: 10.5px;
   font-weight: 600;
@@ -4971,4 +4987,388 @@ body.resizing-studio-player {
   background: rgba(15, 23, 42, 0.55);
   border-left: 3px solid #38bdf8;
   white-space: pre-wrap;
+}
+
+/* ========================================================================= */
+/* 1. UNIFIED 8-TAB TOP NAVIGATION BAR                                       */
+/* ========================================================================= */
+nav.workspace-tabs {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  padding: 10px 24px !important;
+  margin: 0 !important;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+nav.workspace-tabs button[role="tab"]:not([hidden]) {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 14px !important;
+  min-height: 36px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  transition: all 0.14s ease !important;
+}
+nav.workspace-tabs button[role="tab"]:not([hidden]):hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+nav.workspace-tabs button[role="tab"][aria-selected="true"]:not([hidden]) {
+  background: #0f172a !important;
+  color: #facc15 !important;
+  border-color: #0f172a !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18) !important;
+}
+nav.workspace-tabs button.step-done::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+}
+nav.workspace-tabs button[aria-selected="true"].step-done::after {
+  background: #facc15;
+}
+#create-workspace .production-steps {
+  display: none !important;
+}
+
+/* ========================================================================= */
+/* 2. CAROUSEL 3-ZONE EXPANDED CENTER PREVIEW, NARROWER & RESIZABLE RIGHT    */
+/*    INSPECTOR, AND SINGLE-ROW HORIZONTAL WHEEL STORYBOARD                  */
+/* ========================================================================= */
+.carousel-wb-grid.carousel-3zone-grid {
+  display: grid !important;
+  grid-template-columns: minmax(480px, 1fr) 26px minmax(280px, var(--carousel-inspector-width, 360px)) !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+}
+.carousel-inspector-resizer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  min-height: 100% !important;
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+.carousel-wb-preview-col {
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 14px !important;
+}
+.carousel-wb-inspector-col {
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 12px !important;
+}
+.carousel-wb-inspector-col .pro-prop-row {
+  grid-template-columns: 112px minmax(0, 1fr) !important;
+  gap: 8px !important;
+  padding: 6px 10px !important;
+}
+.carousel-wb-inspector-col .pro-font-select,
+.carousel-wb-inspector-col .pro-inline-select {
+  min-width: 110px !important;
+}
+/* Expanded Center Preview Frame taking up freed storyboard space */
+.carousel-wb-preview-col .wb-canvas-frame,
+.carousel-wb-preview-col .wb-large-center-frame {
+  width: 100% !important;
+  max-width: min(100%, 580px) !important;
+  max-height: 725px !important;
+  margin: 0 auto !important;
+}
+
+/* Single-Row Horizontal Wheel-Scrollable Bottom Storyboard */
+.carousel-wb-preview-col .carousel-storyboard-dock,
+#carousel-storyboard-dock {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.carousel-wb-preview-col #carousel-slides-preview.carousel-slides-grid,
+#carousel-slides-preview.carousel-slides-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  gap: 10px !important;
+  padding: 6px 4px 10px !important;
+  margin-top: 6px !important;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #64748b transparent;
+  align-items: stretch !important;
+}
+#carousel-slides-preview.carousel-slides-grid::-webkit-scrollbar {
+  height: 7px;
+}
+#carousel-slides-preview.carousel-slides-grid::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.14);
+  border-radius: 999px;
+}
+#carousel-slides-preview.carousel-slides-grid::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 999px;
+}
+#carousel-slides-preview.carousel-slides-grid > .carousel-storyboard-card,
+#carousel-slides-preview.carousel-slides-grid > .carousel-storyboard-add-card {
+  flex: 0 0 144px !important;
+  width: 144px !important;
+  min-width: 144px !important;
+  max-width: 144px !important;
+  margin: 0 !important;
+}
+@media (max-width: 1180px) {
+  .carousel-wb-grid.carousel-3zone-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .carousel-inspector-resizer {
+    display: none !important;
+  }
+}
+
+/* ========================================================================= */
+/* 3. DARK MODE & LIGHT MODE THEME SYSTEM                                    */
+/* ========================================================================= */
+#btn-theme-toggle {
+  min-height: 30px !important;
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  cursor: pointer !important;
+}
+#btn-theme-toggle:hover {
+  background: #e2e8f0 !important;
+}
+
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  background: #0b1120 !important;
+  color: #f8fafc !important;
+  color-scheme: dark;
+}
+html[data-theme="dark"] header {
+  background: #0f172a !important;
+  border-bottom-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+html[data-theme="dark"] .brand {
+  color: #f8fafc !important;
+}
+html[data-theme="dark"] .subtitle {
+  color: #94a3b8 !important;
+}
+html[data-theme="dark"] .badge {
+  background: #1e293b !important;
+  color: #38bdf8 !important;
+  border: 1px solid #334155 !important;
+}
+html[data-theme="dark"] #btn-theme-toggle {
+  background: #1e293b !important;
+  color: #facc15 !important;
+  border-color: #475569 !important;
+}
+html[data-theme="dark"] nav.workspace-tabs,
+html[data-theme="dark"] .source-hub-subnav {
+  background: #0f172a !important;
+  border-bottom-color: #1e293b !important;
+}
+html[data-theme="dark"] nav.workspace-tabs button[role="tab"]:not([hidden]) {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] nav.workspace-tabs button[role="tab"]:not([hidden]):hover {
+  background: #334155 !important;
+  color: #ffffff !important;
+}
+html[data-theme="dark"] nav.workspace-tabs button[role="tab"][aria-selected="true"]:not([hidden]) {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+html[data-theme="dark"] main,
+html[data-theme="dark"] article,
+html[data-theme="dark"] .content-studio-controls,
+html[data-theme="dark"] .studio-stage-shell,
+html[data-theme="dark"] .studio-stage-banner,
+html[data-theme="dark"] .carousel-active-workbench,
+html[data-theme="dark"] section,
+html[data-theme="dark"] .dashboard-surface,
+html[data-theme="dark"] .dashboard-kpi-card,
+html[data-theme="dark"] .dashboard-filter-bar,
+html[data-theme="dark"] .saved-job-card,
+html[data-theme="dark"] .reference-card,
+html[data-theme="dark"] .discovery-card,
+html[data-theme="dark"] .discovery-search-panel,
+html[data-theme="dark"] .discovery-flat-drawer,
+html[data-theme="dark"] .discovery-action-bar,
+html[data-theme="dark"] .reference-toolbar,
+html[data-theme="dark"] .analysis-player-column,
+html[data-theme="dark"] .studio-tool-panel,
+html[data-theme="dark"] .carousel-wb-preview-col,
+html[data-theme="dark"] .carousel-wb-inspector-col,
+html[data-theme="dark"] .carousel-wb-preview-col .carousel-storyboard-dock,
+html[data-theme="dark"] #carousel-storyboard-dock,
+html[data-theme="dark"] .carousel-storyboard-card,
+html[data-theme="dark"] .carousel-storyboard-add-card,
+html[data-theme="dark"] .pro-prop-sheet,
+html[data-theme="dark"] .pro-prop-row,
+html[data-theme="dark"] .wb-structured-section,
+html[data-theme="dark"] .writing-editor-surface,
+html[data-theme="dark"] .draft-variant,
+html[data-theme="dark"] .product-confirm-form,
+html[data-theme="dark"] .product-search-drawer,
+html[data-theme="dark"] .publish-prepare-col,
+html[data-theme="dark"] .publish-automation-col,
+html[data-theme="dark"] .publish-final-step,
+html[data-theme="dark"] .upload-verify-section,
+html[data-theme="dark"] .content-live-preview,
+html[data-theme="dark"] .platform-preview,
+html[data-theme="dark"] .calendar-day,
+html[data-theme="dark"] .calendar-detail,
+html[data-theme="dark"] .calendar-event-detail,
+html[data-theme="dark"] .connections-card,
+html[data-theme="dark"] #media-bundle-panel .attachments-box,
+html[data-theme="dark"] .attachment-item {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] .carousel-wb-preview-col,
+html[data-theme="dark"] .pro-prop-row:hover,
+html[data-theme="dark"] .carousel-batch-setup-drawer,
+html[data-theme="dark"] .carousel-story-plan-panel,
+html[data-theme="dark"] .carousel-story-slot,
+html[data-theme="dark"] .cover-hook-formula-bar,
+html[data-theme="dark"] .cover-hook-chip,
+html[data-theme="dark"] .carousel-tpl-chip,
+html[data-theme="dark"] .analysis-empty-state,
+html[data-theme="dark"] .analysis-source-bar,
+html[data-theme="dark"] .production-context,
+html[data-theme="dark"] .writing-context-bar,
+html[data-theme="dark"] .writing-generate-row,
+html[data-theme="dark"] .writing-flat-drawer,
+html[data-theme="dark"] .saved-product-library-bar,
+html[data-theme="dark"] .multi-platform-batch-box,
+html[data-theme="dark"] .wb-inspector-tabs,
+html[data-theme="dark"] .wb-inspector-subtabs,
+html[data-theme="dark"] .wb-photo-edit-box,
+html[data-theme="dark"] .player-canvas-toolbar,
+html[data-theme="dark"] .player-safe-guide-bar,
+html[data-theme="dark"] .edit-tool-tabs,
+html[data-theme="dark"] .title-hook-composer,
+html[data-theme="dark"] .media-bundle-builder,
+html[data-theme="dark"] .analysis-frame-item,
+html[data-theme="dark"] .analysis-ai-model-bar,
+html[data-theme="dark"] .carousel-source-intel-bar,
+html[data-theme="dark"] .carousel-template-picker,
+html[data-theme="dark"] .post-analysis-mode-chooser,
+html[data-theme="dark"] .mode-track-card,
+html[data-theme="dark"] .dashboard-quick-start,
+html[data-theme="dark"] #jobs-workspace .dashboard-job-card,
+html[data-theme="dark"] .stage-badge,
+html[data-theme="dark"] .source-hub-badge,
+html[data-theme="dark"] .source-hub-label,
+html[data-theme="dark"] .ai-task-badge,
+html[data-theme="dark"] .writing-char-badge,
+html[data-theme="dark"] .ref-summary-badge,
+html[data-theme="dark"] .saved-job-status,
+html[data-theme="dark"] .job-step-pill:not(.done),
+html[data-theme="dark"] .ai-execution-route {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] label,
+html[data-theme="dark"] .pro-prop-label,
+html[data-theme="dark"] .attachment-item-title,
+html[data-theme="dark"] .kpi-value,
+html[data-theme="dark"] .wb-inspector-head h4,
+html[data-theme="dark"] .storyboard-card-summary strong {
+  color: #f8fafc !important;
+}
+html[data-theme="dark"] p,
+html[data-theme="dark"] .hint,
+html[data-theme="dark"] small,
+html[data-theme="dark"] .pro-prop-sub,
+html[data-theme="dark"] .kpi-label,
+html[data-theme="dark"] .kpi-sub,
+html[data-theme="dark"] .eyebrow,
+html[data-theme="dark"] .analysis-sub-label,
+html[data-theme="dark"] .attachment-item-sub {
+  color: #cbd5e1 !important;
+}
+html[data-theme="dark"] input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+html[data-theme="dark"] button.secondary,
+html[data-theme="dark"] .button.secondary,
+html[data-theme="dark"] .mode-chip,
+html[data-theme="dark"] .pro-preset-pill,
+html[data-theme="dark"] .capcut-toggle-btn,
+html[data-theme="dark"] .wb-insp-tab-btn {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #475569 !important;
+}
+html[data-theme="dark"] button.secondary:hover,
+html[data-theme="dark"] .button.secondary:hover,
+html[data-theme="dark"] .pro-preset-pill:hover {
+  background: #334155 !important;
+  color: #ffffff !important;
+}
+html[data-theme="dark"] .pro-preset-pill.active,
+html[data-theme="dark"] .capcut-toggle-btn.active,
+html[data-theme="dark"] .wb-insp-tab-btn.active,
+html[data-theme="dark"] .mode-chip.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #60a5fa !important;
+}
+html[data-theme="dark"] .usage-table th,
+html[data-theme="dark"] .usage-table td {
+  border-bottom-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .pro-prop-sheet,
+html[data-theme="dark"] .pro-prop-row,
+html[data-theme="dark"] .carousel-wb-inspector-col .pro-prop-row,
+html[data-theme="dark"] .carousel-wb-inspector-col .wb-structured-section {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] .pro-prop-label,
+html[data-theme="dark"] .carousel-wb-inspector-col .pro-prop-label {
+  border-right-color: #334155 !important;
+  color: #f8fafc !important;
 }

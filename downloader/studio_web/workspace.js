@@ -40,9 +40,24 @@
   let discoveryArchiveMode=true;
   const nativeBrowser=Boolean(window.takohNative);
   const connectionName=nativeBrowser?'전용 앱':'확장';
-  const stages=['analysis','editing','carousel','writing','product'],stageNames=['01 영상·소재 분석','02-A 미디어(영상) 편집','02-B 캐러셀·뉴스카드 편집','03 대본·게시문','04 상품·제휴 링크'];
+  const stages=['analysis','editing','carousel','writing','product'],stageNames=['영상소재분석','미디어(영상)편집','캐러셀·뉴스카드 편집','대본·게시문','상품 제휴링크'];
   let stage='analysis';
   let lastSourceSubtab='reference';
+  let currentWorkspace='jobs';
+  function syncUnifiedTopTabs(){
+    const isSourceGroup=sourceSubtabs.includes(currentWorkspace);
+    document.querySelectorAll('.workspace-tabs [role="tab"], .workspace-tabs [data-workspace], .workspace-tabs [data-production-stage]').forEach(button=>{
+      const bw=button.dataset.workspace;
+      const bs=button.dataset.productionStage;
+      let selected=false;
+      if(bs){
+        selected=(currentWorkspace==='create'&&bs===stage);
+      }else if(bw){
+        selected=(bw===currentWorkspace)||(bw==='source'&&isSourceGroup);
+      }
+      button.setAttribute('aria-selected',String(selected));
+    });
+  }
   function selectStage(name){
     if(name==='publish'){selectWorkspace('publish');return;}
     if(name==='reference'){selectWorkspace('reference');return;}
@@ -83,7 +98,11 @@
     const carScrubBtn=document.getElementById('btn-capture-scrubber-carousel');
     if(carScrubBtn)carScrubBtn.hidden=(name!=='carousel');
     document.querySelectorAll('.frame-replace-slide-btn').forEach(btn=>{btn.hidden=(name!=='carousel');});
-    document.querySelectorAll('[data-production-stage]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.productionStage===name)));
+    document.querySelectorAll('[data-production-stage]').forEach(button=>{
+      const isCurrent=button.dataset.productionStage===name;
+      button.setAttribute('aria-pressed',String(isCurrent));
+    });
+    syncUnifiedTopTabs();
     const next=stages.indexOf(name)+1;$('production-next').hidden=false;
     $('production-next').textContent=next===stages.length?'게시·예약으로 이동 →':'다음: '+stageNames[next]+' →';
     try{localStorage.setItem('takoh-active-stage',name);}catch{}
@@ -93,7 +112,10 @@
     if(window.syncDraggableOverlayCanvas)setTimeout(()=>window.syncDraggableOverlayCanvas(),20);
   }
   window.selectStage=selectStage;
-  document.querySelectorAll('[data-production-stage]').forEach(button=>button.onclick=()=>selectStage(button.dataset.productionStage));
+  document.querySelectorAll('[data-production-stage]').forEach(button=>button.onclick=()=>{
+    if(currentWorkspace!=='create')selectWorkspace('create');
+    selectStage(button.dataset.productionStage);
+  });
   $('new-job').addEventListener('click',()=>{try{localStorage.removeItem('takoh-active-job-id');}catch{}selectWorkspace('create');selectStage('analysis');($('fetch-url')||$('video-file'))?.focus();});
   $('production-next').onclick=()=>stages.indexOf(stage)===stages.length-1?selectWorkspace('publish'):selectStage(stages[stages.indexOf(stage)+1]);
   function bridge(kind,downloadId){return new Promise((resolve,reject)=>{
@@ -118,6 +140,7 @@
   function selectWorkspace(name){
     if(name==='source')name=lastSourceSubtab||'reference';
     if(!['reference','download','discovery','research','jobs','create','publish','scheduler','settings'].includes(name))name='jobs';
+    currentWorkspace=name;
     const isSourceGroup=sourceSubtabs.includes(name);
     const isProductionGroup=productionTabs.includes(name);
     if(isSourceGroup)lastSourceSubtab=name;
@@ -133,11 +156,7 @@
     $('create-workspace').hidden=name!=='create';if($('publish-workspace'))$('publish-workspace').hidden=name!=='publish';
     $('settings-workspace').hidden=name!=='settings';if($('scheduler-workspace'))$('scheduler-workspace').hidden=name!=='scheduler';
     if(name==='scheduler'&&window.refreshStudioCalendar)window.refreshStudioCalendar();
-    document.querySelectorAll('.workspace-tabs [data-workspace]').forEach(button=>{
-      const bw=button.dataset.workspace;
-      const selected=(bw===name)||(bw==='source'&&isSourceGroup);
-      button.setAttribute('aria-selected',String(selected));
-    });
+    syncUnifiedTopTabs();
     document.querySelectorAll('[data-source-subtab]').forEach(button=>{
       const active=button.dataset.sourceSubtab===name;
       button.classList.toggle('active',active);
@@ -398,7 +417,7 @@
           saveBtn.textContent='이미 담겨 있음';
           message('이미 보관함에 저장되어 있는 영상입니다.');
         }else{
-          saveBtn.textContent='✓ 보관함 담김';
+          saveBtn.textContent='보관함 담김';
           message('보관함에 담았습니다! [수집한 레퍼런스]에서 원본을 준비할 수 있습니다.');
         }
         if(typeof refreshReferences==='function')refreshReferences();
@@ -1096,7 +1115,7 @@
       document.querySelectorAll('#discovery-grid .discovery-card').forEach(card=>{
         if(checkedDiscoveryUrls.has(card.dataset.url)){
           const btn=card.querySelector('.btn-save-ref');
-          if(btn)btn.textContent='✓ 보관함 담김';
+          if(btn)btn.textContent='보관함 담김';
           const cb=card.querySelector('.discovery-select-checkbox');
           if(cb)cb.checked=false;
           card.classList.remove('checked');
@@ -1298,7 +1317,7 @@
 
   async function refreshUsage(){try{const result=await api('usage');$('usage-note').textContent=result.scope+' · '+result.note;$('ai-usage').replaceChildren();if(!result.groups?.length){$('ai-usage').append(text('p','아직 기록된 AI 요청이 없습니다.'));return;}const table=document.createElement('table');table.className='usage-table';const header=document.createElement('tr');for(const label of ['연결 / 모델','시도 / 반환 / 오류','입력 토큰','출력 토큰','전체 토큰','토큰 기록'])header.append(text('th',label));table.append(header);for(const group of result.groups){const row=document.createElement('tr');const known=group.reported_calls>0;for(const value of [group.provider+' / '+group.model,`${group.calls} / ${group.successful} / ${group.failed}`,group.token_available?.input_tokens?group.input_tokens.toLocaleString():'미제공',group.token_available?.output_tokens?group.output_tokens.toLocaleString():'미제공',group.token_available?.total_tokens?group.total_tokens.toLocaleString():'미제공',`${group.reported_calls}/${group.calls}회`])row.append(text('td',String(value)));table.append(row);}$('ai-usage').append(table);}catch(error){$('usage-note').textContent=error.message;}}
   $('reload-usage').onclick=refreshUsage;
-  document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>selectWorkspace(button.dataset.workspace));document.querySelector('.workspace-tabs')?.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=[...document.querySelectorAll('.workspace-tabs [role=tab]:not([hidden])')];const i=tabs.indexOf(document.activeElement);if(i<0)return;event.preventDefault();const n=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[n].focus();tabs[n].click();});
+  document.querySelectorAll('[data-workspace]').forEach(button=>{button.onclick=()=>{selectWorkspace(button.dataset.workspace);if(button.dataset.productionStage)selectStage(button.dataset.productionStage);};});document.querySelector('.workspace-tabs')?.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=[...document.querySelectorAll('.workspace-tabs [role=tab]:not([hidden])')];const i=tabs.indexOf(document.activeElement);if(i<0)return;event.preventDefault();const n=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[n].focus();tabs[n].click();});
   async function importFile(downloadId, local){
     await act('다운로드한 실제 파일을 불러오는 중…',async()=>{
       const file=local||await bridge('download-file',downloadId);
@@ -1329,7 +1348,7 @@
       img.onerror=()=>{img.hidden=true;fallback.hidden=false;};
       tile.append(img);
     }
-    const badge=text('span',item.type==='image'?'이미지':'▶ 영상');badge.className='download-thumbnail-badge';badge.setAttribute('aria-hidden','true');
+    const badge=text('span',item.type==='image'?'이미지':' 영상');badge.className='download-thumbnail-badge';badge.setAttribute('aria-hidden','true');
     tile.append(fallback,badge);$('download-files').append(tile);
   }
   async function refreshDownloads(){
