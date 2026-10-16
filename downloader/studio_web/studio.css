@@ -4814,4 +4814,161 @@ body.resizing-studio-player {
   border-color: #b91c1c;
 }
 
-
+/* ========================================================================= */
+/* 02-B CANVA-STYLE DIRECT ON-CANVAS LIVE EDITING & SAVE AS IMAGE            */
+/* ========================================================================= */
+.wb-inspector-tabs.wb-inspector-tabs-2col {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+.canva-canvas-floating-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+.canva-canvas-floating-toolbar button {
+  min-height: 26px !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+.canva-save-image-btn {
+  background: #0f172a !important;
+  color: #facc15 !important;
+  border: 1.5px solid #facc15 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22);
+}
+.canva-save-image-btn:hover {
+  background: #1e293b !important;
+  color: #fde047 !important;
+}
+.canva-direct-stage {
+  cursor: default;
+}
+.wb-live-typing-overlay.canva-live-canvas-overlay {
+  pointer-events: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  padding: 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  z-index: 8 !important;
+}
+.canva-direct-stage.is-canvas-editing #wb-active-slide-big-img {
+  filter: brightness(0.45) blur(2px);
+  transition: filter 0.14s ease;
+}
+.canva-editable-card-box {
+  pointer-events: auto !important;
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px dashed rgba(56, 189, 248, 0.72);
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.canva-editable-card-box[data-pos="top"] {
+  margin-bottom: auto;
+}
+.canva-editable-card-box[data-pos="center"] {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+.canva-editable-card-box[data-pos="bottom"] {
+  margin-top: auto;
+}
+.canva-editable-card-box:hover,
+.canva-editable-card-box.is-editing-canvas {
+  border: 2px solid #38bdf8;
+  background: rgba(15, 23, 42, 0.82);
+}
+.canva-box-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  margin-bottom: 2px;
+  border-radius: 5px;
+  background: rgba(30, 41, 59, 0.9);
+  color: #bae6fd;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: grab;
+  user-select: none;
+}
+.canva-box-drag-handle:active {
+  cursor: grabbing;
+}
+.canva-editable-field {
+  outline: none;
+  border-radius: 6px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  cursor: text;
+  transition: border-color 0.12s ease, background 0.12s ease;
+  word-break: keep-all;
+}
+.canva-editable-field:hover {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+}
+.canva-editable-field:focus {
+  border-color: #facc15 !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.25);
+}
+.canva-editable-field:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(148, 163, 184, 0.78);
+  font-weight: 600;
+}
+.canva-editable-field.is-empty-field:not(:focus) {
+  opacity: 0.55;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+#canva-edit-badge.wb-live-badge {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #facc15;
+  color: #0f172a;
+  text-shadow: none !important;
+}
+#canva-edit-title.wb-live-title {
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.3;
+  color: #ffffff;
+}
+#canva-edit-subtitle.wb-live-sub {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #fde047;
+}
+#canva-edit-body.wb-live-body {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.55);
+  border-left: 3px solid #38bdf8;
+  white-space: pre-wrap;
+}
