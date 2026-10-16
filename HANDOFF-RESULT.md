@@ -1,16 +1,16 @@
-# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-16 · 02-B Always-On 3-Zone Layout, Clean Safe-Zone Toolbar + Resizer Grip, & Single Card + Caption Mode)
+# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-16 · 02-B Exact 3-Column Vertical Layout with Center Storyboard Dock)
 
 ## 1. Scope & Completed Improvements
-1. **02-B Carousel Studio Always-On 3-Zone Layout (`좌측 영상 미리보기` / `가운데 캐러셀 수정 미리보기` / `우측 캐러셀 실시간 편집`)**:
-   - **Root Cause**: When opening a project that did not yet have generated `job.carousel.slides`, [`renderCarouselPreview()`](downloader/studio_web/studio.js) previously returned early (`if (!slides.length) { ... return; }`), hiding the Center Live Card Preview (`wbPreviewCol`) and Right Tabbed Editor (`wbInspectorCol`) and showing only an empty placeholder + the expanded AI setup drawer on the right of the video player.
+1. **02-B Carousel Studio Exact 3-Column Vertical Layout (`좌측 원본 영상 + 추출 프레임 + 시점 바` / `가운데 캐러셀 대형 미리보기 + 하단 슬라이드 스토리보드` / `우측 캐러셀 탭별 실시간 편집`)**:
+   - **Root Cause**: Previously, `#carousel-storyboard-dock` (Bottom Slide Storyboard) and `#carousel-global-plan-drawer` sat as siblings *below* `#carousel-active-workbench`, spanning across both the Center and Right columns instead of forming 3 clean vertical columns side by side as shown in the user's reference layout.
    - **Solution** ([`downloader/studio_web/studio.js`](downloader/studio_web/studio.js), [`downloader/studio_web/studio.css`](downloader/studio_web/studio.css)):
-     - Removed the early return on `!slides.length` in [`renderCarouselPreview()`](downloader/studio_web/studio.js) and created an automatic live virtual Slide #1 backed by the project's first extracted frame / original image and storyboard draft lines.
-     - Kept `#carousel-global-plan-drawer` closed by default so the 3-Zone Workbench (**Left: `좌측 · 원본 영상 미리보기` | Center: `가운데 · 캐러셀 수정 미리보기` | Right: `우측 · 캐러셀 실시간 편집`**) is immediately visible at the top of `02-B` for every project.
-     - Typing or changing any option in the Right Editor on an ungenerated project immediately updates the Center Live Preview overlay (0ms) and automatically initializes + synthesizes the slide on the backend.
-2. **Left Player Toolbar Cleanup (`안전 가이드` Only) & High-Visibility Vertical Resizer Grip (`◀▶ · ⋮⋮ · 430px`)**:
-   - Removed `.preview-size-control-group` (`화면 크기 작게 / 표준 / 크게 / 최대` buttons and range slider) from `.player-canvas-toolbar-left` so only **`안전 가이드`** remains, and added a high-contrast sticky grip badge (`.resizer-grip`) on `#studio-player-resizer`.
-3. **02-B Carousel Single Image (1장) + Caption/Description (`이미지 1장 + 캡션(설명) 카드`) Mode**:
-   - Added `1장 (이미지 1장 + 캡션·설명 단독 카드)` and `#btn-carousel-single-card`, plus 4-tier live editing (`1. 카드 메인 제목`, `2. 부제목`, `3. 캡션 · 설명 (본문)`, `4. 상단 배지`).
+     - In [`renderCarouselPreview()`](downloader/studio_web/studio.js), safely preserves `#carousel-storyboard-dock` and `#carousel-global-plan-drawer` across re-renders and mounts `#carousel-storyboard-dock` **directly inside the Center Column (`wbPreviewCol`)** right below the large active card preview and quick actions.
+     - Mounts `#carousel-global-plan-drawer` inside the Right Column (`wbInspectorCol`) below the tabbed real-time editor.
+     - Styled `.carousel-wb-preview-col` (Center Column) and `.carousel-wb-inspector-col` (Right Column) as full-height distinct column cards (`grid-template-columns: minmax(420px, 500px) minmax(440px, 1fr)`), with compact storyboard thumbnails inside the Center Column.
+2. **Prior Session Improvements Preserved**:
+   - Always-on 3-Zone layout even when `job.carousel.slides` is initially empty.
+   - Clean `안전 가이드`-only left toolbar + high-visibility vertical resizer grip (`◀▶ · ⋮⋮ · 430px`).
+   - Single Image (1장) + Caption/Description (`이미지 1장 + 캡션(설명) 카드`) mode in `02-B`.
 
 ## 2. Verification Evidence (Separated by Category)
 - **Static & Unit Tests**:
@@ -20,7 +20,7 @@
     - Core Node & Python unit tests (`5 tests`): **PASS**
 - **Real Browser / Electron UI Verification**:
   - Verified in headless Electron against `http://127.0.0.1:5006/studio` (`verify_02b_always_3zone.cjs`):
-    - Even with `job.carousel = { slides: [] }`, `has3ZoneGrid: true`, `leftWidth: 430`, `centerWidth: 410`, `rightWidth: 544`, `zonePills: ["가운데 · 캐러셀 수정 미리보기", "우측 · 캐러셀 실시간 편집"]`.
-    - Screenshot saved to `verify_02b_always_3zone_layout.png`.
+    - Confirmed `leftRect: {x: 55, w: 430}`, `centerRect: {x: 586, w: 500}`, `rightRect: {x: 1104, w: 692}`, `storyboardInCenter: true`, `drawerInRight: true`.
+    - Screenshots saved to `verify_02b_exact_3zone_columns.png` and `verify_02b_exact_3zone_columns_bottom.png`.
 - **Saved Media / Audio / Paid Provider / Distribution**:
   - Existing user profiles, cookies, saved references, jobs, and running helper processes on port `5006` were preserved untouched. No EXE/ZIP build was performed.

@@ -439,13 +439,15 @@ function enforceSingleCardModeIfActive(targetJob){
 function renderCarouselPreview(){
   renderCarouselIntelBar();
   const wrap=$('carousel-slides-wrap'),grid=$('carousel-slides-preview'),label=$('carousel-slides-label'),workbench=$('carousel-active-workbench');
+  const globalDrawer=$('carousel-global-plan-drawer');
+  const storyboardDock=$('carousel-storyboard-dock');
   if(!wrap||!grid)return;
+  if(storyboardDock&&workbench&&workbench.contains(storyboardDock))wrap.append(storyboardDock);
+  if(globalDrawer&&workbench&&workbench.contains(globalDrawer))wrap.after(globalDrawer);
   grid.replaceChildren();
   if(workbench)workbench.replaceChildren();
   enforceSingleCardModeIfActive(job);
   const slides=job?.carousel?.slides||[];
-  const globalDrawer=$('carousel-global-plan-drawer');
-  const storyboardDock=$('carousel-storyboard-dock');
   if(!job){wrap.hidden=true;return;}
   wrap.hidden=false;
   const tplLabel=carouselTemplateNames[job.carousel?.template||'editorial_dark']||'시네마 리뷰 다크';
@@ -1284,6 +1286,12 @@ function renderCarouselPreview(){
     wbFooter.append(autoSyncHint,btnApplySlide);
 
     wbInspectorCol.append(wbInspZoneTag,inspHead,inspTabsBar,tabTextPanel,tabPhotoPanel,tabStylePanel,legacySubHidden,wbFooter);
+    if(storyboardDock){
+      wbPreviewCol.append(storyboardDock);
+    }
+    if(globalDrawer){
+      wbInspectorCol.append(globalDrawer);
+    }
     wbGrid.append(wbPreviewCol,wbInspectorCol);
     workbench.append(wbGrid);
 
