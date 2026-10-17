@@ -218,13 +218,25 @@
       }
     } catch {}
 
-    // Extract clean post text (excluding our own injected toolbar labels)
+    // Extract clean post text (excluding our own injected toolbar labels and Threads/Instagram UI chrome)
     let rawText = '';
+    let detectedUser = '';
     if (scope) {
-      const clone = scope.cloneNode(true);
-      clone.querySelectorAll?.('.takoh-threads-toolbar, .threads-download-btn-container, .takoh-positioned-controls, [data-takoh-threads-controls], [data-takoh-pinterest-toolbar]').forEach(el => el.remove());
-      rawText = (clone.innerText || '').trim();
+      const userAnchor = scope.querySelector?.('a[href^="/@"]');
+      if (userAnchor) {
+        const um = (userAnchor.getAttribute('href') || '').match(/^\/@([A-Za-z0-9_.]+)/);
+        if (um) detectedUser = um[1];
+      }
+      const bodyNode = scope.querySelector?.('[class*="BodyTextContainer"], [data-ad-preview="message"]');
+      if (bodyNode && (bodyNode.innerText || '').trim().length >= 2) {
+        rawText = (bodyNode.innerText || '').trim();
+      } else {
+        const clone = scope.cloneNode(true);
+        clone.querySelectorAll?.('.takoh-threads-toolbar, .threads-download-btn-container, .takoh-positioned-controls, [data-takoh-threads-controls], [data-takoh-pinterest-toolbar], header, time, nav, button, [role="button"], [aria-label*="좋아요"], [aria-label*="답글"], [aria-label*="리포스트"], [aria-label*="공유"], [aria-label*="오디오"], [aria-label*="소리"]').forEach(el => el.remove());
+        rawText = (clone.innerText || '').trim();
+      }
     }
+    rawText = cleanSocialPostText(rawText, detectedUser, permalink);
 
     if (!permalink || !/(^|\.)(threads\.com|threads\.net|instagram\.com|pinterest\.com|pinterest\.co\.kr|naver\.com|coupang\.com|tiktok\.com|facebook\.com|youtube\.com|youtu\.be|twitter\.com|x\.com|reddit\.com)$/i.test((() => { try { return new URL(permalink).hostname; } catch { return ''; } })())) {
       const userLink = scope?.querySelector?.('a[href^="/@"]');
@@ -240,7 +252,7 @@
       id: permalink,
       permalink,
       mediaKind,
-      username: '',
+      username: detectedUser,
       text: rawText.slice(0, 10000),
       imageUrls: [...imageSet],
       videoUrls: [...videoSet],
@@ -248,6 +260,34 @@
       thumbnailUrl: resolvedThumb,
       thumbnailDataUrl
     };
+  }
+
+  function cleanSocialPostText(raw, username = '', permalink = '') {
+    let txt = String(raw || '').replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n').trim();
+    if (!txt) return '';
+    let user = String(username || '').replace(/^@/, '').trim();
+    if (!user && permalink) {
+      const m = String(permalink).match(/\/@([A-Za-z0-9_.]+)/);
+      if (m) user = m[1];
+    }
+    for (let pass = 0; pass < 3; pass++) {
+      txt = txt.replace(/^(?:팔로우|팔로잉|Follow|Following|작성자|Author|고정됨|Pinned)\s*/i, '');
+      if (user) {
+        const esc = user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        txt = txt.replace(new RegExp(`^@?${esc}(?:\\s*인증된\\s*계정|\\s*Verified)?(?:\\s*게시물이\\s*페디버스에\\s*공유됩니다)?(?:\\s*(?:\\d+\\s*(?:초|분|시간|일|주|개월|년)(?:\\s*전)?|\\d+\\s*[smhdw]\\b|어제|방금|\\d{4}-\\d{2}-\\d{2}))?(?:\\s*(?:수정됨|Edited))?(?:\\s*(?:더\\s*보기|See\\s*more))?\\s*`, 'i'), '');
+      }
+      txt = txt.replace(/^@?[A-Za-z0-9_.]{2,32}?(?=(?:\s*인증된\s*계정|\s*Verified)?(?:\s*게시물이\s*페디버스에\s*공유됩니다)?\s*(?:\d{1,3}\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|어제|방금)(?!\s*(?:만에|동안|뒤|후|간|정도|연속|컷|배)))(?:\s*인증된\s*계정|\s*Verified)?(?:\s*게시물이\s*페디버스에\s*공유됩니다)?\s*(?:\d{1,3}\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|어제|방금)(?:\s*(?:수정됨|Edited))?(?:\s*(?:더\s*보기|See\s*more))?\s*/i, '');
+      txt = txt.replace(/^(?:인증된\s*계정|게시물이\s*페디버스에\s*공유됩니다|더\s*보기|See\s*more)\s*/i, '');
+    }
+    for (let pass = 0; pass < 4; pass++) {
+      const prev = txt;
+      txt = txt.replace(/(?:\s|\n)*(?:번역하기|번역\s*보기|See\s*translation|Translate|\d{1,2}[\s\n]*\/[\s\n]*\d{1,2}|오디오\s*소리\s*(?:꺼짐|켜짐)|소리\s*(?:꺼짐|켜짐)|음소거(?:\s*해제)?|Muted|Unmute|(?:좋아요|답글|댓글|리포스트|재게시|인용|공유하기|공유|보내기|조회(?:수)?|Like|Reply|Repost|Share)(?:\s*[\d,.]+\s*(?:만|천|[KMB])?\s*(?:회|개)?)?)+$/i, '').trim();
+      txt = txt.replace(/(?:\n+\d{1,4})+\s*$/, '').trim();
+      if (txt === prev) break;
+    }
+    txt = txt.replace(/([^\n\s])\s*((?:老公|老婆|남편|아내|엄마|아빠|아들|딸|媽媽|爸爸|兒子|女兒)\s*[：:])/g, '$1\n$2');
+    if (/^(?:\d+\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|더\s*보기|번역하기|오디오\s*소리\s*(?:꺼짐|켜짐))$/i.test(txt)) return '';
+    return txt.trim();
   }
 
   function convertCoupangPosterOrUrlToMp4(urlStr) {

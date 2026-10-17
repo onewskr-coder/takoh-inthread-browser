@@ -1542,6 +1542,53 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
     def record_video_observation(video_id, views):
         return globals()['record_video_observation'](video_id, views, root)
 
+    def _clean_social_post_caption(raw_text, username='', permalink=''):
+        txt = str(raw_text or '').replace('\u00a0', ' ').replace('\r\n', '\n').replace('\r', '\n').strip()
+        if not txt:
+            return ''
+        user = str(username or '').lstrip('@').strip()
+        if not user and permalink:
+            m_user = re.search(r'/@([A-Za-z0-9_.]+)', str(permalink))
+            if m_user:
+                user = m_user.group(1)
+        for _ in range(3):
+            txt = re.sub(r'^(?:팔로우|팔로잉|Follow|Following|작성자|Author|고정됨|Pinned)\s*', '', txt, flags=re.I)
+            if user:
+                esc_u = re.escape(user)
+                txt = re.sub(
+                    rf'^@?{esc_u}(?:\s*인증된\s*계정|\s*Verified)?(?:\s*게시물이\s*페디버스에\s*공유됩니다)?(?:\s*(?:\d+\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|\d+\s*[smhdw]\b|어제|방금|\d{{4}}-\d{{2}}-\d{{2}}))?(?:\s*(?:수정됨|Edited))?(?:\s*(?:더\s*보기|See\s*more))?\s*',
+                    '',
+                    txt,
+                    flags=re.I,
+                )
+            txt = re.sub(
+                r'^@?[A-Za-z0-9_.]{2,32}?(?=(?:\s*인증된\s*계정|\s*Verified)?(?:\s*게시물이\s*페디버스에\s*공유됩니다)?\s*(?:\d{1,3}\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|어제|방금)(?!\s*(?:만에|동안|뒤|후|간|정도|연속|컷|배)))(?:\s*인증된\s*계정|\s*Verified)?(?:\s*게시물이\s*페디버스에\s*공유됩니다)?\s*(?:\d{1,3}\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|어제|방금)(?:\s*(?:수정됨|Edited))?(?:\s*(?:더\s*보기|See\s*more))?\s*',
+                '',
+                txt,
+                flags=re.I,
+            )
+            txt = re.sub(
+                r'^(?:인증된\s*계정|게시물이\s*페디버스에\s*공유됩니다|더\s*보기|See\s*more)\s*',
+                '',
+                txt,
+                flags=re.I,
+            )
+        for _ in range(4):
+            prev = txt
+            txt = re.sub(
+                r'(?:\s|\n)*(?:번역하기|번역\s*보기|See\s*translation|Translate|\d{1,2}[\s\n]*/[\s\n]*\d{1,2}|오디오\s*소리\s*(?:꺼짐|켜짐)|소리\s*(?:꺼짐|켜짐)|음소거(?:\s*해제)?|Muted|Unmute|(?:좋아요|답글|댓글|리포스트|재게시|인용|공유하기|공유|보내기|조회(?:수)?|Like|Reply|Repost|Share)(?:\s*[\d,.]+\s*(?:만|천|[KMB])?\s*(?:회|개)?)?)+$',
+                '',
+                txt,
+                flags=re.I,
+            ).strip()
+            txt = re.sub(r'(?:\n+\d{1,4})+\s*$', '', txt).strip()
+            if txt == prev:
+                break
+        txt = re.sub(r'([^\n\s])\s*((?:老公|老婆|남편|아내|엄마|아빠|아들|딸|媽媽|爸爸|兒子|女兒)\s*[：:])', r'\1\n\2', txt)
+        if re.fullmatch(r'(?:\d+\s*(?:초|분|시간|일|주|개월|년)(?:\s*전)?|더\s*보기|번역하기|오디오\s*소리\s*(?:꺼짐|켜짐))', txt, flags=re.I):
+            return ''
+        return txt.strip()
+
     def directory(job_id):
         if not re.fullmatch(r'[a-f0-9]{32}', job_id):
             abort(404)
@@ -1551,9 +1598,14 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         return target
 
     def read(job_id):
-        return json.loads((directory(job_id) / 'job.json').read_text(encoding='utf-8'))
+        job_obj = json.loads((directory(job_id) / 'job.json').read_text(encoding='utf-8'))
+        if job_obj.get('source_text'):
+            job_obj['source_text'] = _clean_social_post_caption(job_obj.get('source_text', ''), permalink=job_obj.get('source', ''))
+        return job_obj
 
     def save(job):
+        if job.get('source_text'):
+            job['source_text'] = _clean_social_post_caption(job.get('source_text', ''), permalink=job.get('source', ''))
         dest = root / job['id'] / 'job.json'
         temporary = dest.with_suffix('.tmp')
         temporary.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -2441,6 +2493,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             raise StudioError('레퍼런스 형식을 확인해 주세요.')
         clean = {key: str(ref.get(key, ''))[:10000 if key == 'text' else 2048] for key in ('id', 'username', 'text', 'permalink')}
         clean['permalink'] = valid_url(clean['permalink'])
+        clean['text'] = _clean_social_post_caption(clean.get('text', ''), username=clean.get('username', ''), permalink=clean.get('permalink', ''))[:10000]
         clean['mediaKind'] = ref.get('mediaKind') if ref.get('mediaKind') in ('video', 'image') else 'auto'
         for key in ('imageUrls', 'videoUrls'):
             values = ref.get(key, [])
@@ -2470,6 +2523,11 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if target_file.is_file():
                 existing_ref = json.loads(target_file.read_text(encoding='utf-8'))
                 updated = False
+                if existing_ref.get('text'):
+                    cleaned_ex = _clean_social_post_caption(existing_ref.get('text', ''), username=existing_ref.get('username', ''), permalink=existing_ref.get('permalink', ''))
+                    if cleaned_ex != existing_ref.get('text'):
+                        existing_ref['text'] = cleaned_ex
+                        updated = True
                 for k in ('thumbnailUrl', 'poster', 'thumbnailDataUrl', 'username', 'text'):
                     if clean.get(k) and not existing_ref.get(k):
                         existing_ref[k] = clean[k]
@@ -2584,6 +2642,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             ref['reference_id'] = path.stem
             ref['previewUrl'] = f'/studio/{folder_name}/{path.stem}/thumbnail'
             permalink = str(ref.get('permalink') or '')
+            if ref.get('text'):
+                ref['text'] = _clean_social_post_caption(ref.get('text', ''), username=ref.get('username', ''), permalink=permalink)
             if ref.get('mediaKind') == 'video' or re.search(r'(?:youtube\.com|youtu\.be)/', permalink, re.I):
                 ref['mediaKind'] = 'video'
                 thumbs = {str(ref.get('thumbnailUrl') or ''), str(ref.get('poster') or '')}
@@ -4683,7 +4743,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                          max_age=0)
 
     def _detect_post_language_info(text_str):
-        txt = str(text_str or '').strip()
+        txt = _clean_social_post_caption(text_str)
         if not txt:
             return {'code': 'empty', 'label': '입력 대기', 'is_foreign': False}
         ja_count = len(re.findall(r'[\u3040-\u30ff]', txt))
@@ -4692,9 +4752,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
         en_count = len(re.findall(r'[A-Za-z]', txt))
         if ja_count >= 2:
             return {'code': 'ja', 'label': '일본어 원문 감지됨 · 한국어 자연 번역 권장', 'is_foreign': True}
-        if zh_count >= 4 and ko_count < zh_count:
+        if zh_count >= 3 and ko_count < zh_count * 2:
             return {'code': 'zh', 'label': '중국어/한자 원문 감지됨 · 한국어 자연 번역 권장', 'is_foreign': True}
-        if en_count >= 12 and ko_count * 3 < en_count:
+        if en_count >= 10 and ko_count * 2 < en_count:
             return {'code': 'en', 'label': '영어 원문 감지됨 · 한국어 자연 번역 권장', 'is_foreign': True}
         if ko_count >= 2:
             return {'code': 'ko', 'label': '한국어 본문', 'is_foreign': False}
@@ -4710,7 +4770,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if 'repost_mode' in data:
                 job['repost_mode'] = bool(data.get('repost_mode'))
             if 'source_text' in data:
-                job['source_text'] = str(data.get('source_text') or '').strip()[:3000]
+                job['source_text'] = _clean_social_post_caption(data.get('source_text') or '', permalink=job.get('source', ''))[:3000]
             if 'source_text_ko' in data:
                 job['source_text_ko'] = str(data.get('source_text_ko') or '').strip()[:3000]
             job['source_lang'] = _detect_post_language_info(job.get('source_text', ''))
@@ -4727,7 +4787,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             if not target_url or not re.match(r'^https?://', target_url, re.I):
                 raise StudioError('제목·본문을 가져올 원본 게시물 URL이 없습니다. 상단 URL 입력란이나 본문 칸에 직접 입력해 주세요.', 400)
             scraped = _scrape_threads_post_metadata(target_url)
-            extracted = str(scraped.get('text') or '').strip()
+            extracted = _clean_social_post_caption(scraped.get('text') or '', permalink=target_url)
             if not extracted:
                 try:
                     import yt_dlp
@@ -4740,6 +4800,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                                 extracted = f"[제목] {ydl_title}\n[설명·본문]\n{ydl_desc}"
                             else:
                                 extracted = ydl_desc or ydl_title
+                            extracted = _clean_social_post_caption(extracted, permalink=target_url)
                 except Exception:
                     pass
             if not extracted:
@@ -4752,21 +4813,42 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 save(job)
             return jsonify(job)
 
+    def _google_translate_fallback_ko(text_str):
+        clean_in = _clean_social_post_caption(text_str)
+        if not clean_in:
+            return ''
+        try:
+            resp = requests.get(
+                'https://translate.googleapis.com/translate_a/single',
+                params={'client': 'gtx', 'sl': 'auto', 'tl': 'ko', 'dt': 't', 'q': clean_in[:2000]},
+                timeout=8,
+            )
+            if resp.ok:
+                arr = resp.json()
+                if isinstance(arr, list) and arr and isinstance(arr[0], list):
+                    pieces = [str(seg[0]) for seg in arr[0] if isinstance(seg, list) and seg and seg[0]]
+                    out = ''.join(pieces).strip()
+                    if out:
+                        return out
+        except Exception:
+            pass
+        return ''
+
     @bp.route('/jobs/<job_id>/source-text-translate', methods=['POST'])
     def source_text_translate(job_id):
         with track_activity('원본 제목·본문 한국어 자연 번역', job_id):
             with lock(job_id):
                 job = read(job_id)
             data = request.get_json() or {}
-            raw_text = str(data.get('text') or job.get('source_text') or '').strip()
+            raw_text = _clean_social_post_caption(data.get('text') or job.get('source_text') or '', permalink=job.get('source', ''))
             if not raw_text and job.get('source') and re.match(r'^https?://', str(job.get('source')), re.I):
                 scraped = _scrape_threads_post_metadata(job['source'])
-                raw_text = str(scraped.get('text') or '').strip()
+                raw_text = _clean_social_post_caption(scraped.get('text') or '', permalink=job.get('source', ''))
             if not raw_text:
                 raise StudioError('번역·정리할 원본 게시물 제목·설명(캡션)·본문이 없습니다. 먼저 본문을 불러오거나 입력해 주세요.', 422)
             tone = str(data.get('tone') or 'natural').strip()
             tone_guide = {
-                'natural': '일본어·영어·외국어 번역기 말투(직역체)를 완전히 빼고, 한국인이 쓰레드·인스타그램·유튜브에서 실제로 읽고 쓰는 것처럼 아주 자연스럽고 매끄러운 한국어로 제목과 본문 내용을 번역·정리하세요.',
+                'natural': '일본어·영어·중국어 등 외국어 번역기 말투(직역체)를 완전히 빼고, 한국인이 쓰레드·인스타그램·유튜브에서 실제로 읽고 쓰는 것처럼 아주 자연스럽고 매끄러운 한국어로 제목과 본문 내용을 번역·정리하세요.',
                 'hook': '원본 게시물의 제목·캡션·본문 핵심을 살리면서, 한국 쓰레드·릴스·쇼츠에서 스크롤을 멈추게 하는 매력적인 후킹형 한국어 제목과 본문으로 초월번역하세요.',
                 'summary': '원본 게시물의 제목·설명·본문에서 제품명, 핵심 특징, 사용 팁, 셀링포인트만 쏙 뽑아 한눈에 파악하기 쉽게 자연스러운 한국어로 요약·번역하세요.',
             }.get(tone, '번역투 없이 자연스럽고 매끄러운 한국어로 제목과 본문을 번역하세요.')
@@ -4783,13 +4865,25 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 }, ensure_ascii=False)
             )
             schema = {'type': 'OBJECT', 'required': ['translated'], 'properties': {'translated': {'type': 'STRING'}}}
-            try:
-                gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('source-trans-' + uuid.uuid4().hex + '.json'))
-                translated = str(gen.get('translated') or '').strip()
-            except StudioError:
-                raise
-            except Exception as err:
-                raise StudioError('원본 제목·본문 한국어 번역 실패: ' + str(err)[:140], 422)
+            translated = ''
+            last_err = None
+            candidate_runs = [dict(data)]
+            if data.get('provider') != 'antigravity_cli':
+                candidate_runs.append({'provider': 'antigravity_cli', 'model': 'auto'})
+            if data.get('provider') != 'gemini_api':
+                candidate_runs.append({'provider': 'gemini_api', 'model': 'gemini-2.5-flash'})
+            for cand_data in candidate_runs:
+                try:
+                    gen = generate_selected(cand_data, [{'text': prompt}], schema, directory(job_id) / ('source-trans-' + uuid.uuid4().hex + '.json'))
+                    translated = str(gen.get('translated') or '').strip()
+                    if translated:
+                        break
+                except Exception as err:
+                    last_err = err
+            if not translated:
+                translated = _google_translate_fallback_ko(raw_text)
+            if not translated and last_err:
+                raise StudioError('원본 제목·본문 한국어 번역 실패: ' + str(last_err)[:140], 422)
             if not translated:
                 translated = raw_text
             apply_to_source = bool(data.get('apply_to_source', False))
@@ -4866,13 +4960,25 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 + json.dumps({'original_subtitle': raw_text, 'post_context': job.get('source_text', '')}, ensure_ascii=False)
             )
             schema = {'type': 'OBJECT', 'required': ['translated'], 'properties': {'translated': {'type': 'STRING'}}}
-            try:
-                gen = generate_selected(data, [{'text': prompt}], schema, directory(job_id) / ('ocr-retrans-' + uuid.uuid4().hex + '.json'))
-                translated = str(gen.get('translated') or '').strip()
-            except StudioError:
-                raise
-            except Exception as err:
-                raise StudioError('AI 자막 번역 실패: ' + str(err)[:140], 422)
+            translated = ''
+            last_err = None
+            candidate_runs = [dict(data)]
+            if data.get('provider') != 'antigravity_cli':
+                candidate_runs.append({'provider': 'antigravity_cli', 'model': 'auto'})
+            if data.get('provider') != 'gemini_api':
+                candidate_runs.append({'provider': 'gemini_api', 'model': 'gemini-2.5-flash'})
+            for cand_data in candidate_runs:
+                try:
+                    gen = generate_selected(cand_data, [{'text': prompt}], schema, directory(job_id) / ('ocr-retrans-' + uuid.uuid4().hex + '.json'))
+                    translated = str(gen.get('translated') or '').strip()
+                    if translated:
+                        break
+                except Exception as err:
+                    last_err = err
+            if not translated:
+                translated = _google_translate_fallback_ko(raw_text)
+            if not translated and last_err:
+                raise StudioError('AI 자막 번역 실패: ' + str(last_err)[:140], 422)
             if not translated:
                 translated = raw_text
             with lock(job_id):
