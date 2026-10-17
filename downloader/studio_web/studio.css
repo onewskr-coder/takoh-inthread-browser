@@ -4831,7 +4831,7 @@ html[data-theme="dark"] .pro-prop-label {
 }
 
 /* ========================================================================= */
-/* 02-B CANVA-STYLE DIRECT ON-CANVAS LIVE EDITING & SAVE AS IMAGE            */
+/* 02-B CANVA / MIRICANVAS MULTI-OBJECT DIRECT CANVAS EDITOR                 */
 /* ========================================================================= */
 .wb-inspector-tabs.wb-inspector-tabs-2col {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -4864,129 +4864,170 @@ html[data-theme="dark"] .pro-prop-label {
   background: #1e293b !important;
   color: #fde047 !important;
 }
-.canva-direct-stage {
-  cursor: default;
+.canva-multi-object-stage {
+  position: relative !important;
+  overflow: hidden !important;
+  user-select: none;
+  cursor: grab;
+  background: #0b0f17 !important;
 }
-.wb-live-typing-overlay.canva-live-canvas-overlay {
+.canva-multi-object-stage:active {
+  cursor: grabbing;
+}
+.canva-multi-object-stage #wb-active-slide-big-img.canva-clean-bg-img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transform-origin: center center;
+  transition: transform 0.06s linear;
+  pointer-events: none;
+  z-index: 1;
+  filter: none !important;
+}
+.canva-stage-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.canva-snap-line {
+  position: absolute;
+  pointer-events: none;
+  z-index: 15;
+  background: #ec4899;
+  box-shadow: 0 0 6px rgba(236, 72, 153, 0.85);
+}
+.canva-snap-line-x {
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+}
+.canva-snap-line-y {
+  left: 0;
+  right: 0;
+  height: 1.5px;
+}
+.wb-live-typing-overlay.canva-objects-layer {
+  position: absolute !important;
+  inset: 0 !important;
   pointer-events: none !important;
   background: transparent !important;
   backdrop-filter: none !important;
-  padding: 12px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: flex-end !important;
-  z-index: 8 !important;
+  padding: 0 !important;
+  display: block !important;
+  z-index: 10 !important;
 }
-.canva-direct-stage.is-canvas-editing #wb-active-slide-big-img {
-  filter: brightness(0.45) blur(2px);
-  transition: filter 0.14s ease;
-}
-.canva-editable-card-box {
+.canva-object-node {
+  position: absolute;
   pointer-events: auto !important;
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1.5px dashed rgba(56, 189, 248, 0.72);
-  background: rgba(15, 23, 42, 0.48);
-  backdrop-filter: blur(4px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  transition: border-color 0.14s ease, background 0.14s ease;
+  cursor: move;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  transition: border-color 0.1s ease, box-shadow 0.1s ease;
+  box-sizing: border-box;
+  z-index: 11;
 }
-.canva-editable-card-box[data-pos="top"] {
-  margin-bottom: auto;
+.canva-object-node:hover {
+  border-color: rgba(56, 189, 248, 0.72);
 }
-.canva-editable-card-box[data-pos="center"] {
-  margin-top: auto;
-  margin-bottom: auto;
+.canva-object-node.is-selected-object {
+  border: 1.5px solid #38bdf8;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
+  z-index: 14;
 }
-.canva-editable-card-box[data-pos="bottom"] {
-  margin-top: auto;
+.canva-object-node.is-dragging-object {
+  border: 2px solid #facc15 !important;
+  opacity: 0.96;
+  cursor: grabbing !important;
+  z-index: 18;
 }
-.canva-editable-card-box:hover,
-.canva-editable-card-box.is-editing-canvas {
-  border: 2px solid #38bdf8;
-  background: rgba(15, 23, 42, 0.82);
+.canva-object-node.is-editing-text {
+  border: 2px solid #facc15 !important;
+  background: rgba(15, 23, 42, 0.32);
+  cursor: text !important;
+  z-index: 19;
 }
-.canva-box-drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 6px;
-  margin-bottom: 2px;
-  border-radius: 5px;
-  background: rgba(30, 41, 59, 0.9);
-  color: #bae6fd;
-  font-size: 10.5px;
-  font-weight: 800;
-  cursor: grab;
+.canva-object-text {
+  outline: none !important;
+  border: none !important;
+  margin: 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  letter-spacing: -0.025em;
   user-select: none;
 }
-.canva-box-drag-handle:active {
-  cursor: grabbing;
-}
-.canva-editable-field {
-  outline: none;
-  border-radius: 6px;
-  padding: 3px 6px;
-  border: 1px solid transparent;
+.canva-object-node.is-editing-text .canva-object-text {
+  user-select: text;
   cursor: text;
-  transition: border-color 0.12s ease, background 0.12s ease;
-  word-break: keep-all;
 }
-.canva-editable-field:hover {
-  border-color: rgba(148, 163, 184, 0.55);
-  background: rgba(255, 255, 255, 0.06);
+/* Corner & Side Resize Handles on Selected Object (Canva / MiriCanvas style) */
+.canva-resize-handle {
+  display: none;
+  position: absolute;
+  background: #ffffff;
+  border: 2px solid #0284c7;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  z-index: 20;
 }
-.canva-editable-field:focus {
-  border-color: #facc15 !important;
-  background: rgba(15, 23, 42, 0.92) !important;
-  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.25);
+.canva-object-node.is-selected-object:not(.is-editing-text) .canva-resize-handle {
+  display: block;
 }
-.canva-editable-field:empty::before {
-  content: attr(data-placeholder);
-  color: rgba(148, 163, 184, 0.78);
-  font-weight: 600;
+.canva-resize-handle.handle-nw,
+.canva-resize-handle.handle-ne,
+.canva-resize-handle.handle-sw,
+.canva-resize-handle.handle-se {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
-.canva-editable-field.is-empty-field:not(:focus) {
-  opacity: 0.55;
-  font-size: 11px;
-  padding: 2px 6px;
+.canva-resize-handle.handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.canva-resize-handle.handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.canva-resize-handle.handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.canva-resize-handle.handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.canva-resize-handle.handle-w,
+.canva-resize-handle.handle-e {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 18px;
+  border-radius: 4px;
+  cursor: ew-resize;
 }
-#canva-edit-badge.wb-live-badge {
-  align-self: flex-start;
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  background: #facc15;
-  color: #0f172a;
-  text-shadow: none !important;
+.canva-resize-handle.handle-w { left: -5px; }
+.canva-resize-handle.handle-e { right: -5px; }
+
+/* Floating Delete Button (`×`) on Selected Object */
+.canva-object-delete-btn {
+  display: none !important;
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1.5px solid #38bdf8 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  z-index: 22;
 }
-#canva-edit-title.wb-live-title {
-  font-size: 19px;
-  font-weight: 900;
-  line-height: 1.3;
-  color: #ffffff;
+.canva-object-delete-btn:hover {
+  background: #dc2626 !important;
+  border-color: #fca5a5 !important;
 }
-#canva-edit-subtitle.wb-live-sub {
-  font-size: 13.5px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: #fde047;
-}
-#canva-edit-body.wb-live-body {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.55);
-  border-left: 3px solid #38bdf8;
-  white-space: pre-wrap;
+.canva-object-node.is-selected-object:not(.is-editing-text) .canva-object-delete-btn {
+  display: inline-flex !important;
 }
 
 /* ========================================================================= */

@@ -4671,7 +4671,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
 
     @bp.route('/jobs/<job_id>/media/<name>')
     def media_file(job_id, name):
-        if name not in ('video', 'original') and not re.fullmatch(r'frame-\d+\.jpg', name) and not re.fullmatch(r'(?:attach-[A-Za-z0-9_-]+|bundle-img-[A-Za-z0-9_-]+|companion-[A-Za-z0-9_-]+|carousel-\d+)\.(?:jpg|mp4)', name):
+        if name not in ('video', 'original') and not re.fullmatch(r'frame-\d+\.jpg', name) and not re.fullmatch(r'(?:attach-[A-Za-z0-9_-]+|bundle-img-[A-Za-z0-9_-]+|companion-[A-Za-z0-9_-]+|carousel-\d+|carousel-bg-\d+|carousel-custom-[A-Za-z0-9_-]+)\.(?:jpg|mp4)', name):
             abort(404)
         job = read(job_id)
         if not (directory(job_id) / name).is_file():
@@ -6393,6 +6393,14 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         raise StudioError(f'캐러셀 슬라이드 {idx}/{count} 이미지를 추출하지 못했습니다.', 422)
                     out_name = f'carousel-{idx}.jpg'
                     out_path = directory(job_id) / out_name
+                    bg_name = f'carousel-bg-{idx}.jpg'
+                    bg_path = directory(job_id) / bg_name
+                    try:
+                        tmp_bg = bg_path.with_suffix('.jpg.tmp')
+                        shutil.copy2(raw_frame, tmp_bg)
+                        tmp_bg.replace(bg_path)
+                    except Exception:
+                        pass
                     slide_mode, s_text = _slide_erase_and_text(idx)
                     s_title, s_subtitle, s_body_text = _split_slide_3tier_fields(s_text)
                     eff_template = '' if template == 'custom' else template
@@ -6435,6 +6443,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         'index': idx,
                         'role': eff_role,
                         'file': out_name,
+                        'bg_file': bg_name,
                         'custom_image': saved_custom_img,
                         'timestamp': ts,
                         'text': s_text,
@@ -6595,6 +6604,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             from studio_text_clean import clean_and_overlay_image
             out_name = target_slide.get('file') or f'carousel-{slide_idx}.jpg'
             out_path = directory(job_id) / out_name
+            bg_name = f'carousel-bg-{slide_idx}.jpg'
+            bg_path = directory(job_id) / bg_name
             eff_template = '' if template == 'custom' else template
             total_slides = max(1, int(data.get('slide_total') or len(slides)))
             req_role = str(data.get('role') or target_slide.get('role') or '').strip().lower()
@@ -6607,6 +6618,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             else:
                 eff_badge = _default_slide_badge(slide_idx, total_slides, eff_template)
             eff_size = round(min(12.0, overlay_size * 1.12), 2) if req_role == 'cover' else overlay_size
+
+            # If client rendered exact Canva canvas layout (`rendered_card_data_url`), save it directly as the slide image!
+            rendered_card_data_url = str(data.get('rendered_card_data_url') or '').strip()
             with tempfile.TemporaryDirectory(prefix='carousel-slide-', dir=root) as temp:
                 raw_frame = Path(temp) / f'raw-{slide_idx}.jpg'
                 staged_out = Path(temp) / f'out-{slide_idx}.jpg'
@@ -6623,33 +6637,50 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 )
                 if not ok_frame:
                     raise StudioError(f'슬라이드 #{slide_idx} 배경 이미지를 준비하지 못했습니다.', 422)
-                if slide_mode != 'keep' or s_text:
+                try:
+                    tmp_bg = bg_path.with_suffix('.jpg.tmp')
+                    shutil.copy2(raw_frame, tmp_bg)
+                    tmp_bg.replace(bg_path)
+                except Exception:
+                    pass
+                if rendered_card_data_url and rendered_card_data_url.startswith('data:image/'):
                     try:
-                        clean_and_overlay_image(
-                            raw_frame,
-                            staged_out,
-                            erase_mode=slide_mode,
-                            overlay_text=s_text,
-                            overlay_position=overlay_position,
-                            overlay_size=eff_size,
-                            overlay_color=overlay_color,
-                            overlay_bg=overlay_bg,
-                            overlay_font=font_family,
-                            overlay_stroke_width=stroke_width,
-                            overlay_stroke_color=stroke_color,
-                            overlay_double_stroke_width=double_stroke_width,
-                            overlay_double_stroke_color=double_stroke_color,
-                            template=eff_template,
-                            badge_text=eff_badge,
-                            slide_index=slide_idx,
-                            slide_total=total_slides,
-                            swipe_hint=swipe_hint,
-                            slide_role=req_role,
-                        )
-                    except Exception as exc:
-                        raise StudioError(f'슬라이드 #{slide_idx} 편집 처리에 실패했습니다: {exc}', 422)
-                else:
-                    shutil.copy2(raw_frame, staged_out)
+                        _, b64_card = rendered_card_data_url.split(',', 1)
+                        card_bytes = base64.b64decode(b64_card)
+                        from io import BytesIO
+                        from PIL import Image
+                        with Image.open(BytesIO(card_bytes)) as cim:
+                            cim.convert('RGB').save(str(staged_out), format='JPEG', quality=95)
+                    except Exception:
+                        rendered_card_data_url = ''
+                if not staged_out.is_file() or staged_out.stat().st_size <= 0:
+                    if slide_mode != 'keep' or s_text:
+                        try:
+                            clean_and_overlay_image(
+                                raw_frame,
+                                staged_out,
+                                erase_mode=slide_mode,
+                                overlay_text=s_text,
+                                overlay_position=overlay_position,
+                                overlay_size=eff_size,
+                                overlay_color=overlay_color,
+                                overlay_bg=overlay_bg,
+                                overlay_font=font_family,
+                                overlay_stroke_width=stroke_width,
+                                overlay_stroke_color=stroke_color,
+                                overlay_double_stroke_width=double_stroke_width,
+                                overlay_double_stroke_color=double_stroke_color,
+                                template=eff_template,
+                                badge_text=eff_badge,
+                                slide_index=slide_idx,
+                                slide_total=total_slides,
+                                swipe_hint=swipe_hint,
+                                slide_role=req_role,
+                            )
+                        except Exception as exc:
+                            raise StudioError(f'슬라이드 #{slide_idx} 편집 처리에 실패했습니다: {exc}', 422)
+                    else:
+                        shutil.copy2(raw_frame, staged_out)
                 if not staged_out.is_file() or staged_out.stat().st_size <= 0:
                     raise StudioError(f'슬라이드 #{slide_idx} 결과 파일을 생성하지 못했습니다.', 422)
                 slide_sha = hashlib.sha256(staged_out.read_bytes()).hexdigest()
@@ -6662,6 +6693,7 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 for s in (job.get('carousel') or {}).get('slides') or []:
                     if int(s.get('index', 0)) == slide_idx:
                         s['timestamp'] = ts
+                        s['bg_file'] = bg_name
                         s['custom_image'] = custom_image_name
                         s['text'] = s_text
                         s['title'] = s_title
@@ -6676,6 +6708,10 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         s['stroke_color'] = stroke_color
                         s['double_stroke_width'] = double_stroke_width
                         s['double_stroke_color'] = double_stroke_color
+                        if isinstance(data.get('canva_objects'), list):
+                            s['canva_objects'] = data.get('canva_objects')
+                        if isinstance(data.get('bg_transform'), dict):
+                            s['bg_transform'] = data.get('bg_transform')
                         s['sha256'] = slide_sha
                 if 'carousel' in job:
                     if slide_idx == 1 and s_text:
