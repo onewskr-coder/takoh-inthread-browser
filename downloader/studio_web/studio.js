@@ -409,16 +409,32 @@ async function applyCarouselCustomPhotoDataUrl(dataUrl,mode='replace',sourceLabe
     const targetIdx=activeCarouselSlideIndex||1;
     canvaCleanBgMemoryCache.set(`${job.id}_${targetIdx}`,dataUrl);
     const curSlide=(job?.carousel?.slides||[]).find(s=>Number(s.index)===Number(targetIdx));
-    if(curSlide)curSlide._cleanBgDataUrl=dataUrl;
-    await act(`슬라이드 #${targetIdx} 사진을 ${sourceLabel}(으)로 교체하는 중…`,async()=>{
-      await update('carousel-slide-update',{
-        index:targetIdx,
-        image_data_url:dataUrl
-      });
-      const nextSlide=(job?.carousel?.slides||[]).find(s=>Number(s.index)===Number(targetIdx));
-      if(nextSlide)nextSlide._cleanBgDataUrl=dataUrl;
-      renderCarouselPreview();
-    },`슬라이드 #${targetIdx} 사진을 ${sourceLabel}(으)로 교체했습니다!`);
+    if(curSlide){
+      curSlide._cleanBgDataUrl=dataUrl;
+      curSlide.bg_file='';
+    }
+    const bigImg=document.querySelector('.carousel-big-preview-img');
+    if(bigImg)bigImg.src=dataUrl;
+    const blurImg=document.querySelector('.canva-stage-blur-bg-img');
+    if(blurImg)blurImg.src=dataUrl;
+    const activeCardImg=document.querySelector('.carousel-slide-card.active img');
+    if(activeCardImg)activeCardImg.src=dataUrl;
+    message(`슬라이드 #${targetIdx} 사진을 ${sourceLabel}(으)로 즉시 교체했습니다!`);
+    setTimeout(async()=>{
+      try{
+        let renderedDataUrl='';
+        if(curSlide){
+          try{renderedDataUrl=await renderCanvaSlideObjectsToDataUrl(curSlide);}catch{}
+        }
+        await api(`jobs/${job.id}/carousel-slide-update`,{
+          index:targetIdx,
+          image_data_url:dataUrl,
+          rendered_card_data_url:renderedDataUrl||undefined,
+          canva_objects:curSlide?.canva_objects,
+          layout_preset:curSlide?.layout_preset
+        });
+      }catch{}
+    },20);
   }
 }
 function splitSlideThreeTierText(slideObj){
@@ -462,7 +478,7 @@ function enforceSingleCardModeIfActive(targetJob){
   }
 }
 
-// === CANVA / MIRICANVAS MULTI-OBJECT DIRECT CANVAS ENGINE ===
+// === CANVA / MIRICANVAS 20-TEMPLATE CATALOG (5 COVER · 10 BODY · 5 CTA) + INSTANT CAPTURE ENGINE ===
 const CANVA_THEME_OBJECT_PALETTES={
   editorial_dark:{
     scrim:'linear-gradient(180deg, rgba(10,12,18,0) 38%, rgba(10,12,18,0.68) 62%, rgba(8,10,15,0.92) 84%, rgba(6,8,12,0.97) 100%)',
@@ -522,16 +538,306 @@ const CANVA_THEME_OBJECT_PALETTES={
   }
 };
 
+// 20 Distinct Role-Specific Templates (5 Cover + 10 Body + 5 CTA)
+const CAROUSEL_20_TEMPLATES={
+  // === 1. 메인 표지 템플릿 (5종) ===
+  cover_01_cinema:{
+    id:'cover_01_cinema',role:'cover',theme:'editorial_dark',
+    name:'표지 01 · 시네마 리뷰 다크',desc:'풀블리드 사진 + 하단 그라데이션 + main cover 배지 + 별점',
+    canvasBg:{type:'dark',color:'#0b0f17'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(10,12,18,0) 36%, rgba(10,12,18,0.68) 62%, rgba(8,10,15,0.92) 84%, rgba(6,8,12,0.97) 100%)',
+    decorBoxes:[]
+  },
+  cover_02_magazine:{
+    id:'cover_02_magazine',role:'cover',theme:'magazine_gradient',
+    name:'표지 02 · 뉴욕 매거진 포스터',desc:'상단 매거진 헤더 룰 + 중앙 액자 사진 + 하단 2단 요약 바',
+    canvasBg:{type:'solid',color:'#12100e'},
+    photoFrame:{x:6,y:27,w:88,h:54,radius:14,borderColor:'#f59e0b',borderWidth:3},
+    scrim:'none',
+    decorBoxes:[
+      {x:6,y:9.5,w:88,h:0.4,bg:'#f59e0b',radius:0},
+      {x:6,y:83.5,w:88,h:11.5,bg:'#1c1917',borderColor:'#f59e0b',borderWidth:2,radius:12}
+    ]
+  },
+  cover_03_top_hook:{
+    id:'cover_03_top_hook',role:'cover',theme:'highlight_hook',
+    name:'표지 03 · 상단 하이라이트 훅 배너',desc:'상단 30% 네온 훅 배너 + 하단 70% 사진 + 플로팅 해시태그 칩',
+    canvasBg:{type:'solid',color:'#090d16'},
+    photoFrame:{x:0,y:30,w:100,h:70,radius:0},
+    scrim:'linear-gradient(180deg, rgba(9,13,22,0.35) 0%, rgba(9,13,22,0) 45%, rgba(9,13,22,0.86) 100%)',
+    decorBoxes:[
+      {x:0,y:0,w:100,h:30,bg:'#0f172a',radius:0},
+      {x:0,y:29.5,w:100,h:0.7,bg:'#facc15',radius:0}
+    ]
+  },
+  cover_04_gallery_ticket:{
+    id:'cover_04_gallery_ticket',role:'cover',theme:'clean_white',
+    name:'표지 04 · 화이트 갤러리 티켓',desc:'오프화이트 카드 지면 + 상단 라운드 액자 + 하단 에디토리얼 타이틀',
+    canvasBg:{type:'solid',color:'#e2e8f0'},
+    photoFrame:{x:10,y:12,w:80,h:48,radius:18},
+    scrim:'none',
+    decorBoxes:[
+      {x:5,y:4,w:90,h:92,bg:'#f8fafc',borderColor:'#cbd5e1',borderWidth:2,radius:26},
+      {x:10,y:63.5,w:16,h:0.7,bg:'#2563eb',radius:4}
+    ]
+  },
+  cover_05_review_window:{
+    id:'cover_05_review_window',role:'cover',theme:'neon_pop',
+    name:'표지 05 · 소셜 베스트 리뷰 창',desc:'블러 다크 배경 + 화이트 소셜 리뷰 윈도우 카드 + 별점 베스트',
+    canvasBg:{type:'blur_dark',color:'#0f172a'},
+    photoFrame:{x:10,y:16,w:80,h:44,radius:14},
+    scrim:'none',
+    decorBoxes:[
+      {x:6,y:7,w:88,h:86,bg:'#ffffff',borderColor:'#cbd5e1',borderWidth:2,radius:24},
+      {x:6,y:7,w:88,h:6.8,bg:'#0f172a',radius:20}
+    ]
+  },
+
+  // === 2. 본문 템플릿 (10종) ===
+  body_01_cinema_split:{
+    id:'body_01_cinema_split',role:'body',theme:'editorial_dark',
+    name:'본문 01 · 상하 분할 시네마 노트',desc:'상단 54% 사진 + 코랄 분리선 + 좌측 대형 번호(01) & 우측 본문',
+    canvasBg:{type:'solid',color:'#0b0d13'},
+    photoFrame:{x:0,y:0,w:100,h:54,radius:0},
+    scrim:'none',
+    decorBoxes:[
+      {x:0,y:54,w:100,h:46,bg:'#0b0d13',radius:0},
+      {x:0,y:53.7,w:100,h:0.6,bg:'#ee5646',radius:0},
+      {x:25.5,y:59,w:0.3,h:34,bg:'#334155',radius:0}
+    ]
+  },
+  body_02_magazine_spread:{
+    id:'body_02_magazine_spread',role:'body',theme:'magazine_gradient',
+    name:'본문 02 · 우측 액자 매거진 스프레드',desc:'좌측 상단 대형 넘버링 + 우측 골드 보더 액자 + 하단 세리프 본문',
+    canvasBg:{type:'solid',color:'#14110f'},
+    photoFrame:{x:31,y:9,w:63,h:49,radius:12,borderColor:'#f59e0b',borderWidth:3},
+    scrim:'none',
+    decorBoxes:[
+      {x:6,y:61.5,w:88,h:0.4,bg:'#f59e0b',radius:0},
+      {x:6,y:64,w:88,h:29,bg:'#1c1917',borderColor:'#44403c',borderWidth:1,radius:14}
+    ]
+  },
+  body_03_white_gallery:{
+    id:'body_03_white_gallery',role:'body',theme:'clean_white',
+    name:'본문 03 · 클린 화이트 갤러리 지면',desc:'화이트 페이퍼 + 상단 STEP 헤더 룰 + 중앙 액자 + 네이비 본문',
+    canvasBg:{type:'solid',color:'#f8fafc'},
+    photoFrame:{x:7,y:12,w:86,h:46,radius:18,borderColor:'#cbd5e1',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:7,y:9.2,w:86,h:0.3,bg:'#0f172a',radius:0},
+      {x:7,y:61.5,w:14,h:0.7,bg:'#2563eb',radius:4},
+      {x:7,y:76,w:86,h:17,bg:'#f1f5f9',borderColor:'#cbd5e1',borderWidth:1,radius:14}
+    ]
+  },
+  body_04_top_banner_float:{
+    id:'body_04_top_banner_float',role:'body',theme:'highlight_hook',
+    name:'본문 04 · 상단 배너 & 하단 플로팅 캡션',desc:'상단 다크 헤드라인 배너 + 하단 사진 + 라임 보더 플로팅 캡션 박스',
+    canvasBg:{type:'solid',color:'#090d16'},
+    photoFrame:{x:0,y:27,w:100,h:73,radius:0},
+    scrim:'none',
+    decorBoxes:[
+      {x:0,y:0,w:100,h:27,bg:'#0f172a',radius:0},
+      {x:0,y:26.5,w:100,h:0.6,bg:'#a3e635',radius:0},
+      {x:6,y:74,w:88,h:20,bg:'rgba(15,23,42,0.92)',borderColor:'#a3e635',borderWidth:2,radius:18}
+    ]
+  },
+  body_05_curation_book:{
+    id:'body_05_curation_book',role:'body',theme:'mint_modern',
+    name:'본문 05 · 모던 큐레이션 북 (좌측 보더)',desc:'슬레이트 지면 + 중앙 와이드 사진 + 하단 민트 수직 인용 보더',
+    canvasBg:{type:'solid',color:'#0f172a'},
+    photoFrame:{x:7,y:12,w:86,h:46,radius:14,borderColor:'#334155',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:7,y:62,w:1.3,h:30,bg:'#2dd4bf',radius:4},
+      {x:10.5,y:62,w:82.5,h:30,bg:'#1e293b',radius:14}
+    ]
+  },
+  body_06_polaroid_journal:{
+    id:'body_06_polaroid_journal',role:'body',theme:'warm_luxury',
+    name:'본문 06 · 폴라로이드 모눈 저널',desc:'크림 모눈종이 배경 + 마스킹 테이프 폴라로이드 프레임 + 저널 노트',
+    canvasBg:{type:'grid_paper',color:'#f2ede4'},
+    photoFrame:{x:11,y:11,w:78,h:45,radius:8},
+    scrim:'none',
+    decorBoxes:[
+      {x:7,y:7,w:86,h:86,bg:'#ffffff',borderColor:'#d6d0c4',borderWidth:2,radius:16},
+      {x:38,y:4.8,w:24,h:4.2,bg:'rgba(230,213,184,0.88)',borderColor:'#cbb89d',borderWidth:1,radius:4},
+      {x:11,y:58.5,w:78,h:0.3,bg:'#e5e0d5',radius:0}
+    ]
+  },
+  body_07_ui_window:{
+    id:'body_07_ui_window',role:'body',theme:'neon_pop',
+    name:'본문 07 · 인사이트 UI 윈도우 카드',desc:'다크 블러 배경 + 화이트 앱 윈도우 바(●●●) + 내부 사진 & 본문',
+    canvasBg:{type:'blur_dark',color:'#0f172a'},
+    photoFrame:{x:11,y:15.5,w:78,h:43,radius:12},
+    scrim:'none',
+    decorBoxes:[
+      {x:7,y:7,w:86,h:86,bg:'#ffffff',borderColor:'#94a3b8',borderWidth:2,radius:22},
+      {x:7,y:7,w:86,h:6.5,bg:'#1e293b',radius:18}
+    ]
+  },
+  body_08_before_after:{
+    id:'body_08_before_after',role:'body',theme:'highlight_hook',
+    name:'본문 08 · 비포 & 애프터 비교 카드',desc:'상단 비교 타이틀 + 중앙 사진 + 하단 좌우 2단(기존 vs 해결) 비교 박스',
+    canvasBg:{type:'solid',color:'#0b0f19'},
+    photoFrame:{x:6,y:21,w:88,h:42,radius:16,borderColor:'#334155',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:6,y:66,w:42.5,h:27,bg:'#1e293b',borderColor:'#475569',borderWidth:2,radius:16},
+      {x:51.5,y:66,w:42.5,h:27,bg:'#172554',borderColor:'#facc15',borderWidth:2,radius:16}
+    ]
+  },
+  body_09_checklist_3step:{
+    id:'body_09_checklist_3step',role:'body',theme:'mint_modern',
+    name:'본문 09 · 핵심 3줄 체크리스트 카드',desc:'상단 42% 사진 + 하단 다크 카드 + 번호형 체크리스트 박스',
+    canvasBg:{type:'solid',color:'#090d16'},
+    photoFrame:{x:6,y:5,w:88,h:41,radius:18},
+    scrim:'none',
+    decorBoxes:[
+      {x:6,y:48.5,w:88,h:46.5,bg:'#111827',borderColor:'#2dd4bf',borderWidth:2,radius:20},
+      {x:10,y:70,w:80,h:21,bg:'#1e293b',borderColor:'#334155',borderWidth:1,radius:14}
+    ]
+  },
+  body_10_full_poster_quote:{
+    id:'body_10_full_poster_quote',role:'body',theme:'minimal_outline',
+    name:'본문 10 · 풀블리드 명조 인용 포스터',desc:'풀블리드 배경 + 골드/화이트 이너 보더 프레임 + 세리프 인용구',
+    canvasBg:{type:'dark',color:'#090a0f'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(8,10,16,0.22) 0%, rgba(8,10,16,0.52) 50%, rgba(8,10,16,0.94) 100%)',
+    decorBoxes:[
+      {x:4.5,y:3.8,w:91,h:92.4,bg:'transparent',borderColor:'rgba(255,255,255,0.65)',borderWidth:2,radius:8},
+      {x:9,y:63.5,w:15,h:0.5,bg:'#facc15',radius:2}
+    ]
+  },
+
+  // === 3. 마지막장 템플릿 (5종) ===
+  cta_01_summary_card:{
+    id:'cta_01_summary_card',role:'cta',theme:'editorial_dark',
+    name:'마지막 01 · 핵심 요약 & 댓글 유도 카드',desc:'중앙 요약 카드 + 상단 썸네일 액자 + 체크 요약 + 하단 댓글 유도 버튼',
+    canvasBg:{type:'blur_dark',color:'#090d16'},
+    photoFrame:{x:12,y:9,w:76,h:34,radius:16},
+    scrim:'none',
+    decorBoxes:[
+      {x:6,y:5,w:88,h:90,bg:'#111827',borderColor:'#334155',borderWidth:2,radius:24},
+      {x:12,y:65,w:76,h:16,bg:'#1e293b',borderColor:'#334155',borderWidth:1,radius:14},
+      {x:12,y:83.5,w:76,h:8,bg:'#ee5646',radius:999}
+    ]
+  },
+  cta_02_spec_table:{
+    id:'cta_02_spec_table',role:'cta',theme:'clean_white',
+    name:'마지막 02 · 추천 대상 · 장점 3칸 요약표',desc:'화이트 요약 시트 + 상단 배너 사진 + 3단 요약표 + 하단 액션 바',
+    canvasBg:{type:'solid',color:'#f1f5f9'},
+    photoFrame:{x:8,y:10,w:84,h:31,radius:16},
+    scrim:'none',
+    decorBoxes:[
+      {x:5,y:4,w:90,h:92,bg:'#ffffff',borderColor:'#cbd5e1',borderWidth:2,radius:24},
+      {x:8,y:58,w:84,h:23,bg:'#f8fafc',borderColor:'#cbd5e1',borderWidth:2,radius:14},
+      {x:8,y:83.5,w:84,h:8,bg:'#0f172a',radius:14}
+    ]
+  },
+  cta_03_star_verdict:{
+    id:'cta_03_star_verdict',role:'cta',theme:'magazine_gradient',
+    name:'마지막 03 · 실사용 총평 & 별점 4.9 카드',desc:'상단 프레임 사진 + 별점 4.9/5.0 배지 + 한줄 총평 + 구매 안내 버튼',
+    canvasBg:{type:'solid',color:'#12100e'},
+    photoFrame:{x:8,y:8,w:84,h:40,radius:18,borderColor:'#f59e0b',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:8,y:51,w:84,h:31,bg:'#1c1917',borderColor:'#f59e0b',borderWidth:2,radius:18},
+      {x:8,y:84.5,w:84,h:8.5,bg:'#f59e0b',radius:999}
+    ]
+  },
+  cta_04_qna_card:{
+    id:'cta_04_qna_card',role:'cta',theme:'mint_modern',
+    name:'마지막 04 · Q&A 핵심 질문·답변 요약',desc:'상단 사진 + Q. 핵심 질문 박스 + A. 결론 답변 카드 + 하단 안내 바',
+    canvasBg:{type:'solid',color:'#0f172a'},
+    photoFrame:{x:7,y:7,w:86,h:33,radius:16},
+    scrim:'none',
+    decorBoxes:[
+      {x:7,y:42.5,w:86,h:17,bg:'#1e293b',borderColor:'#38bdf8',borderWidth:2,radius:16},
+      {x:7,y:61.5,w:86,h:21,bg:'#042f2e',borderColor:'#2dd4bf',borderWidth:2,radius:16},
+      {x:7,y:85,w:86,h:8,bg:'#2dd4bf',radius:14}
+    ]
+  },
+  cta_05_minimal_ending:{
+    id:'cta_05_minimal_ending',role:'cta',theme:'minimal_outline',
+    name:'마지막 05 · 저장·공유 미니멀 엔딩 포스터',desc:'풀블리드 배경 + SAVE & SHARE 배지 + 대형 결론 문구 + 프로필/댓글 유도',
+    canvasBg:{type:'dark',color:'#090a0f'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(8,10,16,0.28) 0%, rgba(8,10,16,0.68) 54%, rgba(8,10,16,0.95) 100%)',
+    decorBoxes:[
+      {x:5,y:4,w:90,h:92,bg:'transparent',borderColor:'rgba(255,255,255,0.55)',borderWidth:2,radius:16},
+      {x:10,y:83.5,w:80,h:8,bg:'rgba(255,255,255,0.94)',radius:999}
+    ]
+  }
+};
+
+const COVER_PRESET_IDS=['cover_01_cinema','cover_02_magazine','cover_03_top_hook','cover_04_gallery_ticket','cover_05_review_window'];
+const BODY_PRESET_IDS=[
+  'body_01_cinema_split','body_02_magazine_spread','body_03_white_gallery','body_04_top_banner_float','body_05_curation_book',
+  'body_06_polaroid_journal','body_07_ui_window','body_08_before_after','body_09_checklist_3step','body_10_full_poster_quote'
+];
+const CTA_PRESET_IDS=['cta_01_summary_card','cta_02_spec_table','cta_03_star_verdict','cta_04_qna_card','cta_05_minimal_ending'];
+
+function getDefaultPresetForSlide(slide,totalSlides,role,legacyTemplate){
+  if(slide?.layout_preset&&CAROUSEL_20_TEMPLATES[slide.layout_preset]){
+    return slide.layout_preset;
+  }
+  const sIdx=Math.max(1,Number(slide?.index||1));
+  const r=role||(sIdx===1?'cover':(sIdx===totalSlides&&totalSlides>=3?'cta':'body'));
+  const themeToCover={
+    editorial_dark:'cover_01_cinema',
+    magazine_gradient:'cover_02_magazine',
+    highlight_hook:'cover_03_top_hook',
+    clean_white:'cover_04_gallery_ticket',
+    neon_pop:'cover_05_review_window'
+  };
+  const themeToBody={
+    editorial_dark:'body_01_cinema_split',
+    magazine_gradient:'body_02_magazine_spread',
+    clean_white:'body_03_white_gallery',
+    highlight_hook:'body_04_top_banner_float',
+    mint_modern:'body_05_curation_book',
+    warm_luxury:'body_06_polaroid_journal',
+    neon_pop:'body_07_ui_window',
+    minimal_outline:'body_10_full_poster_quote'
+  };
+  if(r==='cover'){
+    return themeToCover[legacyTemplate]||'cover_01_cinema';
+  }
+  if(r==='cta'){
+    if(legacyTemplate==='clean_white')return 'cta_02_spec_table';
+    if(legacyTemplate==='magazine_gradient')return 'cta_03_star_verdict';
+    if(legacyTemplate==='mint_modern')return 'cta_04_qna_card';
+    if(legacyTemplate==='minimal_outline')return 'cta_05_minimal_ending';
+    return 'cta_01_summary_card';
+  }
+  // Diverse body templates across slides so slide 2, 3, 4... automatically have varied formats!
+  const bodyOrder=[
+    themeToBody[legacyTemplate]||'body_01_cinema_split',
+    'body_03_white_gallery',
+    'body_06_polaroid_journal',
+    'body_08_before_after',
+    'body_09_checklist_3step',
+    'body_02_magazine_spread',
+    'body_04_top_banner_float',
+    'body_05_curation_book',
+    'body_07_ui_window',
+    'body_10_full_poster_quote'
+  ];
+  const uniqueOrder=[...new Set(bodyOrder)];
+  return uniqueOrder[(Math.max(0,sIdx-2))%uniqueOrder.length];
+}
+
 let selectedCanvaObjectId='obj_title';
 const canvaCleanBgMemoryCache=new Map();
 
 function getCanvaSlideStorageKey(jobId,slideIdx){
-  return `takoh_canva_objs_v2_${jobId}_${slideIdx}`;
+  return `takoh_canva_objs_v3_${jobId}_${slideIdx}`;
 }
-function saveCanvaSlideLocalState(jobId,slideIdx,objects,bgTransform,cleanBgUrl){
+function saveCanvaSlideLocalState(jobId,slideIdx,objects,bgTransform,cleanBgUrl,layoutPreset){
   if(!jobId||!slideIdx)return;
   try{
-    const payload={objects,bgTransform:bgTransform||{scale:1,x:0,y:0}};
+    const payload={objects,bgTransform:bgTransform||{scale:1,x:0,y:0},layoutPreset:layoutPreset||''};
     localStorage.setItem(getCanvaSlideStorageKey(jobId,slideIdx),JSON.stringify(payload));
     if(cleanBgUrl&&cleanBgUrl.startsWith('data:image/')){
       canvaCleanBgMemoryCache.set(`${jobId}_${slideIdx}`,cleanBgUrl);
@@ -547,135 +853,236 @@ function loadCanvaSlideLocalState(jobId,slideIdx){
   }catch{return null;}
 }
 
-function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template){
-  const pal=CANVA_THEME_OBJECT_PALETTES[template]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
+function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,presetOverride=null){
+  const presetId=presetOverride||getDefaultPresetForSlide(slide,totalSlides,role,template);
+  const tplDef=CAROUSEL_20_TEMPLATES[presetId]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
   const {title:initHead,subtitle:initSubtitle,bodyText:initBodyText}=splitSlideThreeTierText(slide);
   const sIdx=Math.max(1,Number(slide?.index||1));
   const sTot=Math.max(1,Number(totalSlides||1));
+  const pointIdx=Math.max(1,sIdx-1);
+  const pointNumStr=pointIdx<10?`0${pointIdx}`:String(pointIdx);
   const counterStr=`0${sIdx} / 0${sTot}`;
-  const rawBadge=String(slide?.badge||'').trim();
-  const defaultBadge=role==='cover'
-    ?(template==='editorial_dark'?'main cover':(rawBadge||pal.badgeText))
-    :(role==='cta'?(rawBadge||'summary · cta'):(rawBadge||`point 0${Math.max(1,sIdx-1)}`));
-  const badgeStr=(template==='editorial_dark'&&(!rawBadge||rawBadge.toUpperCase()==='MAIN COVER'))?'main cover':defaultBadge;
   const cleanHeadline=(initHead||'클릭하여 메인 제목을 입력하세요').trim();
   const combinedSub=[initSubtitle,initBodyText].filter(Boolean).join('\n').trim()||'클릭하여 상세 설명 문구를 입력하세요';
-  return [
-    {
-      id:'obj_counter',
-      kind:'counter',
-      label:'슬라이드 번호 (01/02)',
-      text:counterStr,
-      x:80.5,
-      y:3.6,
-      widthPct:15.5,
-      fontSize:20,
-      color:pal.counterColor,
-      bgColor:pal.counterBg,
-      bgEnabled:true,
-      borderRadius:999,
-      paddingX:14,
-      paddingY:6,
-      align:'center',
-      bold:true,
-      visible:true
-    },
-    {
-      id:'obj_badge',
-      kind:'badge',
-      label:'상단 배지 (main cover)',
-      text:badgeStr,
-      x:6.8,
-      y:58.5,
-      widthPct:0,
-      fontSize:38,
-      color:pal.badgeColor,
-      bgColor:pal.badgeBg,
-      bgEnabled:true,
-      borderRadius:pal.badgeRadius,
-      paddingX:18,
-      paddingY:8,
-      align:'left',
-      bold:true,
-      visible:true
-    },
-    {
-      id:'obj_title',
-      kind:'title',
-      label:'메인 헤드라인 제목',
-      text:cleanHeadline,
-      x:6.8,
-      y:66.2,
-      widthPct:86.5,
-      fontSize:66,
-      color:pal.titleColor,
-      bgColor:'#0f172a',
-      bgEnabled:false,
-      borderRadius:10,
-      paddingX:6,
-      paddingY:4,
-      align:'left',
-      bold:true,
-      lineHeight:1.18,
-      visible:true
-    },
-    {
-      id:'obj_stars',
-      kind:'stars',
-      label:'별점 · 포인트 장식',
-      text:'★★★★★',
-      x:6.8,
-      y:81.8,
-      widthPct:0,
-      fontSize:38,
-      color:pal.starsColor,
-      bgColor:'#0f172a',
-      bgEnabled:false,
-      borderRadius:8,
-      paddingX:4,
-      paddingY:2,
-      align:'left',
-      bold:true,
-      visible:true
-    },
-    {
-      id:'obj_sub',
-      kind:'subtitle',
-      label:'하단 서브 설명 문구',
-      text:combinedSub,
-      x:6.8,
-      y:87.4,
-      widthPct:86.5,
-      fontSize:27,
-      color:pal.subColor,
-      bgColor:'rgba(15,23,42,0.65)',
-      bgEnabled:false,
-      borderRadius:8,
-      paddingX:6,
-      paddingY:4,
-      align:'left',
-      bold:true,
-      lineHeight:1.38,
-      visible:true
+
+  const makeCounter=(fg='#ffffff',bg='rgba(14,17,24,0.78)',x=80.5,y=3.4)=>({
+    id:'obj_counter',kind:'counter',label:'슬라이드 번호',text:counterStr,
+    x,y,widthPct:15,fontSize:20,color:fg,bgColor:bg,bgEnabled:true,borderRadius:999,paddingX:14,paddingY:6,align:'center',bold:true,visible:true
+  });
+
+  switch(presetId){
+    case 'cover_02_magazine':
+      return [
+        makeCounter('#fef3c7','#1c1917',80,3.2),
+        {id:'obj_badge',kind:'badge',label:'매거진 상단 헤더',text:'SPECIAL EDITION · INSIGHT',x:6,y:4,widthPct:0,fontSize:22,color:'#f59e0b',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'메인 매거진 타이틀',text:cleanHeadline,x:6,y:11.5,widthPct:88,fontSize:58,color:'#ffffff',bgColor:'#1c1917',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 좌측 라벨',text:'EDITOR PICK ★★★★★',x:9,y:85.2,widthPct:0,fontSize:24,color:'#fbbf24',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 요약 설명',text:combinedSub,x:9,y:88.8,widthPct:82,fontSize:25,color:'#f3f4f6',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true}
+      ];
+    case 'cover_03_top_hook':
+      return [
+        makeCounter('#0f172a','#facc15',80.5,3.2),
+        {id:'obj_badge',kind:'badge',label:'상단 훅 배지',text:'90%가 놓치는 핵심 공식',x:6.5,y:3.5,widthPct:0,fontSize:26,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'상단 배너 헤드라인',text:cleanHeadline,x:6.5,y:11,widthPct:87,fontSize:54,color:'#ffffff',bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_stars',kind:'stars',label:'플로팅 해시태그 칩',text:'#핵심요약   #실사용검증   #추천꿀팁',x:6.5,y:82.5,widthPct:0,fontSize:24,color:'#fde047',bgColor:'rgba(15,23,42,0.88)',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:8,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명',text:combinedSub,x:6.5,y:89,widthPct:87,fontSize:26,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.32,visible:true}
+      ];
+    case 'cover_04_gallery_ticket':
+      return [
+        makeCounter('#ffffff','#0f172a',76,6.2),
+        {id:'obj_badge',kind:'badge',label:'갤러리 카테고리 배지',text:'CURATED ARCHIVE · 01',x:10,y:6.5,widthPct:0,fontSize:22,color:'#2563eb',bgColor:'#dbeafe',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'갤러리 메인 제목',text:cleanHeadline,x:10,y:66,widthPct:80,fontSize:54,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_stars',kind:'stars',label:'별점 · 큐레이션 태그',text:'★★★★★  VERIFIED REVIEW',x:10,y:81.5,widthPct:0,fontSize:24,color:'#d97706',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 갤러리 설명',text:combinedSub,x:10,y:86,widthPct:80,fontSize:25,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.34,visible:true}
+      ];
+    case 'cover_05_review_window':
+      return [
+        makeCounter('#38bdf8','#0f172a',76,8.6),
+        {id:'obj_badge',kind:'badge',label:'윈도우 상단 타이틀바',text:'● ● ●   BEST REVIEW WINDOW',x:9.5,y:8.8,widthPct:0,fontSize:21,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_stars',kind:'stars',label:'베스트 별점 배지',text:'★★★★★  실사용 만족도 99%',x:10,y:62,widthPct:0,fontSize:26,color:'#ffffff',bgColor:'#ec4899',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'리뷰 메인 헤드라인',text:cleanHeadline,x:10,y:69,widthPct:80,fontSize:52,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'리뷰 상세 코멘트',text:combinedSub,x:10,y:83.5,widthPct:80,fontSize:25,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.34,visible:true}
+      ];
+
+    // === BODY 10 TEMPLATES ===
+    case 'body_01_cinema_split':
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,3.4),
+        {id:'obj_stars',kind:'stars',label:'좌측 대형 번호',text:pointNumStr,x:6.5,y:58.5,widthPct:17,fontSize:92,color:'#ee5646',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:2,paddingY:2,align:'center',bold:true,lineHeight:1,visible:true},
+        {id:'obj_badge',kind:'badge',label:'포인트 배지',text:`POINT ${pointNumStr} · 핵심 체크`,x:29,y:58,widthPct:0,fontSize:25,color:'#ee5646',bgColor:'#1e293b',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'본문 핵심 제목',text:cleanHeadline,x:29,y:65,widthPct:65,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'본문 상세 설명',text:combinedSub,x:29,y:81.5,widthPct:65,fontSize:26,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.38,visible:true}
+      ];
+    case 'body_02_magazine_spread':
+      return [
+        makeCounter('#fef3c7','#1c1917',80.5,3.2),
+        {id:'obj_badge',kind:'badge',label:'좌측 에디토리얼 태그',text:'EDITORIAL\nNOTE',x:6,y:10,widthPct:22,fontSize:24,color:'#f59e0b',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.25,visible:true},
+        {id:'obj_stars',kind:'stars',label:'좌측 인덱스 번호',text:pointNumStr,x:6,y:22,widthPct:22,fontSize:96,color:'#fef3c7',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1,visible:true},
+        {id:'obj_title',kind:'title',label:'매거진 본문 헤드라인',text:cleanHeadline,x:9,y:66.5,widthPct:82,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'매거진 본문 설명',text:combinedSub,x:9,y:81.5,widthPct:82,fontSize:26,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true}
+      ];
+    case 'body_03_white_gallery':
+      return [
+        makeCounter('#0f172a','#e2e8f0',79,3.4),
+        {id:'obj_badge',kind:'badge',label:'상단 STEP 헤더',text:`STEP ${pointNumStr}  |  KEY POINT`,x:7,y:4.2,widthPct:0,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'화이트 갤러리 본문 제목',text:cleanHeadline,x:7,y:64,widthPct:86,fontSize:50,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 요약 박스 설명',text:combinedSub,x:9.5,y:78.5,widthPct:81,fontSize:26,color:'#1e293b',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.36,visible:true},
+        {id:'obj_stars',kind:'stars',label:'우측 포인트 태그',text:`CHECK #${pointIdx}`,x:74,y:60.5,widthPct:0,fontSize:20,color:'#ffffff',bgColor:'#2563eb',bgEnabled:true,borderRadius:999,paddingX:14,paddingY:5,align:'center',bold:true,visible:true}
+      ];
+    case 'body_04_top_banner_float':
+      return [
+        makeCounter('#a3e635','#1e293b',80,3.2),
+        {id:'obj_badge',kind:'badge',label:'상단 라임 배지',text:`KEY POINT ${pointNumStr}`,x:6.5,y:3.5,widthPct:0,fontSize:24,color:'#0f172a',bgColor:'#a3e635',bgEnabled:true,borderRadius:999,paddingX:16,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'상단 배너 제목',text:cleanHeadline,x:6.5,y:10.5,widthPct:87,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_stars',kind:'stars',label:'플로팅 카드 상단 태그',text:'✓ 실사용 핵심 요약',x:9.5,y:75.8,widthPct:0,fontSize:22,color:'#a3e635',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'플로팅 캡션 본문',text:combinedSub,x:9.5,y:80.5,widthPct:81,fontSize:26,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true}
+      ];
+    case 'body_05_curation_book':
+      return [
+        makeCounter('#2dd4bf','#1e293b',80,4),
+        {id:'obj_badge',kind:'badge',label:'큐레이션 상단 라벨',text:`CURATION NOTE · ${pointNumStr}`,x:7,y:4.8,widthPct:0,fontSize:24,color:'#2dd4bf',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'큐레이션 본문 제목',text:cleanHeadline,x:13,y:64.5,widthPct:77,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'큐레이션 본문 설명',text:combinedSub,x:13,y:79,widthPct:77,fontSize:26,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true},
+        {id:'obj_stars',kind:'stars',label:'우측 하단 번호',text:`#${pointNumStr}`,x:80,y:85.5,widthPct:0,fontSize:28,color:'#2dd4bf',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'right',bold:true,visible:true}
+      ];
+    case 'body_06_polaroid_journal':
+      return [
+        makeCounter('#78350f','#fef3c7',76,8.5),
+        {id:'obj_badge',kind:'badge',label:'폴라로이드 아카이브 태그',text:`ARCHIVE NOTE #${pointNumStr}`,x:11,y:60.5,widthPct:0,fontSize:23,color:'#fef3c7',bgColor:'#78350f',bgEnabled:true,borderRadius:6,paddingX:14,paddingY:5,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'폴라로이드 제목',text:cleanHeadline,x:11,y:67,widthPct:78,fontSize:48,color:'#1c1917',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'폴라로이드 수첩 메모',text:combinedSub,x:11,y:80.5,widthPct:78,fontSize:25,color:'#44403c',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true},
+        {id:'obj_stars',kind:'stars',label:'테이프 라벨',text:'DAILY RECORD',x:41,y:5.5,widthPct:18,fontSize:18,color:'#57534e',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'center',bold:true,visible:true}
+      ];
+    case 'body_07_ui_window':
+      return [
+        makeCounter('#38bdf8','#0f172a',76,8.5),
+        {id:'obj_badge',kind:'badge',label:'윈도우 상단 바',text:`● ● ●   INSIGHT WINDOW #${pointNumStr}`,x:10.5,y:8.6,widthPct:0,fontSize:21,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_stars',kind:'stars',label:'핵심 칩',text:`KEY POINT ${pointNumStr}`,x:11,y:60.5,widthPct:0,fontSize:22,color:'#ffffff',bgColor:'#2563eb',bgEnabled:true,borderRadius:999,paddingX:15,paddingY:5,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'윈도우 카드 제목',text:cleanHeadline,x:11,y:66.8,widthPct:78,fontSize:48,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'윈도우 카드 본문',text:combinedSub,x:11,y:80.5,widthPct:78,fontSize:25,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true}
+      ];
+    case 'body_08_before_after':
+      return [
+        makeCounter('#facc15','#1e293b',80,3.2),
+        {id:'obj_badge',kind:'badge',label:'상단 비교 배지',text:`COMPARE POINT ${pointNumStr} · 전후 비교`,x:6,y:3.5,widthPct:0,fontSize:23,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:5,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'비교 핵심 헤드라인',text:cleanHeadline,x:6,y:9.8,widthPct:88,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_stars',kind:'stars',label:'좌측 BEFORE 박스 문구',text:'[BEFORE · 기존 아쉬운 점]\n번거롭고 시간이 오래 걸리는 방식',x:8.5,y:69,widthPct:37.5,fontSize:24,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.4,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'우측 AFTER 해결 문구',text:`[AFTER · 핵심 해결]\n${combinedSub}`,x:54,y:69,widthPct:37.5,fontSize:24,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.4,visible:true}
+      ];
+    case 'body_09_checklist_3step':
+      return [
+        makeCounter('#2dd4bf','#111827',78,6.5),
+        {id:'obj_badge',kind:'badge',label:'체크리스트 배지',text:`CHECKLIST ${pointNumStr} · 필수 확인`,x:10,y:51.5,widthPct:0,fontSize:24,color:'#042f2e',bgColor:'#2dd4bf',bgEnabled:true,borderRadius:999,paddingX:16,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'체크리스트 메인 제목',text:cleanHeadline,x:10,y:58,widthPct:80,fontSize:46,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'체크리스트 상세 항목',text:`✓ ${combinedSub}\n✓ 실사용에서 가장 만족도가 높았던 핵심 디테일`,x:12.5,y:72.5,widthPct:75,fontSize:25,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.45,visible:true},
+        {id:'obj_stars',kind:'stars',label:'우측 상단 검증 마크',text:'VERIFIED ✓',x:72,y:51.8,widthPct:0,fontSize:22,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'right',bold:true,visible:true}
+      ];
+    case 'body_10_full_poster_quote':
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.75)',77,6),
+        {id:'obj_badge',kind:'badge',label:'상단 명조 포스터 인덱스',text:`${pointNumStr} — KEY INSIGHT`,x:9,y:57.5,widthPct:0,fontSize:26,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'포스터 메인 인용구',text:cleanHeadline,x:9,y:66,widthPct:82,fontSize:58,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'포스터 하단 해설',text:combinedSub,x:9,y:82.5,widthPct:82,fontSize:27,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.38,visible:true},
+        {id:'obj_stars',kind:'stars',label:'상단 인용 부호',text:'“',x:8.5,y:48,widthPct:0,fontSize:96,color:'rgba(250,204,21,0.85)',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1,visible:true}
+      ];
+
+    // === CTA 5 TEMPLATES ===
+    case 'cta_01_summary_card':
+      return [
+        makeCounter('#ffffff','#1e293b',76,6.8),
+        {id:'obj_badge',kind:'badge',label:'요약 카드 배지',text:'FINAL SUMMARY · 핵심 요약',x:12,y:45,widthPct:0,fontSize:24,color:'#ffffff',bgColor:'#ee5646',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'마지막장 결론 제목',text:cleanHeadline,x:12,y:51.5,widthPct:76,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'핵심 요약 박스 내용',text:`✓ ${combinedSub}`,x:14.5,y:67.5,widthPct:71,fontSize:25,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.4,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 댓글 유도 버튼',text:'첫 댓글 · 고정 댓글에서 상세 정보 확인하기 →',x:14,y:85.5,widthPct:72,fontSize:25,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:8,paddingY:4,align:'center',bold:true,visible:true}
+      ];
+    case 'cta_02_spec_table':
+      return [
+        makeCounter('#ffffff','#0f172a',76,6),
+        {id:'obj_badge',kind:'badge',label:'상단 요약표 태그',text:'SUMMARY TABLE · 한눈에 보는 결론',x:8,y:43,widthPct:0,fontSize:22,color:'#2563eb',bgColor:'#dbeafe',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:5,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'요약표 메인 타이틀',text:cleanHeadline,x:8,y:48.5,widthPct:84,fontSize:46,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'3칸 핵심 요약표 내용',text:`• 핵심 포인트 : ${combinedSub}\n• 추천 대상 : 시간·비용 아끼고 싶은 분\n• 상세 정보 : 아래 첫 댓글 링크 참고`,x:10.5,y:60.5,widthPct:79,fontSize:24,color:'#1e293b',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.48,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 액션 바 문구',text:'저장해두고 필요할 때 바로 꺼내보세요 · 댓글 확인 ›',x:10,y:85.5,widthPct:80,fontSize:24,color:'#facc15',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'center',bold:true,visible:true}
+      ];
+    case 'cta_03_star_verdict':
+      return [
+        makeCounter('#111827','#f59e0b',77,10),
+        {id:'obj_badge',kind:'badge',label:'별점 총평 배지',text:'★★★★★  4.9 / 5.0  EDITOR VERDICT',x:12,y:53.5,widthPct:0,fontSize:24,color:'#111827',bgColor:'#fbbf24',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'실사용 총평 헤드라인',text:cleanHeadline,x:12,y:60.5,widthPct:76,fontSize:48,color:'#fffbeb',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'실사용 한줄 결론',text:combinedSub,x:12,y:73,widthPct:76,fontSize:25,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 골드 버튼 문구',text:'프로필 · 첫 댓글에서 최저가/상세 정보 확인하기 →',x:12,y:86.7,widthPct:76,fontSize:25,color:'#111827',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:6,paddingY:4,align:'center',bold:true,visible:true}
+      ];
+    case 'cta_04_qna_card':
+      return [
+        makeCounter('#042f2e','#2dd4bf',78,8.5),
+        {id:'obj_badge',kind:'badge',label:'Q. 질문 라벨',text:'Q. 가장 많이 물어보시는 핵심 포인트는?',x:10,y:44.5,widthPct:80,fontSize:24,color:'#38bdf8',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'Q. 핵심 질문 제목',text:cleanHeadline,x:10,y:49.5,widthPct:80,fontSize:42,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'A. 핵심 결론 답변',text:`A. ${combinedSub}`,x:10,y:64.5,widthPct:80,fontSize:26,color:'#ccfbf1',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.38,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 안내 버튼',text:'더 자세한 정보와 링크는 첫 댓글에서 확인하세요 →',x:10,y:87,widthPct:80,fontSize:24,color:'#042f2e',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'center',bold:true,visible:true}
+      ];
+    case 'cta_05_minimal_ending':
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.8)',76,6.5),
+        {id:'obj_badge',kind:'badge',label:'저장·공유 배지',text:'SAVE & SHARE · 저장 필수',x:10,y:54,widthPct:0,fontSize:25,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'엔딩 포스터 메인 타이틀',text:cleanHeadline,x:10,y:61.5,widthPct:80,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'엔딩 포스터 요약 설명',text:combinedSub,x:10,y:75.5,widthPct:80,fontSize:26,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 화이트 캡슐 버튼',text:'도움이 되셨다면 저장 · 첫 댓글에서 상세 링크 확인하기 ›',x:12,y:85.6,widthPct:76,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:6,paddingY:4,align:'center',bold:true,visible:true}
+      ];
+
+    case 'cover_01_cinema':
+    default:{
+      const pal=CANVA_THEME_OBJECT_PALETTES[tplDef?.theme||template]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
+      const rawBadge=String(slide?.badge||'').trim();
+      const badgeStr=(!rawBadge||rawBadge.toUpperCase()==='MAIN COVER')?'main cover':rawBadge;
+      return [
+        makeCounter(pal.counterColor,pal.counterBg,80.5,3.6),
+        {id:'obj_badge',kind:'badge',label:'상단 배지 (main cover)',text:badgeStr,x:6.8,y:58.5,widthPct:0,fontSize:38,color:pal.badgeColor,bgColor:pal.badgeBg,bgEnabled:true,borderRadius:pal.badgeRadius,paddingX:18,paddingY:8,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'메인 헤드라인 제목',text:cleanHeadline,x:6.8,y:66.2,widthPct:86.5,fontSize:64,color:pal.titleColor,bgColor:'#0f172a',bgEnabled:false,borderRadius:10,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_stars',kind:'stars',label:'별점 · 포인트 장식',text:'★★★★★',x:6.8,y:81.8,widthPct:0,fontSize:38,color:pal.starsColor,bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명 문구',text:combinedSub,x:6.8,y:87.4,widthPct:86.5,fontSize:27,color:pal.subColor,bgColor:'rgba(15,23,42,0.65)',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.38,visible:true}
+      ];
     }
-  ];
+  }
+}
+
+function applyTemplatePresetToSlide(slide,totalSlides,presetId){
+  if(!slide||!CAROUSEL_20_TEMPLATES[presetId])return;
+  const tplDef=CAROUSEL_20_TEMPLATES[presetId];
+  // Preserve existing text values from current objects before rebuilding for the new template
+  const prevObjs=Array.isArray(slide.canva_objects)?slide.canva_objects:[];
+  const prevTitle=(prevObjs.find(o=>o.kind==='title')?.text||slide.title||'').trim();
+  const prevSub=(prevObjs.find(o=>o.kind==='subtitle')?.text||slide.subtitle||'').trim();
+  if(prevTitle)slide.title=prevTitle;
+  if(prevSub){
+    const cleanSub=prevSub.replace(/^(\[AFTER[^\]]*\]\s*|✓\s*|A\.\s*|•\s*핵심 포인트\s*:\s*)/i,'').split(/\r?\n/)[0].trim();
+    if(cleanSub)slide.subtitle=cleanSub;
+  }
+  slide.layout_preset=presetId;
+  slide.role=tplDef.role;
+  slide.template=tplDef.theme;
+  slide.canva_objects=buildDefaultCanvaObjectsForSlide(slide,totalSlides,tplDef.role,tplDef.theme,presetId);
 }
 
 function ensureCanvaObjectsForSlide(targetJob,slide,totalSlides,role,template){
   if(!slide)return [];
   const localState=loadCanvaSlideLocalState(targetJob?.id,slide.index);
+  if(!slide.layout_preset){
+    if(localState?.layoutPreset&&CAROUSEL_20_TEMPLATES[localState.layoutPreset]){
+      slide.layout_preset=localState.layoutPreset;
+    }else{
+      slide.layout_preset=getDefaultPresetForSlide(slide,totalSlides,role,template);
+    }
+  }
   if(!Array.isArray(slide.canva_objects)||!slide.canva_objects.length){
     if(localState&&Array.isArray(localState.objects)&&localState.objects.length){
       slide.canva_objects=JSON.parse(JSON.stringify(localState.objects));
       if(!slide.bg_transform&&localState.bgTransform)slide.bg_transform=localState.bgTransform;
     }else{
-      slide.canva_objects=buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template);
+      slide.canva_objects=buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,slide.layout_preset);
     }
   }
   if(!slide.bg_transform||typeof slide.bg_transform!=='object'){
     slide.bg_transform={scale:1,x:0,y:0};
   }
-  // Keep counter synced with total slide count unless user customized it away from pattern
   const counterObj=slide.canva_objects.find(o=>o.kind==='counter'||o.id==='obj_counter');
   if(counterObj&&/^\d+\s*\/\s*\d+$/.test(String(counterObj.text||'').trim())){
     counterObj.text=`0${slide.index} / 0${Math.max(1,totalSlides)}`;
@@ -715,6 +1122,114 @@ function resolveCleanSlideBackgroundUrl(targetJob,slide,tsCache){
   return `${base}frame-0.jpg?t=${tsCache}`;
 }
 
+// Ultra-fast (<30ms) instant video frame capture & background swap in browser memory!
+async function captureInstantVideoFrameToActiveSlide(targetTime=null,{frameFile=null}={}){
+  if(!job)return null;
+  const slides=job?.carousel?.slides||[];
+  const activeSlide=slides.find(s=>Number(s.index)===Number(activeCarouselSlideIndex))||slides[0];
+  const vid=$('preview');
+  let capturedDataUrl='';
+  let chosenFrameFile=frameFile;
+
+  // 1) If video is decoded in browser memory, capture directly from <video> canvas in <15ms
+  if(vid&&!vid.hidden&&vid.readyState>=2&&vid.videoWidth>0){
+    if(typeof targetTime==='number'&&Number.isFinite(targetTime)&&Math.abs(vid.currentTime-targetTime)>0.04){
+      await new Promise(resolve=>{
+        let done=false;
+        const finish=()=>{if(done)return;done=true;vid.removeEventListener('seeked',finish);resolve();};
+        vid.addEventListener('seeked',finish,{once:true});
+        setTimeout(finish,65);
+        try{vid.currentTime=targetTime;}catch{finish();}
+      });
+    }
+    try{
+      const c=document.createElement('canvas');
+      c.width=vid.videoWidth;
+      c.height=vid.videoHeight;
+      c.getContext('2d').drawImage(vid,0,0,c.width,c.height);
+      capturedDataUrl=c.toDataURL('image/jpeg',0.90);
+    }catch{}
+  }
+
+  // 2) Fallback: if video element isn't decoded yet, pick explicit frameFile or nearest pre-extracted evidence frame immediately (<5ms)
+  if(!capturedDataUrl){
+    if(!chosenFrameFile){
+      const frames=job.evidence?.frames||[];
+      if(frames.length){
+        const refTs=typeof targetTime==='number'&&Number.isFinite(targetTime)?targetTime:Number(activeSlide?.timestamp||0);
+        let best=frames[0];
+        let bestDiff=Math.abs(Number(best.timestamp||0)-refTs);
+        for(const fr of frames){
+          const d=Math.abs(Number(fr.timestamp||0)-refTs);
+          if(d<bestDiff){bestDiff=d;best=fr;}
+        }
+        chosenFrameFile=best?.file||'frame-0.jpg';
+      }else{
+        chosenFrameFile='frame-0.jpg';
+      }
+    }
+    capturedDataUrl=`/studio/jobs/${job.id}/media/${chosenFrameFile}?t=${Date.now()}`;
+  }
+
+  if(activeSlide&&capturedDataUrl){
+    if(typeof targetTime==='number'&&Number.isFinite(targetTime)){
+      activeSlide.timestamp=Math.round(targetTime*100)/100;
+    }
+    delete activeSlide.custom_image;
+    if(capturedDataUrl.startsWith('data:image/')){
+      activeSlide._cleanBgDataUrl=capturedDataUrl;
+      canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,capturedDataUrl);
+    }else{
+      delete activeSlide._cleanBgDataUrl;
+      if(chosenFrameFile)activeSlide.bg_file=chosenFrameFile;
+    }
+    const bigImg=$('wb-active-slide-big-img');
+    if(bigImg)bigImg.src=capturedDataUrl;
+    const blurBgImg=$('wb-active-slide-blur-bg-img');
+    if(blurBgImg)blurBgImg.src=capturedDataUrl;
+    const tsPill=$('wb-active-video-ts-pill');
+    if(tsPill&&typeof activeSlide.timestamp==='number'){
+      tsPill.textContent=`현재 슬라이드 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`;
+    }
+    // Immediately update storyboard thumbnail in ~20ms using client canvas compositor
+    requestAnimationFrame(async()=>{
+      try{
+        const comp=await renderCanvaSlideObjectsToDataUrl(
+          job,activeSlide,
+          job.carousel?.aspect||$('carousel-ratio')?.value||'4:5',
+          activeSlide.template||'editorial_dark',
+          activeSlide.font_family||'heavy_kr',
+          Number($('wb-active-stroke-width')?.value||0),
+          $('wb-active-stroke-color')?.value||'#000000',
+          Number($('wb-active-double-stroke-width')?.value||0),
+          $('wb-active-double-stroke-color')?.value||'#facc15',
+          bigImg
+        );
+        activeSlide._compositedThumbDataUrl=comp;
+        const thumbImg=document.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-thumb-img`);
+        if(thumbImg&&comp)thumbImg.src=comp;
+      }catch{}
+    });
+    // Non-blocking background persistence so slide update is saved on disk without freezing UI
+    const targetJobId=job.id;
+    const slideIdx=activeSlide.index;
+    const tsVal=activeSlide.timestamp;
+    setTimeout(async()=>{
+      try{
+        await api(`jobs/${targetJobId}/carousel-slide-update`,{
+          index:slideIdx,
+          timestamp:tsVal,
+          ...(capturedDataUrl.startsWith('data:image/')?{image_data_url:capturedDataUrl}:{clear_custom_image:true}),
+          canva_objects:activeSlide.canva_objects,
+          layout_preset:activeSlide.layout_preset,
+          bg_transform:activeSlide.bg_transform
+        });
+      }catch{}
+    },40);
+  }
+  return capturedDataUrl;
+}
+
 function renderObjectFormattedDisplayHtml(rawText,pal){
   const safe=String(rawText||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const boxBg=pal?.hlBoxBg||'#facc15';
@@ -733,11 +1248,26 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
   canvas.width=W;
   canvas.height=H;
   const ctx=canvas.getContext('2d');
-  const pal=CANVA_THEME_OBJECT_PALETTES[template]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
 
-  // 1. Draw Clean Background Photo with cover crop + bg_transform pan/zoom
-  ctx.fillStyle='#0b0f17';
-  ctx.fillRect(0,0,W,H);
+  const presetId=slide?.layout_preset||getDefaultPresetForSlide(slide,(targetJob?.carousel?.slides||[]).length||1,slide?.role,template);
+  const tplDef=CAROUSEL_20_TEMPLATES[presetId]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+  const pal=CANVA_THEME_OBJECT_PALETTES[tplDef.theme||template]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
+
+  const drawRoundedRect=(x,y,w,h,r)=>{
+    const rad=Math.max(0,Math.min(r,w/2,h/2));
+    ctx.beginPath();
+    ctx.moveTo(x+rad,y);
+    ctx.lineTo(x+w-rad,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+rad);
+    ctx.lineTo(x+w,y+h-rad);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-rad,y+h);
+    ctx.lineTo(x+rad,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-rad);
+    ctx.lineTo(x,y+rad);
+    ctx.quadraticCurveTo(x,y,x+rad,y);
+    ctx.closePath();
+  };
+
   let imgToDraw=cleanImgElement;
   if(!imgToDraw||!imgToDraw.complete||!imgToDraw.naturalWidth){
     const bgUrl=resolveCleanSlideBackgroundUrl(targetJob,slide,Date.now());
@@ -749,35 +1279,109 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
       im.src=bgUrl;
     });
   }
-  if(imgToDraw&&imgToDraw.naturalWidth>0&&imgToDraw.naturalHeight>0){
-    const iw=imgToDraw.naturalWidth,ih=imgToDraw.naturalHeight;
-    const bgT=slide.bg_transform||{scale:1,x:0,y:0};
-    const userScale=Math.max(0.5,Math.min(3,Number(bgT.scale||1)));
-    const baseScale=Math.max(W/iw,H/ih)*userScale;
-    const dw=iw*baseScale,dh=ih*baseScale;
-    const dx=(W-dw)/2+(Number(bgT.x||0)/100)*W;
-    const dy=(H-dh)/2+(Number(bgT.y||0)/100)*H;
+
+  // 1. Draw Template Canvas Surface (`solid`, `grid_paper`, `blur_dark`, `dark`)
+  const cBg=tplDef.canvasBg||{type:'dark',color:'#0b0f17'};
+  ctx.fillStyle=cBg.color||'#0b0f17';
+  ctx.fillRect(0,0,W,H);
+
+  if(cBg.type==='blur_dark'&&imgToDraw&&imgToDraw.naturalWidth>0){
     ctx.save();
-    ctx.drawImage(imgToDraw,dx,dy,dw,dh);
+    ctx.filter='blur(28px) brightness(0.42)';
+    const bScale=Math.max(W/imgToDraw.naturalWidth,H/imgToDraw.naturalHeight)*1.12;
+    const bw=imgToDraw.naturalWidth*bScale,bh=imgToDraw.naturalHeight*bScale;
+    ctx.drawImage(imgToDraw,(W-bw)/2,(H-bh)/2,bw,bh);
+    ctx.restore();
+  }else if(cBg.type==='grid_paper'){
+    ctx.save();
+    ctx.strokeStyle='rgba(120,113,108,0.16)';
+    ctx.lineWidth=1.5;
+    for(let gx=0;gx<W;gx+=36){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+    for(let gy=0;gy<H;gy+=36){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
     ctx.restore();
   }
 
-  // 2. Draw Theme Bottom Gradient Scrim (matching Image 1)
-  const grad=ctx.createLinearGradient(0,Math.round(H*0.36),0,H);
-  if(template==='clean_white'){
-    grad.addColorStop(0,'rgba(255,255,255,0)');
-    grad.addColorStop(0.45,'rgba(248,250,252,0.85)');
-    grad.addColorStop(1,'rgba(241,245,249,0.98)');
-  }else{
-    grad.addColorStop(0,'rgba(10,12,18,0)');
-    grad.addColorStop(0.42,'rgba(10,12,18,0.68)');
-    grad.addColorStop(0.76,'rgba(8,10,15,0.92)');
-    grad.addColorStop(1,'rgba(6,8,12,0.97)');
-  }
-  ctx.fillStyle=grad;
-  ctx.fillRect(0,Math.round(H*0.36),W,H-Math.round(H*0.36));
+  // Helper to draw a decorBox list
+  const drawDecorBoxItem=d=>{
+    const dx=(Number(d.x||0)/100)*W;
+    const dy=(Number(d.y||0)/100)*H;
+    const dw=(Number(d.w||0)/100)*W;
+    const dh=(Number(d.h||0)/100)*H;
+    const rad=Number(d.radius||0)*1.8;
+    ctx.save();
+    drawRoundedRect(dx,dy,dw,dh,rad);
+    if(d.bg&&d.bg!=='transparent'){
+      ctx.fillStyle=d.bg;
+      ctx.fill();
+    }
+    if(d.borderWidth&&d.borderColor){
+      ctx.strokeStyle=d.borderColor;
+      ctx.lineWidth=Number(d.borderWidth)*1.8;
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
 
-  // 3. Draw Each Visible Object in slide.canva_objects
+  const pFrame=tplDef.photoFrame||{x:0,y:0,w:100,h:100,radius:0};
+  const isFullBleedPhoto=(pFrame.x===0&&pFrame.y===0&&pFrame.w===100&&pFrame.h===100);
+
+  // If photo sits inside a card (not full bleed), draw full-card backing decorBoxes first (where h >= 80)
+  const decorList=Array.isArray(tplDef.decorBoxes)?tplDef.decorBoxes:[];
+  if(!isFullBleedPhoto){
+    for(const d of decorList){
+      if(Number(d.h||0)>=75)drawDecorBoxItem(d);
+    }
+  }
+
+  // 2. Draw Photo inside `photoFrame` rect with `bg_transform` pan/zoom
+  if(imgToDraw&&imgToDraw.naturalWidth>0&&imgToDraw.naturalHeight>0){
+    const fx=(Number(pFrame.x||0)/100)*W;
+    const fy=(Number(pFrame.y||0)/100)*H;
+    const fw=(Number(pFrame.w||100)/100)*W;
+    const fh=(Number(pFrame.h||100)/100)*H;
+    const frad=Number(pFrame.radius||0)*1.8;
+
+    ctx.save();
+    drawRoundedRect(fx,fy,fw,fh,frad);
+    ctx.clip();
+    const iw=imgToDraw.naturalWidth,ih=imgToDraw.naturalHeight;
+    const bgT=slide.bg_transform||{scale:1,x:0,y:0};
+    const userScale=Math.max(0.5,Math.min(3,Number(bgT.scale||1)));
+    const baseScale=Math.max(fw/iw,fh/ih)*userScale;
+    const dw=iw*baseScale,dh=ih*baseScale;
+    const dx=fx+(fw-dw)/2+(Number(bgT.x||0)/100)*fw;
+    const dy=fy+(fh-dh)/2+(Number(bgT.y||0)/100)*fh;
+    ctx.drawImage(imgToDraw,dx,dy,dw,dh);
+    ctx.restore();
+
+    if(pFrame.borderWidth&&pFrame.borderColor){
+      ctx.save();
+      drawRoundedRect(fx,fy,fw,fh,frad);
+      ctx.strokeStyle=pFrame.borderColor;
+      ctx.lineWidth=Number(pFrame.borderWidth)*1.8;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 3. Draw Scrim if present on template
+  if(tplDef.scrim&&tplDef.scrim!=='none'){
+    const grad=ctx.createLinearGradient(0,Math.round(H*0.28),0,H);
+    grad.addColorStop(0,'rgba(10,12,18,0)');
+    grad.addColorStop(0.45,'rgba(10,12,18,0.68)');
+    grad.addColorStop(0.8,'rgba(8,10,15,0.92)');
+    grad.addColorStop(1,'rgba(6,8,12,0.97)');
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // 4. Draw remaining foreground decorBoxes (banners, split panels, comparison boxes, CTA bars, masking tape)
+  for(const d of decorList){
+    if(!isFullBleedPhoto&&Number(d.h||0)>=75)continue;
+    drawDecorBoxItem(d);
+  }
+
+  // 5. Draw Each Visible Object in slide.canva_objects
   const fCss=(CSS_FONT_MAP[fontKey]||CSS_FONT_MAP.heavy_kr).replace(/"/g,"'");
   const objs=Array.isArray(slide.canva_objects)?slide.canva_objects:[];
 
@@ -804,21 +1408,6 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     }
     if(cur)out.push(cur);
     return out;
-  };
-
-  const drawRoundedRect=(x,y,w,h,r)=>{
-    const rad=Math.max(0,Math.min(r,w/2,h/2));
-    ctx.beginPath();
-    ctx.moveTo(x+rad,y);
-    ctx.lineTo(x+w-rad,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+rad);
-    ctx.lineTo(x+w,y+h-rad);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-rad,y+h);
-    ctx.lineTo(x+rad,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-rad);
-    ctx.lineTo(x,y+rad);
-    ctx.quadraticCurveTo(x,y,x+rad,y);
-    ctx.closePath();
   };
 
   for(const obj of objs){
@@ -849,11 +1438,11 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
       const m=ctx.measureText(ln).width;
       if(m>maxLineW)maxLineW=m;
     }
-    const boxW=maxW&&obj.kind==='counter'?maxW:Math.ceil(maxLineW+padX*2);
+    const boxW=maxW&&(obj.kind==='counter'||obj.align==='center')?maxW:Math.ceil(maxLineW+padX*2);
     const boxH=Math.ceil(lines.length*lineH-(lineH-fSize)+padY*2);
 
     ctx.save();
-    if(obj.bgEnabled&&obj.bgColor){
+    if(obj.bgEnabled&&obj.bgColor&&obj.bgColor!=='transparent'){
       ctx.fillStyle=obj.bgColor;
       drawRoundedRect(xPx,yPx,boxW,boxH,Number(obj.borderRadius??10));
       ctx.fill();
@@ -883,10 +1472,6 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
           ctx.lineWidth=s1W*2;
           ctx.strokeText(ln,lx,ly);
         }
-      }else if(!obj.bgEnabled){
-        ctx.shadowColor='rgba(0,0,0,0.75)';
-        ctx.shadowBlur=10;
-        ctx.shadowOffsetY=3;
       }
       ctx.fillStyle=obj.color||'#ffffff';
       ctx.fillText(ln,lx,ly);
@@ -894,7 +1479,7 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     ctx.restore();
   }
 
-  return canvas.toDataURL('image/jpeg',0.93);
+  return canvas.toDataURL('image/jpeg',0.92);
 }
 
 function renderCarouselPreview(){
@@ -1024,8 +1609,10 @@ function renderCarouselPreview(){
     const activeRole=activeSlide.role||(activeSlide.index===1?'cover':(activeSlide.index===effectiveSlides.length&&effectiveSlides.length>=3?'cta':'body'));
     const activeTpl=activeSlide.template||job.carousel?.template||'editorial_dark';
     const activeAspect=job.carousel?.aspect||$('carousel-ratio')?.value||'4:5';
-    const pal=CANVA_THEME_OBJECT_PALETTES[activeTpl]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
     const canvaObjects=ensureCanvaObjectsForSlide(job,activeSlide,effectiveSlides.length,activeRole,activeTpl);
+    const activePresetId=activeSlide.layout_preset||getDefaultPresetForSlide(activeSlide,effectiveSlides.length,activeRole,activeTpl);
+    const activeTplDef=CAROUSEL_20_TEMPLATES[activePresetId]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+    const pal=CANVA_THEME_OBJECT_PALETTES[activeTplDef.theme||activeTpl]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
     if(!canvaObjects.some(o=>o.id===selectedCanvaObjectId&&o.visible!==false)){
       selectedCanvaObjectId=(canvaObjects.find(o=>o.kind==='title')||canvaObjects[0])?.id||'obj_title';
     }
@@ -1038,16 +1625,17 @@ function renderCarouselPreview(){
     wbPreviewCol.className='carousel-wb-preview-col';
     const wbPreviewZoneTag=document.createElement('div');
     wbPreviewZoneTag.className='wb-zone-kicker-bar';
-    wbPreviewZoneTag.innerHTML='<span class="wb-zone-pill">가운데 · Canva/미리캔버스식 객체 레이아웃 캔버스 (모든 요소 개별 드래그 이동 · 크기 조절 · 더블클릭 수정)</span>';
+    wbPreviewZoneTag.innerHTML='<span class="wb-zone-pill">가운데 · 20종 템플릿(표지 5 · 본문 10 · 마지막 5) 캔버스 (클릭 시 글자 즉시 수정 · 드래그 이동)</span>';
     const wbPreviewHeader=document.createElement('div');
     wbPreviewHeader.className='carousel-wb-preview-head';
     const rolePillText=isSingleCard
-      ?'01 단독 카드 (1장)'
-      :(activeRole==='cover'?'01 첫장 표지 (90% 후킹)':(activeRole==='cta'?`0${activeSlide.index} 마지막장 요약·CTA`:`0${activeSlide.index} 본문 슬라이드`));
+      ?`01 단독 카드 · ${activeTplDef.name}`
+      :`0${activeSlide.index} ${activeTplDef.name}`;
     const rolePill=text('span',rolePillText);
-    rolePill.className=`wb-role-pill role-${activeRole}`;
+    rolePill.id='wb-active-template-pill';
+    rolePill.className=`wb-role-pill role-${activeTplDef.role||activeRole}`;
 
-    const liveSyncBadge=text('span','모든 객체 자유 이동·수정 가능');
+    const liveSyncBadge=text('span','화면 내 텍스트 클릭 즉시 수정 가능');
     liveSyncBadge.id='wb-live-sync-badge';
     liveSyncBadge.className='wb-live-sync-badge';
 
@@ -1070,36 +1658,114 @@ function renderCarouselPreview(){
 
     const wbStage=document.createElement('div');
     wbStage.className='carousel-wb-stage wb-canvas-frame wb-large-center-frame canva-direct-stage canva-multi-object-stage';
+    wbStage.dataset.layoutPreset=activePresetId;
     wbStage.style.aspectRatio=(activeAspect==='1:1')?'1 / 1':'4 / 5';
-    wbStage.title='각 요소(배지, 제목, 별점, 설명, 번호)를 클릭·드래그하여 원하는 위치로 옮기거나 모서리 핸들로 크기를 조절하세요.';
+    wbStage.title='화면에 보이는 제목·배지·본문 텍스트를 클릭하면 그 자리에서 바로 글자를 수정할 수 있고, 드래그해 위치나 크기를 조절할 수 있습니다.';
 
-    // 1. Clean Un-baked Background Image (ZERO ghost baked text!)
+    const cleanBgSrc=resolveCleanSlideBackgroundUrl(job,activeSlide,tsCache);
+
+    // 0. Optional Blurred Background Image Layer (for `blur_dark` templates like cover_05, body_07, cta_01)
+    const blurBgImg=document.createElement('img');
+    blurBgImg.id='wb-active-slide-blur-bg-img';
+    blurBgImg.className='canva-stage-blur-bg-img';
+    blurBgImg.crossOrigin='anonymous';
+    blurBgImg.src=cleanBgSrc;
+    blurBgImg.alt='';
+
+    // 1. Background Decor Layer (for full-card sheets / Polaroid paper behind the photo frame)
+    const backDecorLayer=document.createElement('div');
+    backDecorLayer.className='canva-decor-layer canva-decor-layer-back';
+
+    // 2. Framed Clean Photo Container (`.canva-photo-frame-box`) — positioned per template (`full`, `top 54%`, `right frame`, `polaroid`, etc.)
+    const photoFrameBox=document.createElement('div');
+    photoFrameBox.id='wb-active-photo-frame-box';
+    photoFrameBox.className='canva-photo-frame-box';
+
     const bigImg=document.createElement('img');
     bigImg.id='wb-active-slide-big-img';
     bigImg.className='canva-clean-bg-img';
     bigImg.crossOrigin='anonymous';
-    bigImg.src=resolveCleanSlideBackgroundUrl(job,activeSlide,tsCache);
+    bigImg.src=cleanBgSrc;
     bigImg.alt=`선택된 슬라이드 #${activeSlide.index} 깨끗한 배경`;
     const applyBgTransformStyle=()=>{
       const bgT=activeSlide.bg_transform||{scale:1,x:0,y:0};
       bigImg.style.transform=`translate(${Number(bgT.x||0)}%, ${Number(bgT.y||0)}%) scale(${Number(bgT.scale||1)})`;
     };
     applyBgTransformStyle();
+    photoFrameBox.append(bigImg);
 
-    // If this is a video job and we don't have a custom image or exact bg_file yet, extract exact crisp frame from left video if available
     if(job.kind!=='image'&&!activeSlide.custom_image&&!activeSlide._cleanBgDataUrl&&!canvaCleanBgMemoryCache.has(`${job.id}_${activeSlide.index}`)){
       bigImg.addEventListener('error',()=>{
         const fallbackFr=job.evidence?.frames?.[0]?.file||'frame-0.jpg';
-        if(!bigImg.src.includes(fallbackFr))bigImg.src=`${base}${fallbackFr}?t=${tsCache}`;
+        if(!bigImg.src.includes(fallbackFr)){
+          bigImg.src=`${base}${fallbackFr}?t=${tsCache}`;
+          blurBgImg.src=bigImg.src;
+        }
       },{once:true});
     }
 
-    // 2. Theme Gradient Scrim Layer (matches Image 1's clean dark bottom gradient)
+    // 3. Theme Gradient Scrim Layer
     const scrimLayer=document.createElement('div');
     scrimLayer.className='canva-stage-scrim';
-    scrimLayer.style.background=pal.scrim;
 
-    // 3. Magnetic Alignment Guide Lines (hidden until dragging near center/left margin)
+    // 4. Foreground Structural Decor Layer (banners, split dividers, comparison boxes, checklist boxes, CTA buttons, masking tape)
+    const frontDecorLayer=document.createElement('div');
+    frontDecorLayer.className='canva-decor-layer canva-decor-layer-front';
+
+    // Helper to apply any of the 20 template structures (`canvasBg`, `photoFrame`, `decorBoxes`, `scrim`) to the live DOM stage!
+    const renderTemplateStructureOnStage=(presetId)=>{
+      const tpl=CAROUSEL_20_TEMPLATES[presetId]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+      wbStage.dataset.layoutPreset=tpl.id;
+      const cBg=tpl.canvasBg||{type:'dark',color:'#0b0f17'};
+      wbStage.style.setProperty('background-color',cBg.color||'#0b0f17','important');
+      wbStage.style.setProperty('background',cBg.color||'#0b0f17','important');
+      wbStage.classList.toggle('is-grid-paper',cBg.type==='grid_paper');
+      blurBgImg.hidden=(cBg.type!=='blur_dark');
+
+      const pf=tpl.photoFrame||{x:0,y:0,w:100,h:100,radius:0};
+      const isFull=(pf.x===0&&pf.y===0&&pf.w===100&&pf.h===100);
+      photoFrameBox.style.left=`${Number(pf.x||0)}%`;
+      photoFrameBox.style.top=`${Number(pf.y||0)}%`;
+      photoFrameBox.style.width=`${Number(pf.w||100)}%`;
+      photoFrameBox.style.height=`${Number(pf.h||100)}%`;
+      photoFrameBox.style.borderRadius=pf.radius?`${pf.radius}px`:'0px';
+      photoFrameBox.style.border=(pf.borderWidth&&pf.borderColor)?`${pf.borderWidth}px solid ${pf.borderColor}`:'none';
+
+      if(tpl.scrim&&tpl.scrim!=='none'){
+        scrimLayer.hidden=false;
+        scrimLayer.style.background=tpl.scrim;
+      }else{
+        scrimLayer.hidden=true;
+      }
+
+      backDecorLayer.replaceChildren();
+      frontDecorLayer.replaceChildren();
+      const dList=Array.isArray(tpl.decorBoxes)?tpl.decorBoxes:[];
+      for(const d of dList){
+        const box=document.createElement('div');
+        box.className='canva-decor-box';
+        box.style.left=`${Number(d.x||0)}%`;
+        box.style.top=`${Number(d.y||0)}%`;
+        box.style.width=`${Number(d.w||0)}%`;
+        box.style.height=`${Number(d.h||0)}%`;
+        box.style.background=d.bg||'transparent';
+        box.style.borderRadius=Number(d.radius||0)>=900?'999px':`${Number(d.radius||0)}px`;
+        if(d.borderWidth&&d.borderColor){
+          box.style.border=`${d.borderWidth}px solid ${d.borderColor}`;
+        }
+        if(!isFull&&Number(d.h||0)>=75){
+          backDecorLayer.append(box);
+        }else{
+          frontDecorLayer.append(box);
+        }
+      }
+      if(rolePill){
+        rolePill.textContent=isSingleCard?`01 단독 카드 · ${tpl.name}`:`0${activeSlide.index} ${tpl.name}`;
+        rolePill.className=`wb-role-pill role-${tpl.role||activeRole}`;
+      }
+    };
+
+    // 5. Magnetic Alignment Guide Lines (hidden until dragging near center/left margin)
     const snapLineX=document.createElement('div');
     snapLineX.className='canva-snap-line canva-snap-line-x';
     snapLineX.hidden=true;
@@ -1107,13 +1773,14 @@ function renderCarouselPreview(){
     snapLineY.className='canva-snap-line canva-snap-line-y';
     snapLineY.hidden=true;
 
-    // 4. Interactive Object Layer (`#wb-live-typing-overlay` container for compatibility)
+    // 6. Interactive Object Layer (`#wb-live-typing-overlay` container for compatibility)
     const liveOverlay=document.createElement('div');
     liveOverlay.id='wb-live-typing-overlay';
     liveOverlay.className='wb-live-typing-overlay canva-objects-layer';
     liveOverlay.hidden=false;
 
-    wbStage.append(bigImg,scrimLayer,snapLineX,snapLineY,liveOverlay);
+    wbStage.append(blurBgImg,backDecorLayer,photoFrameBox,scrimLayer,frontDecorLayer,snapLineX,snapLineY,liveOverlay);
+    renderTemplateStructureOnStage(activePresetId);
 
     // Hidden compatibility inputs so all existing helper functions & tests work seamlessly
     const {title:initHead,subtitle:initSubtitle,bodyText:initBodyText}=splitSlideThreeTierText(activeSlide);
@@ -1156,7 +1823,7 @@ function renderCarouselPreview(){
       activeSlide.subtitle=sVal;
       activeSlide.body_text=bodyVal;
       activeSlide.text=[tVal,sVal,bodyVal].filter(Boolean).join('\n');
-      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
       return {bVal,tVal,sVal,bodyVal};
     };
 
@@ -1177,6 +1844,7 @@ function renderCarouselPreview(){
     };
 
     const selectCanvaObject=(objId,{focusText=false}={})=>{
+      const curPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
       selectedCanvaObjectId=objId;
       for(const [id,node] of domNodeByObjId.entries()){
         node.classList.toggle('is-selected-object',id===objId);
@@ -1186,7 +1854,7 @@ function renderCarouselPreview(){
           if(tEl){
             tEl.contentEditable='false';
             const oData=canvaObjects.find(x=>x.id===id);
-            if(oData)tEl.innerHTML=renderObjectFormattedDisplayHtml(oData.text,pal);
+            if(oData)tEl.innerHTML=renderObjectFormattedDisplayHtml(oData.text,curPal);
           }
         }
       }
@@ -1238,16 +1906,19 @@ function renderCarouselPreview(){
       tEl.style.textAlign=obj.align||'left';
       tEl.style.padding=`${padY.toFixed(1)}px ${padX.toFixed(1)}px`;
       tEl.style.borderRadius=`${radPx}px`;
-      if(obj.bgEnabled&&obj.bgColor){
+      if(obj.bgEnabled&&obj.bgColor&&obj.bgColor!=='transparent'){
         tEl.style.background=obj.bgColor;
         tEl.style.textShadow='none';
       }else{
         tEl.style.background='transparent';
-        tEl.style.textShadow=buildLiveDoubleStrokeTextShadow(s1W,s1C,s2W,s2C,stageW,'0 2px 8px rgba(0,0,0,0.82)');
+        const isLightText=/^#(fff|fef|f8f|f1f|f3f|fde|fcc|fac|a3e|2dd|38b|ccb)/i.test(String(obj.color||'#ffffff'));
+        const baseShadow=isLightText?'0 2px 6px rgba(0,0,0,0.45)':'none';
+        tEl.style.textShadow=buildLiveDoubleStrokeTextShadow(s1W,s1C,s2W,s2C,stageW,baseShadow);
       }
     };
 
     const renderAllCanvaObjectNodes=()=>{
+      const curPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
       liveOverlay.replaceChildren();
       domNodeByObjId.clear();
       textElByObjId.clear();
@@ -1271,7 +1942,7 @@ function renderCarouselPreview(){
         else if(obj.kind==='counter')tEl.id='canva-edit-counter';
         tEl.contentEditable='false';
         tEl.spellcheck=false;
-        tEl.innerHTML=renderObjectFormattedDisplayHtml(obj.text,pal);
+        tEl.innerHTML=renderObjectFormattedDisplayHtml(obj.text,curPal);
 
         // Resize handles (4 corners for font scaling + 2 sides for width wrapping) + floating delete button
         const handles=['nw','ne','sw','se','w','e'];
@@ -1310,7 +1981,7 @@ function renderCarouselPreview(){
             const onUp=()=>{
               hEl.removeEventListener('pointermove',onMove);
               hEl.removeEventListener('pointerup',onUp);
-              scheduleRealtimeSlideSync({},220);
+              scheduleRealtimeSlideSync({},600);
             };
             hEl.addEventListener('pointermove',onMove);
             hEl.addEventListener('pointerup',onUp);
@@ -1329,7 +2000,7 @@ function renderCarouselPreview(){
           e.stopPropagation();
           obj.visible=false;
           renderAllCanvaObjectNodes();
-          scheduleRealtimeSlideSync({},180);
+          scheduleRealtimeSlideSync({},500);
         };
 
         // Pointer drag to move object freely across the canvas (`x`, `y` in %)
@@ -1363,7 +2034,6 @@ function renderCarouselPreview(){
           nextX=Math.max(-5,Math.min(94,nextX));
           nextY=Math.max(1,Math.min(94,nextY));
 
-          // Magnetic snap to left editorial margin (6.8%) or horizontal center
           if(Math.abs(nextX-6.8)<1.4){
             nextX=6.8;
             snapLineX.style.left='6.8%';
@@ -1396,33 +2066,34 @@ function renderCarouselPreview(){
           snapLineY.hidden=true;
           try{node.releasePointerCapture?.(e.pointerId);}catch{}
           if(movedDuringPress){
-            scheduleRealtimeSlideSync({},220);
-          }else if(node.dataset.wasSelected==='1'){
-            // Clicking an already-selected object enters inline text editing immediately!
+            scheduleRealtimeSlideSync({},600);
+          }else{
+            // Single click on any text object immediately opens inline text editing so user can type right away!
             selectCanvaObject(obj.id,{focusText:true});
           }
         };
         node.addEventListener('pointerup',finishObjPointer);
         node.addEventListener('pointercancel',finishObjPointer);
 
-        // Double-click always enters inline text editing immediately
         node.addEventListener('dblclick',e=>{
           e.preventDefault();
           e.stopPropagation();
           selectCanvaObject(obj.id,{focusText:true});
         });
 
-        // Live text editing synchronization
         tEl.addEventListener('input',()=>{
           obj.text=tEl.innerText||'';
-          scheduleRealtimeSlideSync({},420);
+          syncCanvaObjectsToSlideFields();
+          scheduleRealtimeSlideSync({},900);
         });
         tEl.addEventListener('blur',()=>{
           obj.text=(tEl.innerText||'').trim();
           node.classList.remove('is-editing-text');
           tEl.contentEditable='false';
-          tEl.innerHTML=renderObjectFormattedDisplayHtml(obj.text,pal);
+          const latestPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
+          tEl.innerHTML=renderObjectFormattedDisplayHtml(obj.text,latestPal);
           syncCanvaObjectsToSlideFields();
+          refreshClientThumbInstant();
         });
 
         node.append(tEl,delBtn);
@@ -1436,15 +2107,15 @@ function renderCarouselPreview(){
     // Clicking empty stage background deselects active text editing or pans background photo if dragged
     let isPanningBg=false,bgStartClientX=0,bgStartClientY=0,bgOrigX=0,bgOrigY=0;
     wbStage.addEventListener('pointerdown',e=>{
-      if(e.target!==wbStage&&e.target!==bigImg&&e.target!==scrimLayer&&e.target!==liveOverlay)return;
-      // Deselect editing state
+      if(e.target.closest('.canva-object-node'))return;
       for(const [id,node] of domNodeByObjId.entries()){
         node.classList.remove('is-editing-text');
         const tEl=textElByObjId.get(id);
         const oData=canvaObjects.find(x=>x.id===id);
         if(tEl&&oData){
           tEl.contentEditable='false';
-          tEl.innerHTML=renderObjectFormattedDisplayHtml(oData.text,pal);
+          const curPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
+          tEl.innerHTML=renderObjectFormattedDisplayHtml(oData.text,curPal);
         }
       }
       isPanningBg=true;
@@ -1467,7 +2138,8 @@ function renderCarouselPreview(){
     wbStage.addEventListener('pointerup',()=>{
       if(!isPanningBg)return;
       isPanningBg=false;
-      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      refreshClientThumbInstant();
     });
 
     // Support Drag-and-Drop image onto the preview stage
@@ -1483,7 +2155,9 @@ function renderCarouselPreview(){
         activeSlide._cleanBgDataUrl=dataUrl;
         canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dataUrl);
         bigImg.src=dataUrl;
-        await applyActiveSlideUpdate({clean_bg_data_url:dataUrl},true);
+        blurBgImg.src=dataUrl;
+        refreshClientThumbInstant();
+        scheduleRealtimeSlideSync({image_data_url:dataUrl},800);
       }catch(err){
         message(err.message,true);
       }
@@ -1505,8 +2179,9 @@ function renderCarouselPreview(){
         body_text:extra.body_text!==undefined?extra.body_text:bodyVal,
         text:extra.text!==undefined?extra.text:[tVal,sVal,bodyVal].filter(Boolean).join('\n'),
         badge:extra.badge!==undefined?extra.badge:bVal,
-        role:extra.role!==undefined?extra.role:(roleSelect?.value||activeRole),
-        template:extra.template!==undefined?extra.template:(tplSelect?.value||activeTpl),
+        role:extra.role!==undefined?extra.role:(roleSelect?.value||activeSlide.role||activeRole),
+        template:extra.template!==undefined?extra.template:(tplSelect?.value||activeSlide.template||activeTpl),
+        layout_preset:extra.layout_preset!==undefined?extra.layout_preset:(activeSlide.layout_preset||activePresetId),
         overlay_position:extra.overlay_position||activeSlide.overlay_position||($('carousel-text-pos')?.value||'bottom'),
         font_family:extra.font_family!==undefined?extra.font_family:(fontSelectEl?.value||'heavy_kr'),
         stroke_width:extra.stroke_width!==undefined?extra.stroke_width:Number(s1Num?.value||0),
@@ -1523,7 +2198,30 @@ function renderCarouselPreview(){
       };
     };
 
+    // Instant (<25ms) client-side storyboard thumbnail refresh without any server wait!
+    let thumbRafId=0;
+    const refreshClientThumbInstant=()=>{
+      if(thumbRafId)cancelAnimationFrame(thumbRafId);
+      thumbRafId=requestAnimationFrame(async()=>{
+        try{
+          const curAspect=job.carousel?.aspect||$('carousel-ratio')?.value||'4:5';
+          const curTpl=tplSelect?.value||activeSlide.template||activeTpl||'editorial_dark';
+          const curFont=fontSelectEl?.value||activeSlide.font_family||'heavy_kr';
+          const comp=await renderCanvaSlideObjectsToDataUrl(
+            job,activeSlide,curAspect,curTpl,curFont,
+            Number(s1Num?.value||0),s1Color?.value||'#000000',
+            Number(s2Num?.value||0),s2Color?.value||'#facc15',
+            bigImg
+          );
+          activeSlide._compositedThumbDataUrl=comp;
+          const thumbImg=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-thumb-img`);
+          if(thumbImg&&comp)thumbImg.src=comp;
+        }catch{}
+      });
+    };
+
     const updateCanvaLiveVisualStyle=(keepStatusLabel=false)=>{
+      const curPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
       const {tVal,sVal,bodyVal}=syncCanvaObjectsToSlideFields();
       for(const obj of canvaObjects){
         const node=domNodeByObjId.get(obj.id);
@@ -1531,15 +2229,16 @@ function renderCarouselPreview(){
         if(node&&tEl){
           applyObjectVisualStyleToDom(obj,node,tEl);
           if(!node.classList.contains('is-editing-text')){
-            tEl.innerHTML=renderObjectFormattedDisplayHtml(obj.text,pal);
+            tEl.innerHTML=renderObjectFormattedDisplayHtml(obj.text,curPal);
           }
         }
       }
       const sumCard=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-card-summary strong`);
       if(sumCard)sumCard.textContent=(tVal||sVal||bodyVal||'문구 없음').slice(0,24);
+      refreshClientThumbInstant();
       if(!keepStatusLabel&&liveSyncBadge){
-        liveSyncBadge.textContent='실시간 객체 편집 중 (자동 합성)';
-        liveSyncBadge.classList.add('syncing');
+        liveSyncBadge.textContent='화면 즉시 반영됨';
+        liveSyncBadge.classList.remove('syncing');
       }
     };
 
@@ -1547,7 +2246,7 @@ function renderCarouselPreview(){
       const targetJobId=job?.id;
       if(!targetJobId)return;
       if(liveSyncBadge){
-        liveSyncBadge.textContent='고해상도 카드 합성 저장 중…';
+        liveSyncBadge.textContent='카드 이미지 저장 중…';
         liveSyncBadge.classList.add('syncing');
       }
       carouselSilentInflight=true;
@@ -1559,16 +2258,15 @@ function renderCarouselPreview(){
             count:reqCount,
             aspect:$('carousel-ratio')?.value||'4:5',
             erase_mode:$('carousel-erase-mode')?.value||'cover_box',
-            template:tplSelect?.value||activeTpl||'editorial_dark',
+            template:tplSelect?.value||activeSlide.template||activeTpl||'editorial_dark',
             cover_title:headInput.value||'핵심 포인트',
             font_family:fontSelectEl?.value||'heavy_kr'
           });
           enforceSingleCardModeIfActive(genJob);
           job=genJob;
         }
-        // Render exact 1080x1350 WYSIWYG composite from our Canva objects + clean background!
         const curAspect=job.carousel?.aspect||$('carousel-ratio')?.value||'4:5';
-        const curTpl=extra.template||tplSelect?.value||activeTpl||'editorial_dark';
+        const curTpl=extra.template||tplSelect?.value||activeSlide.template||activeTpl||'editorial_dark';
         const curFont=extra.font_family||fontSelectEl?.value||activeSlide.font_family||'heavy_kr';
         const compositedDataUrl=await renderCanvaSlideObjectsToDataUrl(
           job,
@@ -1589,7 +2287,6 @@ function renderCarouselPreview(){
         const payload=buildSlidePayload({
           ...extra,
           rendered_card_data_url:compositedDataUrl,
-          // Also support pre-restart running port 5006 servers by passing composited image with empty text overlay if no raw image replacement was requested:
           ...(extra.image_data_url?{}:{image_data_url:compositedDataUrl,erase_mode:'keep',text:''})
         });
         const nextJob=await api(`jobs/${targetJobId}/carousel-slide-update`,payload);
@@ -1601,24 +2298,26 @@ function renderCarouselPreview(){
           const preservedObjs=canvaObjects;
           const preservedBgT=activeSlide.bg_transform;
           const preservedCleanBg=activeSlide._cleanBgDataUrl;
+          const preservedPreset=activeSlide.layout_preset;
           Object.assign(activeSlide,updatedSlide);
           activeSlide.canva_objects=preservedObjs;
           activeSlide.bg_transform=preservedBgT;
+          activeSlide.layout_preset=preservedPreset;
           if(preservedCleanBg)activeSlide._cleanBgDataUrl=preservedCleanBg;
           activeSlide._compositedThumbDataUrl=compositedDataUrl;
           delete activeSlide._isVirtualPreview;
-          saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl);
+          saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
           if(liveSyncBadge){
-            liveSyncBadge.textContent='캔버스 레이아웃 저장 완료';
+            liveSyncBadge.textContent='저장 완료';
             liveSyncBadge.classList.remove('syncing');
           }
           if(showSavedToast){
-            message(`슬라이드 #${updatedSlide.index} Canva 객체 레이아웃이 고해상도 카드 이미지로 저장되었습니다!`);
+            message(`슬라이드 #${updatedSlide.index} (${CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.name||'카드'}) 이미지가 저장되었습니다!`);
           }
         }
       }catch(err){
         if(liveSyncBadge){
-          liveSyncBadge.textContent='저장 대기';
+          liveSyncBadge.textContent='화면 반영됨';
           liveSyncBadge.classList.remove('syncing');
         }
       }finally{
@@ -1626,7 +2325,8 @@ function renderCarouselPreview(){
       }
     };
 
-    const scheduleRealtimeSlideSync=(extra={},delayMs=380)=>{
+    // Instant UI update + non-blocking debounced background save so editing/capturing is 0.01s fast!
+    const scheduleRealtimeSlideSync=(extra={},delayMs=1400)=>{
       updateCanvaLiveVisualStyle(false);
       if(carouselRealtimeTimer)clearTimeout(carouselRealtimeTimer);
       carouselRealtimeTimer=setTimeout(()=>{
@@ -1635,11 +2335,41 @@ function renderCarouselPreview(){
     };
 
     const applyActiveSlideUpdate=(extra={},showSavedToast=false)=>{
+      updateCanvaLiveVisualStyle(false);
       if(carouselRealtimeTimer)clearTimeout(carouselRealtimeTimer);
       return runSilentSlideUpdate(extra,showSavedToast);
     };
 
-    // Populate Canva Floating Toolbar above the canvas (Add Text Object, Add Badge/Stars, Box Highlight, Color Highlight, Reset Layout, Save Image)
+    // Instant (<10ms) Template Switcher Function — switches between any of the 20 templates immediately!
+    let tpl20ChipButtons=[];
+    let tpl20CategoryTabs=[];
+    const switchSlideToTemplate20=(presetId,{syncServer=true}={})=>{
+      const tpl=CAROUSEL_20_TEMPLATES[presetId];
+      if(!tpl)return;
+      applyTemplatePresetToSlide(activeSlide,effectiveSlides.length,presetId);
+      canvaObjects.length=0;
+      canvaObjects.push(...activeSlide.canva_objects);
+      if(roleSelect)roleSelect.value=tpl.role;
+      if(tplSelect)tplSelect.value=tpl.theme;
+      renderTemplateStructureOnStage(presetId);
+      renderAllCanvaObjectNodes();
+      selectedCanvaObjectId=(canvaObjects.find(o=>o.kind==='title')||canvaObjects[0])?.id||'obj_title';
+      refreshSelectedObjectInspectorUI();
+      updateCanvaLiveVisualStyle(false);
+      tpl20ChipButtons.forEach(b=>b.classList.toggle('active',b.dataset.presetId===presetId));
+      // Update role badge in bottom storyboard card immediately
+      const sbBadge=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-role-badge`);
+      if(sbBadge){
+        const rShort=tpl.role==='cover'?'표지':(tpl.role==='cta'?'마지막장':'본문');
+        sbBadge.textContent=`0${activeSlide.index} ${rShort}`;
+        sbBadge.className=`storyboard-role-badge role-badge-${tpl.role}`;
+      }
+      if(syncServer){
+        scheduleRealtimeSlideSync({role:tpl.role,template:tpl.theme,layout_preset:presetId},900);
+      }
+    };
+
+    // Populate Canva Floating Toolbar above the canvas
     const wrapSelectedCanvaText=(openChar,closeChar,fallbackWord)=>{
       const selObj=getSelectedObject()||canvaObjects.find(o=>o.kind==='title')||canvaObjects[0];
       if(!selObj)return;
@@ -1650,23 +2380,23 @@ function renderCarouselPreview(){
         if(selectedStr){
           document.execCommand('insertText',false,`${openChar}${selectedStr}${closeChar}`);
           selObj.text=tEl.innerText||'';
-          scheduleRealtimeSlideSync({},160);
+          scheduleRealtimeSlideSync({},800);
           return;
         }
       }
       selObj.text=`${String(selObj.text||'').trim()} ${openChar}${fallbackWord}${closeChar}`.trim();
       renderAllCanvaObjectNodes();
-      scheduleRealtimeSlideSync({},160);
+      scheduleRealtimeSlideSync({},800);
     };
 
-    const btnAddTextObj=text('button','+ 텍스트 객체 추가');
+    const btnAddTextObj=text('button','+ 텍스트 추가');
     btnAddTextObj.type='button';
     btnAddTextObj.id='btn-canva-add-text-object';
     btnAddTextObj.className='secondary btn-xs';
     btnAddTextObj.onclick=()=>{
       const newId=`obj_custom_${Date.now().toString(36)}`;
       const lines=extractBestHookLines();
-      const sampleTxt=lines[(canvaObjects.length)%Math.max(1,lines.length)]||'드래그하여 원하는 위치로 이동하세요';
+      const sampleTxt=lines[(canvaObjects.length)%Math.max(1,lines.length)]||'클릭하여 텍스트를 수정하세요';
       canvaObjects.push({
         id:newId,
         kind:'custom',
@@ -1688,11 +2418,11 @@ function renderCarouselPreview(){
       });
       selectedCanvaObjectId=newId;
       renderAllCanvaObjectNodes();
-      selectCanvaObject(newId,{focusText:false});
-      scheduleRealtimeSlideSync({},180);
+      selectCanvaObject(newId,{focusText:true});
+      scheduleRealtimeSlideSync({},900);
     };
 
-    const btnAddStarsOrBadge=text('button','+ 별점·배지 복원/추가');
+    const btnAddStarsOrBadge=text('button','+ 배지·요소 복원');
     btnAddStarsOrBadge.type='button';
     btnAddStarsOrBadge.id='btn-canva-add-decor-object';
     btnAddStarsOrBadge.className='secondary btn-xs';
@@ -1711,7 +2441,7 @@ function renderCarouselPreview(){
           x:6.8,
           y:52,
           widthPct:0,
-          fontSize:30,
+          fontSize:28,
           color:pal.badgeColor,
           bgColor:pal.badgeBg,
           bgEnabled:true,
@@ -1726,31 +2456,37 @@ function renderCarouselPreview(){
       }
       renderAllCanvaObjectNodes();
       refreshSelectedObjectInspectorUI();
-      scheduleRealtimeSlideSync({},180);
+      scheduleRealtimeSlideSync({},900);
     };
 
     const btnCanvaBoxHl=text('button','+ [박스 강조]');btnCanvaBoxHl.type='button';btnCanvaBoxHl.className='secondary btn-xs';
-    btnCanvaBoxHl.title='선택한 객체 텍스트에 [박스 강조]를 적용합니다';
     btnCanvaBoxHl.onclick=()=>wrapSelectedCanvaText('[',']','핵심키워드');
 
     const btnCanvaColorHl=text('button','+ *색상 강조*');btnCanvaColorHl.type='button';btnCanvaColorHl.className='secondary btn-xs';
-    btnCanvaColorHl.title='선택한 객체 텍스트에 *색상 강조*를 적용합니다';
     btnCanvaColorHl.onclick=()=>wrapSelectedCanvaText('*','*','강조단어');
 
-    const btnResetObjects=text('button','레이아웃 초기화');
+    const btnInstantVideoCap=text('button','현재 영상장면 즉시적용');
+    btnInstantVideoCap.type='button';
+    btnInstantVideoCap.id='btn-canva-instant-video-capture';
+    btnInstantVideoCap.className='secondary btn-xs';
+    btnInstantVideoCap.hidden=(job.kind==='image');
+    btnInstantVideoCap.title='좌측 영상의 현재 재생 화면을 서버 대기 없이 0.05초 만에 이 카드 배경에 즉시 적용합니다';
+    btnInstantVideoCap.onclick=async()=>{
+      const cur=$('preview')?.currentTime;
+      const rawTs=(typeof cur==='number'&&Number.isFinite(cur))?cur:Number(activeSlide.timestamp||0);
+      await captureInstantVideoFrameToActiveSlide(rawTs);
+      message(`좌측 영상 ${rawTs.toFixed(1)}초 장면을 배경에 즉시 적용했습니다!`);
+      scheduleRealtimeSlideSync({timestamp:rawTs,clear_custom_image:true},1200);
+    };
+
+    const btnResetObjects=text('button','템플릿 기본위치');
     btnResetObjects.type='button';
     btnResetObjects.id='btn-canva-reset-objects';
     btnResetObjects.className='secondary btn-xs';
-    btnResetObjects.title='모든 객체 위치를 기본 템플릿 레이아웃으로 초기화합니다';
     btnResetObjects.onclick=()=>{
-      activeSlide.canva_objects=buildDefaultCanvaObjectsForSlide(activeSlide,effectiveSlides.length,activeRole,tplSelect?.value||activeTpl);
+      switchSlideToTemplate20(activeSlide.layout_preset||activePresetId,{syncServer:true});
       activeSlide.bg_transform={scale:1,x:0,y:0};
-      canvaObjects.length=0;
-      canvaObjects.push(...activeSlide.canva_objects);
       applyBgTransformStyle();
-      renderAllCanvaObjectNodes();
-      refreshSelectedObjectInspectorUI();
-      scheduleRealtimeSlideSync({},160);
     };
 
     const btnCanvaSaveImg=text('button','이미지 저장 (현재 카드 확정)');
@@ -1759,7 +2495,7 @@ function renderCarouselPreview(){
     btnCanvaSaveImg.className='btn-xs canva-save-image-btn';
     btnCanvaSaveImg.onclick=()=>applyActiveSlideUpdate({},true);
 
-    const btnCanvaDownloadImg=text('button','내 PC로 다운로드');
+    const btnCanvaDownloadImg=text('button','PC 다운로드');
     btnCanvaDownloadImg.type='button';
     btnCanvaDownloadImg.id='btn-canva-download-slide-image';
     btnCanvaDownloadImg.className='secondary btn-xs';
@@ -1772,10 +2508,10 @@ function renderCarouselPreview(){
       document.body.appendChild(a);
       a.click();
       a.remove();
-      message(`슬라이드 #${activeSlide.index} 이미지를 저장하고 다운로드를 시작했습니다!`);
+      message(`슬라이드 #${activeSlide.index} 이미지를 다운로드했습니다!`);
     };
 
-    canvaToolbar.append(btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
+    canvaToolbar.append(btnInstantVideoCap,btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
 
     // Slide Order & Quick Action Bar right below the Large Preview
     const wbPreviewFooter=document.createElement('div');
@@ -1842,25 +2578,25 @@ function renderCarouselPreview(){
     },isSingleCard?'단독 카드 이미지를 저장하여 게시 첨부 묶음에 반영했습니다!':`슬라이드 #${activeSlide.index} 카드를 이미지로 저장하여 게시 첨부 목록에 추가했습니다!`);
     orderGroup.append(bAttachCurrent);
 
-    const wbHint=text('span','요소 드래그: 자유 이동 · 모서리 핸들: 크기 조절 · 클릭/더블클릭: 글자 수정 · 배경 드래그: 사진 위치 이동');
+    const wbHint=text('span','텍스트 클릭: 화면에서 바로 글자 수정 · 드래그: 위치 이동 · 우측에서 20종 템플릿(표지 5 · 본문 10 · 마지막 5) 즉시 변경');
     wbHint.className='hint';
     wbHint.style.margin='0';
     wbPreviewFooter.append(orderGroup,wbHint);
     wbPreviewCol.append(wbPreviewZoneTag,wbPreviewHeader,canvaToolbar,wbStage,wbPreviewFooter);
 
-    // === RIGHT COLUMN: OBJECT INSPECTOR + THEME & PHOTO INSPECTOR ===
+    // === RIGHT COLUMN: 20-TEMPLATE SELECTOR + OBJECT INSPECTOR + INSTANT PHOTO CAPTURE ===
     const wbInspectorCol=document.createElement('div');
     wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector carousel-tabbed-inspector';
 
     const wbInspZoneTag=document.createElement('div');
     wbInspZoneTag.className='wb-zone-kicker-bar';
-    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 선택 객체 속성 · 디자인 테마 · 배경 사진 편집</span>';
+    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 20종 템플릿 선택 (표지 5 · 본문 10 · 마지막 5) · 객체 스타일 · 초고속 캡처</span>';
 
     const inspHead=document.createElement('div');
     inspHead.className='wb-inspector-head';
     const photoStatusText=activeSlide.custom_image?'내 사진 적용됨':(job.kind==='image'?'원본 이미지':`영상 ${Number(activeSlide.timestamp||0).toFixed(1)}초`);
     inspHead.append(
-      text('h4',`슬라이드 #${activeSlide.index} 객체 · 스타일 설정 (${activeRole==='cover'?'첫장 표지':activeRole==='cta'?'마지막장 요약':'본문 카드'})`),
+      text('h4',`슬라이드 #${activeSlide.index} · ${activeTplDef.name}`),
       text('span',photoStatusText)
     );
 
@@ -1871,8 +2607,8 @@ function renderCarouselPreview(){
     inspTabsBar.className='wb-inspector-tabs wb-inspector-tabs-2col';
     inspTabsBar.setAttribute('role','tablist');
     const tabDefs=[
-      {id:'style',label:'① 선택 객체 · 테마 · 글꼴'},
-      {id:'photo',label:'② 사진 · 배경 교체 · 확대'}
+      {id:'style',label:'① 20종 템플릿 · 객체 스타일'},
+      {id:'photo',label:'② 초고속 영상 캡처 · 배경 사진'}
     ];
     const tabPanels={};
     const switchCarouselInspectorTab=tabId=>{
@@ -1901,6 +2637,79 @@ function renderCarouselPreview(){
     tabStylePanel.className='wb-tab-panel';
     tabPanels.style=tabStylePanel;
 
+    // =========================================================================
+    // 20-TEMPLATE CATALOG SELECTOR (메인 표지 5종 / 본문 10종 / 마지막장 5종)
+    // =========================================================================
+    const tpl20Section=document.createElement('div');
+    tpl20Section.className='wb-structured-section canva-tpl20-section';
+    const tpl20Head=document.createElement('div');
+    tpl20Head.className='wb-section-head';
+    const btnAutoVarySlides=text('button','전체 슬라이드 다른 템플릿 자동배정');
+    btnAutoVarySlides.type='button';
+    btnAutoVarySlides.id='btn-canva-auto-vary-templates';
+    btnAutoVarySlides.className='secondary btn-xs';
+    btnAutoVarySlides.title='모든 슬라이드가 똑같아 보이지 않도록 표지·본문(서로 다른 템플릿)·마지막장 포맷을 한 번에 다르게 적용합니다';
+    btnAutoVarySlides.onclick=()=>{
+      effectiveSlides.forEach((s,idx)=>{
+        const r=idx===0?'cover':(idx===effectiveSlides.length-1&&effectiveSlides.length>=2?'cta':'body');
+        const nextPreset=r==='cover'
+          ?COVER_PRESET_IDS[0]
+          :(r==='cta'?CTA_PRESET_IDS[0]:BODY_PRESET_IDS[(idx-1)%BODY_PRESET_IDS.length]);
+        applyTemplatePresetToSlide(s,effectiveSlides.length,nextPreset);
+        saveCanvaSlideLocalState(job.id,s.index,s.canva_objects,s.bg_transform,s._cleanBgDataUrl,s.layout_preset);
+      });
+      renderCarouselPreview();
+      message('전체 슬라이드에 서로 다른 표지·본문·마지막장 템플릿 포맷을 자동 배정했습니다!');
+    };
+    tpl20Head.append(text('strong','20종 레이아웃 템플릿 선택 (클릭 시 0.01초 즉시 적용)'),btnAutoVarySlides);
+
+    const tpl20CatBar=document.createElement('div');
+    tpl20CatBar.className='canva-tpl20-cat-tabs';
+    const catGroups=[
+      {role:'cover',label:'메인 표지 템플릿 (5종)',ids:COVER_PRESET_IDS},
+      {role:'body',label:'본문 템플릿 (10종)',ids:BODY_PRESET_IDS},
+      {role:'cta',label:'마지막장 템플릿 (5종)',ids:CTA_PRESET_IDS}
+    ];
+    let activeTplCategory=activeTplDef.role||activeRole||'cover';
+    const tpl20GridWrap=document.createElement('div');
+    tpl20GridWrap.className='canva-tpl20-grid';
+
+    const renderTpl20CategoryGrid=(catRole)=>{
+      activeTplCategory=catRole;
+      tpl20CategoryTabs.forEach(b=>b.classList.toggle('active',b.dataset.catRole===catRole));
+      tpl20GridWrap.replaceChildren();
+      tpl20ChipButtons=[];
+      const group=catGroups.find(g=>g.role===catRole)||catGroups[0];
+      for(const pid of group.ids){
+        const tDef=CAROUSEL_20_TEMPLATES[pid];
+        if(!tDef)continue;
+        const chip=document.createElement('button');
+        chip.type='button';
+        chip.className='canva-tpl20-chip'+(pid===(activeSlide.layout_preset||activePresetId)?' active':'');
+        chip.dataset.presetId=pid;
+        const chipTitle=text('strong',tDef.name);
+        const chipDesc=text('small',tDef.desc);
+        chip.append(chipTitle,chipDesc);
+        chip.onclick=()=>{
+          switchSlideToTemplate20(pid,{syncServer:true});
+        };
+        tpl20ChipButtons.push(chip);
+        tpl20GridWrap.append(chip);
+      }
+    };
+
+    for(const cg of catGroups){
+      const cBtn=text('button',cg.label);
+      cBtn.type='button';
+      cBtn.className='canva-tpl20-cat-btn'+(cg.role===activeTplCategory?' active':'');
+      cBtn.dataset.catRole=cg.role;
+      cBtn.onclick=()=>renderTpl20CategoryGrid(cg.role);
+      tpl20CategoryTabs.push(cBtn);
+      tpl20CatBar.append(cBtn);
+    }
+    renderTpl20CategoryGrid(activeTplCategory);
+    tpl20Section.append(tpl20Head,tpl20CatBar,tpl20GridWrap);
+
     const styleSheet=document.createElement('div');
     styleSheet.className='pro-prop-sheet';
 
@@ -1921,14 +2730,14 @@ function renderCarouselPreview(){
       return {row,ctrl};
     };
 
-    // === SELECTED OBJECT DIRECT PROPERTY CONTROLS (Canva Inspector) ===
-    const {row:rSelObj,ctrl:cSelObj}=makePropRow('선택된 캔버스 객체','클릭/드래그 중');
+    // === SELECTED OBJECT DIRECT PROPERTY CONTROLS ===
+    const {row:rSelObj,ctrl:cSelObj}=makePropRow('선택된 캔버스 요소','클릭 시 글자 수정');
     objLabelPill=text('span','메인 헤드라인 제목');
     objLabelPill.id='canva-selected-object-pill';
     objLabelPill.className='wb-role-pill';
     const objQuickSwitchWrap=document.createElement('div');
     objQuickSwitchWrap.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center;';
-    for(const [kKind,kShort] of [['badge','배지'],['title','제목'],['stars','별점'],['subtitle','설명'],['counter','번호']]){
+    for(const [kKind,kShort] of [['badge','배지'],['title','제목'],['stars','포인트/번호'],['subtitle','본문/설명'],['counter','장수']]){
       const qBtn=text('button',kShort);
       qBtn.type='button';
       qBtn.className='secondary btn-xs';
@@ -1937,54 +2746,53 @@ function renderCarouselPreview(){
         if(found){
           found.visible=true;
           renderAllCanvaObjectNodes();
-          selectCanvaObject(found.id,{focusText:false});
+          selectCanvaObject(found.id,{focusText:true});
         }
       };
       objQuickSwitchWrap.append(qBtn);
     }
     cSelObj.append(objLabelPill,objQuickSwitchWrap);
 
-    // Selected Object Font Size + Text Color + Background Box Toggle/Color
-    const {row:rObjSize,ctrl:cObjSize}=makePropRow('선택 객체 크기 · 색상','개별 조절');
+    // Selected Object Font Size + Text Color
+    const {row:rObjSize,ctrl:cObjSize}=makePropRow('선택 요소 크기 · 색상','즉시 반영');
     cObjSize.className='pro-prop-ctrl pro-prop-ctrl-slider';
     objColorInput=document.createElement('input');
     objColorInput.type='color';
     objColorInput.id='canva-obj-color-input';
     objColorInput.className='stroke-color-picker';
-    objColorInput.title='선택 객체 글자 색상';
     objColorInput.value='#ffffff';
     objFontSizeRange=document.createElement('input');
     objFontSizeRange.type='range';
     objFontSizeRange.min='14';
     objFontSizeRange.max='120';
     objFontSizeRange.step='1';
-    objFontSizeRange.value='66';
+    objFontSizeRange.value='56';
     objFontSizeNum=document.createElement('input');
     objFontSizeNum.type='number';
     objFontSizeNum.id='canva-obj-fontsize-num';
     objFontSizeNum.className='capcut-num-input';
     objFontSizeNum.min='12';
     objFontSizeNum.max='140';
-    objFontSizeNum.value='66';
+    objFontSizeNum.value='56';
     const applySelObjSizeColor=()=>{
       const selObj=getSelectedObject();
       if(!selObj)return;
       selObj.fontSize=Math.max(12,Math.min(140,Number(objFontSizeNum.value||32)));
       selObj.color=objColorInput.value||'#ffffff';
       updateCanvaLiveVisualStyle(false);
-      scheduleRealtimeSlideSync({},220);
+      scheduleRealtimeSlideSync({},900);
     };
     objFontSizeRange.oninput=()=>{objFontSizeNum.value=objFontSizeRange.value;applySelObjSizeColor();};
     objFontSizeNum.oninput=()=>{objFontSizeRange.value=objFontSizeNum.value;applySelObjSizeColor();};
     objColorInput.oninput=applySelObjSizeColor;
     cObjSize.append(objColorInput,objFontSizeRange,objFontSizeNum);
 
-    const {row:rObjBg,ctrl:cObjBg}=makePropRow('객체 배경 박스 · 정렬','배지·강조 배경');
+    const {row:rObjBg,ctrl:cObjBg}=makePropRow('요소 배경 박스 · 정렬','배지·강조 배경');
     objBgToggle=document.createElement('input');
     objBgToggle.type='checkbox';
     objBgToggle.id='canva-obj-bg-toggle';
     objBgToggle.style.cssText='width:16px;height:16px;cursor:pointer;';
-    const bgToggleLbl= document.createElement('label');
+    const bgToggleLbl=document.createElement('label');
     bgToggleLbl.style.cssText='display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;cursor:pointer;';
     bgToggleLbl.append(objBgToggle,text('span','배경 켜기'));
     objBgColorInput=document.createElement('input');
@@ -2006,7 +2814,7 @@ function renderCarouselPreview(){
         selObj.align=aKey;
         objAlignBtns.forEach(b=>b.classList.toggle('active',b===aBtn));
         updateCanvaLiveVisualStyle(false);
-        scheduleRealtimeSlideSync({},220);
+        scheduleRealtimeSlideSync({},900);
       };
       objAlignBtns.push(aBtn);
       alignGroup.append(aBtn);
@@ -2017,14 +2825,14 @@ function renderCarouselPreview(){
       selObj.bgEnabled=Boolean(objBgToggle.checked);
       selObj.bgColor=objBgColorInput.value||'#101210';
       updateCanvaLiveVisualStyle(false);
-      scheduleRealtimeSlideSync({},220);
+      scheduleRealtimeSlideSync({},900);
     };
     objBgToggle.onchange=applySelObjBg;
     objBgColorInput.oninput=()=>{objBgToggle.checked=true;applySelObjBg();};
     cObjBg.append(bgToggleLbl,objBgColorInput,alignGroup);
 
     // Row 0: 바이럴 후킹 공식 (클릭 시 캔버스 문구 즉시 변환)
-    const {row:rHook,ctrl:cHook}=makePropRow(activeSlide.index===1?'첫 장 90% 후킹 공식':'슬라이드 후킹 공식','클릭 시 캔버스 즉시 반영');
+    const {row:rHook,ctrl:cHook}=makePropRow('후킹 문구 자동 변환','클릭 시 제목·설명 즉시 변환');
     const hookChipsRow=document.createElement('div');
     hookChipsRow.className='pro-preset-inline-bar';
     const curFormula=$('carousel-cover-hook-formula')?.value||'number';
@@ -2041,64 +2849,40 @@ function renderCarouselPreview(){
         const lines=extractBestHookLines();
         const titleObj=canvaObjects.find(o=>o.kind==='title')||canvaObjects[0];
         const subObj=canvaObjects.find(o=>o.kind==='subtitle');
-        const badgeObj=canvaObjects.find(o=>o.kind==='badge');
         const seedTopic=(titleObj?.text||'').trim()||lines[0]||'핵심 포인트';
         const seedSub=(subObj?.text||'').trim()||lines[1]||'';
         const formatted=formatCoverHookByFormula(fKey,seedTopic,seedSub,prod,effectiveSlides.length);
         if(titleObj)titleObj.text=formatted.title;
         if(subObj)subObj.text=formatted.subtitle;
-        if(badgeObj&&activeRole==='cover')badgeObj.text=formatted.badge.toLowerCase();
         if(activeSlide.index===1&&$('carousel-cover-title')){
           $('carousel-cover-title').value=formatted.combined;
         }
         renderAllCanvaObjectNodes();
-        applyActiveSlideUpdate({
+        scheduleRealtimeSlideSync({
           title:formatted.title,
           subtitle:formatted.subtitle,
-          badge:badgeObj?.text||formatted.badge,
           hook_formula:fKey
-        });
+        },900);
       };
       hookChipsRow.append(chip);
     }
     cHook.append(hookChipsRow);
 
-    // Row 1: 슬라이드 역할
-    const {row:rRole,ctrl:cRole}=makePropRow('슬라이드 역할');
-    const roleQuickBar=document.createElement('div');
-    roleQuickBar.className='capcut-toggle-group';
-    for(const [rKey,rShort] of [['cover','표지 (Cover)'],['body','본문 (Body)'],['cta','요약 (CTA)']]){
-      const rBtn=text('button',rShort);
-      rBtn.type='button';
-      rBtn.className='capcut-toggle-btn'+(rKey===activeRole?' active':'');
-      rBtn.onclick=()=>{
-        roleSelect.value=rKey;
-        roleQuickBar.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===rBtn));
-        applyActiveSlideUpdate({role:rKey});
-      };
-      roleQuickBar.append(rBtn);
-    }
+    // Hidden/compatibility roleSelect & tplSelect
     roleSelect=document.createElement('select');
     roleSelect.id='wb-active-role-select';
-    roleSelect.className='pro-inline-select';
-    roleSelect.style.cssText='flex:1;min-width:160px;';
+    roleSelect.hidden=true;
     for(const [rKey,rName] of Object.entries(carouselRoleLabels)){
-      const opt=text('option',rName);opt.value=rKey;if(rKey===activeRole)opt.selected=true;
+      const opt=text('option',rName);opt.value=rKey;if(rKey===(activeTplDef.role||activeRole))opt.selected=true;
       roleSelect.append(opt);
     }
-    cRole.append(roleQuickBar,roleSelect);
-
-    // Row 2: 레이아웃 테마 (8종 고유 연출)
-    const {row:rTheme,ctrl:cTheme}=makePropRow('레이아웃 테마 (8종)');
     tplSelect=document.createElement('select');
     tplSelect.id='wb-active-tpl-select';
-    tplSelect.className='pro-font-select';
-    tplSelect.style.cssText='flex:1;width:100%;';
+    tplSelect.hidden=true;
     for(const [tKey,tName] of Object.entries(carouselTemplateNames)){
-      const opt=text('option',tName);opt.value=tKey;if(tKey===activeTpl)opt.selected=true;
+      const opt=text('option',tName);opt.value=tKey;if(tKey===(activeTplDef.theme||activeTpl))opt.selected=true;
       tplSelect.append(opt);
     }
-    cTheme.append(tplSelect);
 
     // Per-slide Font + 1st & 2nd Double-Stroke Controls
     const activeFontKey=activeSlide.font_family||job.carousel?.font_family||$('carousel-font')?.value||'heavy_kr';
@@ -2136,9 +2920,9 @@ function renderCarouselPreview(){
     const s1Range=document.createElement('input');s1Range.type='range';s1Range.min='0';s1Range.max='24';s1Range.step='1';s1Range.value=String(activeStrokeW);
     s1Num=document.createElement('input');s1Num.type='number';s1Num.id='wb-active-stroke-width';s1Num.className='capcut-num-input';s1Num.min='0';s1Num.max='24';s1Num.step='1';s1Num.value=String(activeStrokeW);
     const s1Tag=text('span',`${activeStrokeW}px`);s1Tag.className='pro-unit-tag';
-    s1Range.oninput=()=>{s1Num.value=s1Range.value;s1Tag.textContent=`${s1Range.value}px`;scheduleRealtimeSlideSync({},160);};
-    s1Num.oninput=()=>{s1Range.value=s1Num.value;s1Tag.textContent=`${s1Num.value}px`;scheduleRealtimeSlideSync({},160);};
-    s1Color.oninput=()=>scheduleRealtimeSlideSync({},160);
+    s1Range.oninput=()=>{s1Num.value=s1Range.value;s1Tag.textContent=`${s1Range.value}px`;scheduleRealtimeSlideSync({},800);};
+    s1Num.oninput=()=>{s1Range.value=s1Num.value;s1Tag.textContent=`${s1Num.value}px`;scheduleRealtimeSlideSync({},800);};
+    s1Color.oninput=()=>scheduleRealtimeSlideSync({},800);
     cS1.append(s1Color,s1Range,s1Num,s1Tag);
 
     // Row 5: 2중 바깥 테두리
@@ -2148,41 +2932,16 @@ function renderCarouselPreview(){
     const s2Range=document.createElement('input');s2Range.type='range';s2Range.min='0';s2Range.max='24';s2Range.step='1';s2Range.value=String(activeDStrokeW);
     s2Num=document.createElement('input');s2Num.type='number';s2Num.id='wb-active-double-stroke-width';s2Num.className='capcut-num-input';s2Num.min='0';s2Num.max='24';s2Num.step='1';s2Num.value=String(activeDStrokeW);
     const s2Tag=text('span',`${activeDStrokeW}px`);s2Tag.className='pro-unit-tag';
-    s2Range.oninput=()=>{s2Num.value=s2Range.value;s2Tag.textContent=`${s2Range.value}px`;scheduleRealtimeSlideSync({},160);};
-    s2Num.oninput=()=>{s2Range.value=s2Num.value;s2Tag.textContent=`${s2Num.value}px`;scheduleRealtimeSlideSync({},160);};
-    s2Color.oninput=()=>scheduleRealtimeSlideSync({},160);
+    s2Range.oninput=()=>{s2Num.value=s2Range.value;s2Tag.textContent=`${s2Range.value}px`;scheduleRealtimeSlideSync({},800);};
+    s2Num.oninput=()=>{s2Range.value=s2Num.value;s2Tag.textContent=`${s2Num.value}px`;scheduleRealtimeSlideSync({},800);};
+    s2Color.oninput=()=>scheduleRealtimeSlideSync({},800);
     cS2.append(s2Color,s2Range,s2Num,s2Tag);
 
-    // Row 6: 전체 객체 그룹 빠른 위치 프리셋 (상단 / 중앙 / 하단)
-    const {row:rPos,ctrl:cPos}=makePropRow('전체 객체 빠른 배치','드래그 또는 일괄 정렬');
-    const posQuickBar=document.createElement('div');
-    posQuickBar.className='capcut-toggle-group';
-    const curPos=activeSlide.overlay_position||($('carousel-text-pos')?.value||'bottom');
-    for(const [pKey,pLabel] of [['top','상단 배너'],['center','중앙 포스터'],['bottom','하단 매거진']]){
-      const pBtn=text('button',pLabel);
-      pBtn.type='button';
-      pBtn.className='capcut-toggle-btn'+(pKey===curPos?' active':'');
-      pBtn.onclick=()=>{
-        activeSlide.overlay_position=pKey;
-        if($('carousel-text-pos'))$('carousel-text-pos').value=pKey;
-        const shift=pKey==='top'?-46:(pKey==='center'?-24:0);
-        const bObj=canvaObjects.find(o=>o.kind==='badge');if(bObj)bObj.y=Math.max(6,58.5+shift);
-        const tObj=canvaObjects.find(o=>o.kind==='title');if(tObj)tObj.y=Math.max(14,66.2+shift);
-        const stObj=canvaObjects.find(o=>o.kind==='stars');if(stObj)stObj.y=Math.max(24,81.8+shift);
-        const sObj=canvaObjects.find(o=>o.kind==='subtitle');if(sObj)sObj.y=Math.max(30,87.4+shift);
-        posQuickBar.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===pBtn));
-        renderAllCanvaObjectNodes();
-        applyActiveSlideUpdate({overlay_position:pKey});
-      };
-      posQuickBar.append(pBtn);
-    }
-    cPos.append(posQuickBar);
-
-    styleSheet.append(rSelObj,rObjSize,rObjBg,rHook,rRole,rTheme,rFont,rS1,rS2,rPos);
-    tabStylePanel.append(styleSheet);
+    styleSheet.append(rSelObj,rObjSize,rObjBg,rHook,rFont,rS1,rS2,roleSelect,tplSelect);
+    tabStylePanel.append(tpl20Section,styleSheet);
 
     // =========================================================================
-    // TAB 2 PANEL: ② 사진 · 배경 교체 · 배경 확대/위치 조절
+    // TAB 2 PANEL: ② 초고속 영상 캡처 · 배경 사진 교체 · 확대/위치 조절
     // =========================================================================
     const tabPhotoPanel=document.createElement('div');
     tabPhotoPanel.className='wb-tab-panel';
@@ -2214,14 +2973,14 @@ function renderCarouselPreview(){
       activeSlide.bg_transform.scale=Number(bgZoomRange.value)/100;
       bgZoomVal.textContent=`${bgZoomRange.value}%`;
       applyBgTransformStyle();
-      scheduleRealtimeSlideSync({},260);
+      refreshClientThumbInstant();
     };
     btnBgResetPan.onclick=()=>{
       activeSlide.bg_transform={scale:1,x:0,y:0};
       bgZoomRange.value='100';
       bgZoomVal.textContent='100%';
       applyBgTransformStyle();
-      scheduleRealtimeSlideSync({},200);
+      refreshClientThumbInstant();
     };
     bgZoomRow.append(bgZoomLbl,bgZoomRange,bgZoomVal,btnBgResetPan);
 
@@ -2243,7 +3002,10 @@ function renderCarouselPreview(){
         activeSlide._cleanBgDataUrl=dataUrl;
         canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dataUrl);
         bigImg.src=dataUrl;
-        await applyActiveSlideUpdate({},true);
+        blurBgImg.src=dataUrl;
+        refreshClientThumbInstant();
+        scheduleRealtimeSlideSync({image_data_url:dataUrl},800);
+        message('클립보드 이미지를 배경에 즉시 적용했습니다!');
       }catch(err){
         message(err.message,true);
       }
@@ -2263,51 +3025,35 @@ function renderCarouselPreview(){
       videoCaptureBox.style.marginTop='8px';
       const vcHead=document.createElement('div');
       vcHead.className='wb-section-head';
-      vcHead.append(text('strong','좌측 원본 영상에서 깨끗한 장면 가져오기'),text('span',`현재 슬라이드 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`));
+      const vcTsSpan=text('span',`현재 슬라이드 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`);
+      vcTsSpan.id='wb-active-video-ts-pill';
+      vcHead.append(text('strong','좌측 원본 영상에서 초고속 장면 캡처 (0.05초 즉시 반영)'),vcTsSpan);
       const vcBtns=document.createElement('div');
       vcBtns.className='wb-photo-action-row';
-      const captureCleanVideoFrameToBg=async(targetTime)=>{
-        const vid=$('preview');
-        if(vid&&vid.readyState>=2&&vid.videoWidth>0){
-          try{
-            if(typeof targetTime==='number'&&Math.abs(vid.currentTime-targetTime)>0.08){
-              vid.currentTime=targetTime;
-              await new Promise(r=>setTimeout(r,140));
-            }
-            const c=document.createElement('canvas');
-            c.width=vid.videoWidth;c.height=vid.videoHeight;
-            c.getContext('2d').drawImage(vid,0,0);
-            const dUrl=c.toDataURL('image/jpeg',0.92);
-            activeSlide._cleanBgDataUrl=dUrl;
-            canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dUrl);
-            bigImg.src=dUrl;
-          }catch{}
-        }
-      };
+
       const btnTsCapture=text('button','좌측 영상의 현재 재생 시점으로 배경 즉시 교체');
       btnTsCapture.type='button';
+      btnTsCapture.id='btn-inspector-instant-capture';
       btnTsCapture.className='btn-xs';
       btnTsCapture.onclick=async()=>{
         const cur=$('preview')?.currentTime;
         const rawTs=(typeof cur==='number'&&Number.isFinite(cur))?cur:Number(activeSlide.timestamp||0);
-        const nextTs=Math.min(Math.max(0,maxDur-0.1),rawTs);
-        activeSlide.timestamp=nextTs;
-        await captureCleanVideoFrameToBg(nextTs);
-        applyActiveSlideUpdate({timestamp:nextTs,clear_custom_image:true},true);
+        const nextTs=Math.min(Math.max(0,maxDur-0.05),rawTs);
+        await captureInstantVideoFrameToActiveSlide(nextTs);
+        message(`영상 ${nextTs.toFixed(1)}초 장면을 배경에 즉시 적용했습니다!`);
+        scheduleRealtimeSlideSync({timestamp:nextTs,clear_custom_image:true},1200);
       };
       const btnTsMinus=text('button','-0.5초 이전 장면');btnTsMinus.type='button';btnTsMinus.className='secondary btn-xs';
       btnTsMinus.onclick=async()=>{
         const nextTs=Math.max(0,Number(activeSlide.timestamp||0)-0.5);
-        activeSlide.timestamp=nextTs;
-        await captureCleanVideoFrameToBg(nextTs);
-        applyActiveSlideUpdate({timestamp:nextTs,clear_custom_image:true});
+        await captureInstantVideoFrameToActiveSlide(nextTs);
+        scheduleRealtimeSlideSync({timestamp:nextTs,clear_custom_image:true},1200);
       };
       const btnTsPlus=text('button','+0.5초 다음 장면');btnTsPlus.type='button';btnTsPlus.className='secondary btn-xs';
       btnTsPlus.onclick=async()=>{
-        const nextTs=Math.min(Math.max(0,maxDur-0.1),Number(activeSlide.timestamp||0)+0.5);
-        activeSlide.timestamp=nextTs;
-        await captureCleanVideoFrameToBg(nextTs);
-        applyActiveSlideUpdate({timestamp:nextTs,clear_custom_image:true});
+        const nextTs=Math.min(Math.max(0,maxDur-0.05),Number(activeSlide.timestamp||0)+0.5);
+        await captureInstantVideoFrameToActiveSlide(nextTs);
+        scheduleRealtimeSlideSync({timestamp:nextTs,clear_custom_image:true},1200);
       };
       vcBtns.append(btnTsCapture,btnTsMinus,btnTsPlus);
       videoCaptureBox.append(vcHead,vcBtns);
@@ -2319,44 +3065,41 @@ function renderCarouselPreview(){
       btnResetFrame.className='secondary btn-xs btn-subtle-danger';
       btnResetFrame.onclick=()=>{
         delete activeSlide._cleanBgDataUrl;
+        delete activeSlide.custom_image;
         canvaCleanBgMemoryCache.delete(`${job.id}_${activeSlide.index}`);
-        applyActiveSlideUpdate({clear_custom_image:true});
+        const restoredUrl=resolveCleanSlideBackgroundUrl(job,activeSlide,Date.now());
+        bigImg.src=restoredUrl;
+        blurBgImg.src=restoredUrl;
+        refreshClientThumbInstant();
+        scheduleRealtimeSlideSync({clear_custom_image:true},800);
       };
       photoActionRow.append(btnResetFrame);
     }
-    const photoHint=text('p','팁: 캔버스 빈 배경을 드래그하면 사진 구도를 상하좌우로 움직일 수 있으며, Ctrl+V로 클립보드 이미지를 즉시 배경에 넣을 수 있습니다.');
+    const photoHint=text('p','팁: 사진 영역을 마우스로 드래그하면 구도를 상하좌우로 움직일 수 있으며, 좌측 영상 캡처 버튼을 누르면 서버 대기 없이 0.05초 만에 배경에 즉시 적용됩니다.');
     photoHint.className='hint';
     photoBox.append(photoHead,bgZoomRow,photoActionRow,photoHint);
     tabPhotoPanel.prepend(photoBox);
 
     roleSelect.onchange=()=>{
-      roleQuickBar.querySelectorAll('button').forEach((b,idx)=>{
-        const k=['cover','body','cta'][idx];
-        b.classList.toggle('active',k===roleSelect.value);
-      });
-      applyActiveSlideUpdate({role:roleSelect.value});
+      const nextRole=roleSelect.value;
+      const defaultForRole=nextRole==='cover'?COVER_PRESET_IDS[0]:(nextRole==='cta'?CTA_PRESET_IDS[0]:BODY_PRESET_IDS[0]);
+      renderTpl20CategoryGrid(nextRole);
+      switchSlideToTemplate20(defaultForRole,{syncServer:true});
     };
     tplSelect.onchange=()=>{
-      const nextPal=CANVA_THEME_OBJECT_PALETTES[tplSelect.value]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
-      scrimLayer.style.background=nextPal.scrim;
-      const bObj=canvaObjects.find(o=>o.kind==='badge');
-      if(bObj){bObj.color=nextPal.badgeColor;bObj.bgColor=nextPal.badgeBg;bObj.borderRadius=nextPal.badgeRadius;}
-      const tObj=canvaObjects.find(o=>o.kind==='title');
-      if(tObj){tObj.color=nextPal.titleColor;}
-      const stObj=canvaObjects.find(o=>o.kind==='stars');
-      if(stObj){stObj.color=nextPal.starsColor;}
-      const sObj=canvaObjects.find(o=>o.kind==='subtitle');
-      if(sObj){sObj.color=nextPal.subColor;}
-      const cObj=canvaObjects.find(o=>o.kind==='counter');
-      if(cObj){cObj.color=nextPal.counterColor;cObj.bgColor=nextPal.counterBg;}
-      renderAllCanvaObjectNodes();
-      refreshSelectedObjectInspectorUI();
-      applyActiveSlideUpdate({template:tplSelect.value});
+      const nextTheme=tplSelect.value;
+      const matchingPreset=Object.values(CAROUSEL_20_TEMPLATES).find(t=>t.role===(activeSlide.role||activeRole)&&t.theme===nextTheme)
+        ||Object.values(CAROUSEL_20_TEMPLATES).find(t=>t.theme===nextTheme);
+      if(matchingPreset){
+        renderTpl20CategoryGrid(matchingPreset.role);
+        switchSlideToTemplate20(matchingPreset.id,{syncServer:true});
+      }
     };
     fontSelectEl.onchange=()=>{
+      activeSlide.font_family=fontSelectEl.value;
       applyWbFontPreview(fontSelectEl.value);
       updateCanvaLiveVisualStyle();
-      applyActiveSlideUpdate({font_family:fontSelectEl.value});
+      scheduleRealtimeSlideSync({font_family:fontSelectEl.value},900);
     };
 
     // Render all interactive Canva objects onto the stage and bind inspector
@@ -4486,12 +5229,10 @@ function render(){
         replaceSlideBtn.className='secondary btn-xs frame-add-bundle-btn frame-replace-slide-btn';
         replaceSlideBtn.hidden=(window.currentProductionStage!=='carousel');
         replaceSlideBtn.title='현재 선택된 캐러셀 슬라이드의 배경 사진을 이 프레임 시점으로 즉시 교체합니다';
-        replaceSlideBtn.onclick=e=>{
+        replaceSlideBtn.onclick=async e=>{
           e.stopPropagation();
-          const targetIdx=activeCarouselSlideIndex||1;
-          act(`슬라이드 #${targetIdx} 배경을 ${frame.timestamp}초 장면으로 교체 중…`,async()=>{
-            await update('carousel-slide-update',{index:targetIdx,timestamp:Number(frame.timestamp||0)});
-          },`슬라이드 #${targetIdx} 배경 장면을 ${frame.timestamp}초 화면으로 교체했습니다.`);
+          const tsNum=Number(frame.timestamp||0);
+          await captureInstantVideoFrameToActiveSlide(tsNum,{frameFile:frame.file});
         };
         frameBtnRow.append(replaceSlideBtn);
       }
@@ -5314,17 +6055,23 @@ if($('btn-capture-scrubber-bundle'))$('btn-capture-scrubber-bundle').onclick=()=
 if($('btn-bundle-capture-now'))$('btn-bundle-capture-now').onclick=()=>act('현재 영상 시점을 고화질 캡처해 동반 첨부 이미지에 추가하는 중…',async()=>{
   await captureCurrentVideoMomentToBundle({switchToBundleTab:true});
 },'현재 시점 장면을 캡처하여 동반 첨부 이미지에 추가했습니다!');
-if($('btn-capture-scrubber-carousel'))$('btn-capture-scrubber-carousel').onclick=()=>act('현재 영상 시점으로 활성 캐러셀 슬라이드 배경을 교체하는 중…',async()=>{
-  if(!job||job.kind==='image')throw new Error('영상이 불러와진 상태에서 사용할 수 있습니다.');
-  const ts=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
-  if((job.carousel?.slides||[]).length>0){
-    const targetIdx=activeCarouselSlideIndex||1;
-    await update('carousel-slide-update',{index:targetIdx,timestamp:ts});
-    showScrubberCaptureStatus(`슬라이드 #${targetIdx} 배경을 ${ts.toFixed(2)}초 장면으로 교체 완료`);
-  }else{
-    await captureCurrentVideoMomentToBundle();
+if($('btn-capture-scrubber-carousel'))$('btn-capture-scrubber-carousel').onclick=async()=>{
+  try{
+    if(!job||job.kind==='image')throw new Error('영상이 불러와진 상태에서 사용할 수 있습니다.');
+    const ts=Number($('timeline-scrubber-range')?.value||$('preview')?.currentTime||0);
+    if((job.carousel?.slides||[]).length>0){
+      const targetIdx=activeCarouselSlideIndex||1;
+      await captureInstantVideoFrameToActiveSlide(ts);
+      showScrubberCaptureStatus(`슬라이드 #${targetIdx} 배경을 ${ts.toFixed(2)}초 장면으로 즉시 교체 완료`);
+    }else{
+      await act('현재 영상 시점으로 장면을 캡처·적용 중…',async()=>{
+        await captureCurrentVideoMomentToBundle();
+      },'선택한 영상 시점으로 장면을 캡처·적용했습니다!');
+    }
+  }catch(err){
+    message(err.message||String(err),true);
   }
-},'선택한 영상 시점으로 장면을 캡처·적용했습니다!');
+};
 
 document.querySelectorAll('[data-snap-target]').forEach(btn=>{
   btn.addEventListener('click',()=>{

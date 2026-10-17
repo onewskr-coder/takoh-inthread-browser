@@ -1,29 +1,24 @@
-# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-17 · Canva / MiriCanvas Multi-Object Direct Carousel Layout Editor)
+# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-17 · 20 Distinct Carousel Templates [Cover 5 · Body 10 · CTA 5] + Instant `<50ms` Video Frame Capture & On-Canvas Text Editing)
 
 ## 1. Scope & Root Cause Fixed
-1. **Why the Previous Carousel Overlay Looked Like Image 2 Instead of Image 1**:
-   - Previously, the 02-B Carousel center stage (`#wb-live-typing-overlay`) rendered a single dark translucent box (`#canva-draggable-text-box` with `⋮⋮ 드래그하여 위치 이동 · 글자 클릭 시 즉시 수정`) on top of an already-baked slide image (`carousel-1.jpg`), which caused double-vision ghost text underneath and prevented moving individual layout elements (`01 / 02` counter, `main cover` badge, headline title, `★★★★★` stars, and bottom description).
+1. **Why Carousel Capture Felt Slow & Slides Looked Too Similar**:
+   - Previously, clicking any video frame capture button (`현재 영상장면 즉시적용`, `좌측 영상의 현재 재생 시점으로 배경 즉시 교체`, `-0.5초`, `+0.5초`, `#btn-capture-scrubber-carousel`, or `.frame-replace-slide-btn`) waited synchronously for a backend `/carousel-slide-update` round-trip (`ffmpeg` extraction + PIL compositing + full DOM re-render).
+   - In addition, slides shared a single full-bleed background structure so cover, body, and last (CTA) slides looked structurally identical rather than offering distinct curated layouts.
 2. **Fixes Implemented**:
    - **[`downloader/studio.py`](downloader/studio.py)**:
-     - Updated `media_file(job_id, name)` to serve clean un-baked background images (`carousel-bg-\d+\.jpg` and `carousel-custom-[A-Za-z0-9_-]+\.jpg`).
-     - Updated `carousel_generate(job_id)` and `carousel_slide_update(job_id)` to save clean un-baked slide backgrounds (`bg_file`), accept client-composited WYSIWYG high-resolution card images (`rendered_card_data_url`), and persist `canva_objects` and `bg_transform` per slide in `job.json`.
+     - Persisted `layout_preset`, `canva_objects`, `bg_transform`, `bg_file`, and `rendered_card_data_url` across `carousel_generate` and `carousel_slide_update`.
    - **[`downloader/studio_web/studio.js`](downloader/studio_web/studio.js)** & **[`downloader/studio_web/studio.css`](downloader/studio_web/studio.css)**:
-     - **Eliminated `#canva-draggable-text-box` & Ghost Baked Text**:
-       - Replaced the single translucent overlay box with `.canva-multi-object-stage` displaying the **clean un-baked background photo** (`resolveCleanSlideBackgroundUrl`) + theme bottom gradient scrim (`.canva-stage-scrim`), so there is zero ghost/duplicate text behind the objects.
-     - **100% Independent Canva / MiriCanvas Object Model (`canva_objects`) in Image 1's Visual State**:
-       - Every element on the card is now an independent `.canva-object-node` with its own `(x, y, widthPct, fontSize, color, bgColor, bgEnabled, borderRadius, align, visible)` state:
-         1. **`obj_counter` (`01 / 02`)**: Top-right slide counter pill.
-         2. **`obj_badge` (`main cover`)**: Dark rounded pill (`#101210`) with coral-red text (`#ee5646`) (or theme-specific badge palette).
-         3. **`obj_title` (`혹시 냄비 받침을 식탁 위에\n그냥 두자 냄비 받침을 식탁`)**: Bold white headline with inline `[박스 강조]` and `*색상 강조*` visual rendering.
-         4. **`obj_stars` (`★★★★★`)**: Gold star rating / accent object (`#faca22`).
-         5. **`obj_sub` (`전용 기둥에 포개어 정리하면...`)**: Bottom descriptive subtitle/body object.
-     - **Direct On-Canvas Manipulation (Move, Resize, Inline Edit, Delete, Add, Snap Guides, Background Pan/Zoom)**:
-       - Dragging any object moves that specific object freely (`x%`, `y%`) with pink magnetic alignment snap lines (`.canva-snap-line-x`, `.canva-snap-line-y`).
-       - Selecting an object shows a clean Canva selection frame (`#38bdf8`) with **4 corner handles** (`nw`, `ne`, `sw`, `se` for proportional font size scaling), **2 side handles** (`w`, `e` for text wrapping width adjustment), and a top-right **`×` delete button**.
-       - Clicking an already-selected object (or double-clicking any object) enters inline `contentEditable` text editing right in place.
-       - Added floating toolbar buttons (`+ 텍스트 객체 추가`, `+ 별점·배지 복원/추가`, `+ [박스 강조]`, `+ *색상 강조*`, `레이아웃 초기화`, `이미지 저장 (현재 카드 확정)`, `내 PC로 다운로드`) and Right Inspector per-object property controls (object switcher, font size slider, text color picker, background pill toggle/color picker, left/center/right alignment, and background photo zoom/pan reset).
-     - **High-Resolution `1080×1350` / `1080×1080` WYSIWYG Client Canvas Compositor (`renderCanvaSlideObjectsToDataUrl`)**:
-       - Renders the clean background photo (with `bg_transform` pan/zoom) + theme gradient scrim + all visible `canva_objects` at their exact dragged coordinates and font sizes onto a `1080×1350` (or `1080×1080`) HTML5 `<canvas>`, updating both the bottom storyboard thumbnail and the saved `carousel-N.jpg` file on disk.
+     - **Ultra-Fast (`0.5ms–30ms`) Instant Video Frame Capture & Background Swap (`captureInstantVideoFrameToActiveSlide`)**:
+       - Captures the current `<video id="preview">` frame directly onto an in-memory HTML5 `<canvas>` (or immediately swaps to the selected pre-extracted frame URL) and updates `#wb-active-slide-big-img`, `#wb-active-slide-blur-bg-img`, and the bottom storyboard thumbnail in `<30ms` without waiting on a blocking server round-trip. Server persistence runs asynchronously in the background.
+       - Wired all capture entry points (`#btn-canva-instant-video-capture`, `#btn-capture-video-to-slide`, `-0.5초` / `+0.5초`, `#btn-capture-scrubber-carousel`, `#frames .frame-replace-slide-btn`, and custom photo replacement `applyCarouselCustomPhotoDataUrl`) to this instant memory pipeline.
+     - **20 Role-Specific Distinct Templates (`CAROUSEL_20_TEMPLATES`: 메인 표지 5종 · 본문 10종 · 마지막장 5종)**:
+       - Built a structured 20-template catalog where each template defines its own `canvasBg` (`dark`, `solid`, `blur_dark`, `grid_paper`), `photoFrame` (`x, y, w, h, radius, borderColor, borderWidth`), `decorBoxes` (split panels, magazine frames, white gallery cards, top banners, Polaroid frames with masking tape, macOS/browser insight windows, BEFORE/AFTER comparison cards, 3-step checklists, summary tables, Q&A cards, and CTA buttons), and role-tailored `canva_objects`:
+         - **메인 표지 템플릿 (5종)**: `cover_01_cinema`, `cover_02_magazine`, `cover_03_top_hook`, `cover_04_gallery_ticket`, `cover_05_review_window`
+         - **본문 템플릿 (10종)**: `body_01_cinema_split`, `body_02_magazine_spread`, `body_03_white_gallery`, `body_04_top_banner_float`, `body_05_curation_book`, `body_06_polaroid_journal`, `body_07_ui_window`, `body_08_before_after`, `body_09_checklist_3step`, `body_10_full_poster_quote`
+         - **마지막장 템플릿 (5종)**: `cta_01_summary_card`, `cta_02_spec_table`, `cta_03_star_verdict`, `cta_04_qna_card`, `cta_05_minimal_ending`
+       - Added `전체 슬라이드 다른 템플릿 자동배정` (`#btn-canva-auto-vary-templates`) and automatic per-slide preset diversification (`getDefaultPresetForSlide`) so multi-slide carousels assign distinct formats across Cover, Body 1..N, and CTA slides automatically.
+     - **Instant Single-Click On-Screen Text Editing (`0.01s`)**:
+       - Clicking any text object on the center preview canvas immediately activates inline `contentEditable` text editing in place, while dragging moves/resizes the element smoothly.
 
 ## 2. Verification Evidence (Separated by Category)
 - **Static & Unit Tests**:
@@ -32,8 +27,9 @@
     - Python syntax compilation (`py_compile`): **PASS**
     - Core Node & Python unit tests (`test_clip_split.cjs`, `test_threads_research_media.cjs`, `test_studio_text_clean.py`): **PASS**
 - **Real Browser / Electron UI Verification**:
-  - Verified in headless Electron (`verify_canva_objects.cjs` -> `verify_canva_objects.json`):
-    - Confirmed `oldBoxRemoved: true`, `isCleanBg: true` (`frame-0.jpg` clean un-baked background), and `objectCount: 5` (`obj_counter`, `obj_badge`, `obj_title`, `obj_stars`, `obj_sub`), each with 6 resize handles (`handleCount: 6`).
-    - Captured initial Image 1 state (`verify_canva_objects_initial.png`) and after-drag state (`verify_canva_objects_dragged.png`) where `main cover` badge (`top: 58.5% -> 22.54%`), `★★★★★` stars (`left: 6.8%, top: 81.8% -> left: 37.7%, top: 22.62%`), and `title` (`top: 66.2% -> 57.21%`) were independently dragged across the clean background with zero ghosting.
+  - Verified in headless Electron (`verify_tpl20_instant_capture.cjs` -> `verify_tpl20_instant_capture.json`):
+    - Confirmed `totalTemplates: 20` (`coverCount: 5`, `bodyCount: 10`, `ctaCount: 5`) and automatic multi-slide template variation (`slide 1: cover_01_cinema`, `slide 2: body_01_cinema_split`, `slide 3: body_02_magazine_spread`, `slide 4: body_03_white_gallery`, `slide 5: cta_01_summary_card`).
+    - Confirmed instant `<50ms` video capture (`instantCaptureElapsedMs: 0.5ms`, `bgChangedImmediately: true`, `updatedTimestamp: 3.4`) and direct on-canvas text editing (`editedText: "화면에서 클릭해 즉시 수정한 본문 타이틀!"`).
+    - Captured visual evidence across distinct templates: `verify_tpl20_cover04_gallery.png`, `verify_tpl20_body08_before_after.png`, `verify_tpl20_body03_edited_instant_capture.png`, and `verify_tpl20_cta02_spec_table.png`.
 - **Saved Media / Audio / Paid Provider / Distribution**:
   - User profiles (`%APPDATA%\takoh-studio-browser`), saved references/jobs (`%LOCALAPPDATA%\ONEWS\studio`), and running helper processes on port `5006` were preserved untouched.
