@@ -4963,6 +4963,21 @@ html[data-theme="dark"] .pro-prop-label {
   user-select: text;
   cursor: text;
 }
+.canva-object-text .canva-inline-box-hl {
+  background: var(--hl-box-bg, #facc15) !important;
+  color: var(--hl-box-fg, #0f172a) !important;
+  padding: 0.04em 0.28em !important;
+  margin: 0.04em 0.04em !important;
+  border-radius: 0.18em !important;
+  display: inline-block !important;
+  text-shadow: none !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35) !important;
+  font-weight: 900 !important;
+}
+.canva-object-text .canva-inline-color-hl {
+  color: var(--hl-acc-fg, #f472b6) !important;
+  font-weight: 900 !important;
+}
 /* Corner & Side Resize Handles on Selected Object (Canva / MiriCanvas style) */
 .canva-resize-handle {
   display: none;

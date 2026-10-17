@@ -540,57 +540,53 @@ const CANVA_THEME_OBJECT_PALETTES={
 
 // 20 Distinct Role-Specific Templates (5 Cover + 10 Body + 5 CTA)
 const CAROUSEL_20_TEMPLATES={
-  // === 1. 메인 표지 템플릿 (5종) ===
+  // === 1. 메인 표지 템플릿 (5종 · 0.5초 시선 집중 레퍼런스 직관 구현) ===
   cover_01_cinema:{
     id:'cover_01_cinema',role:'cover',theme:'editorial_dark',
-    name:'표지 01 · 시네마 리뷰 다크',desc:'풀블리드 사진 + 하단 그라데이션 + main cover 배지 + 별점',
-    canvasBg:{type:'dark',color:'#0b0f17'},
+    name:'표지 01 · 시네마 무비 리뷰 (풀블리드)',desc:'풀블리드 사진 + 딥 다크 그라데이션 + main cover 배지 + 초대형 훅 제목 + 별점 5개',
+    canvasBg:{type:'dark',color:'#090b10'},
     photoFrame:{x:0,y:0,w:100,h:100,radius:0},
-    scrim:'linear-gradient(180deg, rgba(10,12,18,0) 36%, rgba(10,12,18,0.68) 62%, rgba(8,10,15,0.92) 84%, rgba(6,8,12,0.97) 100%)',
+    scrim:'linear-gradient(180deg, rgba(8,10,15,0.12) 0%, rgba(8,10,15,0) 36%, rgba(8,10,15,0.72) 60%, rgba(6,8,12,0.95) 82%, rgba(4,6,10,0.99) 100%)',
     decorBoxes:[]
   },
   cover_02_magazine:{
-    id:'cover_02_magazine',role:'cover',theme:'magazine_gradient',
-    name:'표지 02 · 뉴욕 매거진 포스터',desc:'상단 매거진 헤더 룰 + 중앙 액자 사진 + 하단 2단 요약 바',
-    canvasBg:{type:'solid',color:'#12100e'},
-    photoFrame:{x:6,y:27,w:88,h:54,radius:14,borderColor:'#f59e0b',borderWidth:3},
-    scrim:'none',
+    id:'cover_02_magazine',role:'cover',theme:'highlight_hook',
+    name:'표지 02 · 상단 블랙 훅 배너 (레퍼런스 0.5초 훅)',desc:'상단 블랙 헤더 + 형광 박스 하이라이트 대형 훅 + 하단 76% 상품·장면 원본 사진',
+    canvasBg:{type:'solid',color:'#05070b'},
+    photoFrame:{x:0,y:24,w:100,h:76,radius:0},
+    scrim:'linear-gradient(180deg, rgba(5,7,11,0.55) 0%, rgba(5,7,11,0) 34%, rgba(5,7,11,0.68) 78%, rgba(5,7,11,0.94) 100%)',
     decorBoxes:[
-      {x:6,y:9.5,w:88,h:0.4,bg:'#f59e0b',radius:0},
-      {x:6,y:83.5,w:88,h:11.5,bg:'#1c1917',borderColor:'#f59e0b',borderWidth:2,radius:12}
+      {x:0,y:0,w:100,h:24.5,bg:'#07090e',radius:0},
+      {x:0,y:24.2,w:100,h:0.6,bg:'#facc15',radius:0}
     ]
   },
   cover_03_top_hook:{
-    id:'cover_03_top_hook',role:'cover',theme:'highlight_hook',
-    name:'표지 03 · 상단 하이라이트 훅 배너',desc:'상단 30% 네온 훅 배너 + 하단 70% 사진 + 플로팅 해시태그 칩',
-    canvasBg:{type:'solid',color:'#090d16'},
-    photoFrame:{x:0,y:30,w:100,h:70,radius:0},
-    scrim:'linear-gradient(180deg, rgba(9,13,22,0.35) 0%, rgba(9,13,22,0) 45%, rgba(9,13,22,0.86) 100%)',
-    decorBoxes:[
-      {x:0,y:0,w:100,h:30,bg:'#0f172a',radius:0},
-      {x:0,y:29.5,w:100,h:0.7,bg:'#facc15',radius:0}
-    ]
+    id:'cover_03_top_hook',role:'cover',theme:'magazine_gradient',
+    name:'표지 03 · 자이언트 옐로우 골드 (12만회 쇼츠 훅)',desc:'풀블리드 사진 + 상단 화이트 보조훅 & 초대형 옐로우 2중 테두리 메인 타이틀',
+    canvasBg:{type:'dark',color:'#08090c'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(6,8,12,0.86) 0%, rgba(6,8,12,0.42) 32%, rgba(6,8,12,0.08) 56%, rgba(6,8,12,0.88) 86%, rgba(6,8,12,0.96) 100%)',
+    decorBoxes:[]
   },
   cover_04_gallery_ticket:{
-    id:'cover_04_gallery_ticket',role:'cover',theme:'clean_white',
-    name:'표지 04 · 화이트 갤러리 티켓',desc:'오프화이트 카드 지면 + 상단 라운드 액자 + 하단 에디토리얼 타이틀',
-    canvasBg:{type:'solid',color:'#e2e8f0'},
-    photoFrame:{x:10,y:12,w:80,h:48,radius:18},
-    scrim:'none',
+    id:'cover_04_gallery_ticket',role:'cover',theme:'neon_pop',
+    name:'표지 04 · 매거진 화살표 썸네일 (Canva 공식)',desc:'풀블리드 사진 + 상단 에디토리얼 룰 + 컬러 하이라이트 대형 타이틀 + 우측 스와이프 화살표(→)',
+    canvasBg:{type:'dark',color:'#0b0f17'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(8,11,18,0.48) 0%, rgba(8,11,18,0.12) 36%, rgba(8,11,18,0.78) 66%, rgba(6,9,15,0.97) 100%)',
     decorBoxes:[
-      {x:5,y:4,w:90,h:92,bg:'#f8fafc',borderColor:'#cbd5e1',borderWidth:2,radius:26},
-      {x:10,y:63.5,w:16,h:0.7,bg:'#2563eb',radius:4}
+      {x:6.8,y:9.2,w:86.4,h:0.25,bg:'rgba(255,255,255,0.45)',radius:0},
+      {x:6.8,y:89.5,w:86.4,h:0.25,bg:'rgba(255,255,255,0.28)',radius:0}
     ]
   },
   cover_05_review_window:{
-    id:'cover_05_review_window',role:'cover',theme:'neon_pop',
-    name:'표지 05 · 소셜 베스트 리뷰 창',desc:'블러 다크 배경 + 화이트 소셜 리뷰 윈도우 카드 + 별점 베스트',
-    canvasBg:{type:'blur_dark',color:'#0f172a'},
-    photoFrame:{x:10,y:16,w:80,h:44,radius:14},
-    scrim:'none',
+    id:'cover_05_review_window',role:'cover',theme:'clean_white',
+    name:'표지 05 · 중앙 블랙 라운드 훅 & 베스트 후기',desc:'풀블리드 사진 + 중앙 고대비 블랙 라운드 훅 박스 + 하단 구매확정 별점 요약바',
+    canvasBg:{type:'dark',color:'#090d16'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(8,10,16,0.25) 0%, rgba(8,10,16,0.10) 45%, rgba(8,10,16,0.82) 78%, rgba(6,8,14,0.96) 100%)',
     decorBoxes:[
-      {x:6,y:7,w:88,h:86,bg:'#ffffff',borderColor:'#cbd5e1',borderWidth:2,radius:24},
-      {x:6,y:7,w:88,h:6.8,bg:'#0f172a',radius:20}
+      {x:6,y:80.5,w:88,h:14,bg:'rgba(255,255,255,0.96)',borderColor:'#e2e8f0',borderWidth:2,radius:18}
     ]
   },
 
@@ -786,10 +782,10 @@ function getDefaultPresetForSlide(slide,totalSlides,role,legacyTemplate){
   const r=role||(sIdx===1?'cover':(sIdx===totalSlides&&totalSlides>=3?'cta':'body'));
   const themeToCover={
     editorial_dark:'cover_01_cinema',
-    magazine_gradient:'cover_02_magazine',
-    highlight_hook:'cover_03_top_hook',
-    clean_white:'cover_04_gallery_ticket',
-    neon_pop:'cover_05_review_window'
+    highlight_hook:'cover_02_magazine',
+    magazine_gradient:'cover_03_top_hook',
+    neon_pop:'cover_04_gallery_ticket',
+    clean_white:'cover_05_review_window'
   };
   const themeToBody={
     editorial_dark:'body_01_cinema_split',
@@ -943,7 +939,7 @@ window.performCanvaUndo=performCanvaUndo;
 window.performCanvaRedo=performCanvaRedo;
 
 function getCanvaSlideStorageKey(jobId,slideIdx){
-  return `takoh_canva_objs_v3_${jobId}_${slideIdx}`;
+  return `takoh_canva_objs_v4_${jobId}_${slideIdx}`;
 }
 function saveCanvaSlideLocalState(jobId,slideIdx,objects,bgTransform,cleanBgUrl,layoutPreset){
   if(!jobId||!slideIdx)return;
@@ -964,56 +960,230 @@ function loadCanvaSlideLocalState(jobId,slideIdx){
   }catch{return null;}
 }
 
+function isGenericPlaceholderSlideText(txt){
+  const s=String(txt||'').trim();
+  if(!s)return true;
+  return /^(클릭하여\s*(메인\s*제목을|상세\s*설명\s*문구를|텍스트를)\s*입력하세요|여기를\s*클릭해\s*제목을\s*수정하세요|핵심\s*포인트\s*한눈에\s*보기|\[핵심\s*요약\]\s*놓치면\s*아쉬운\s*실사용\s*체크\s*포인트)$/i.test(s);
+}
+
+function deduplicateSlideLines(raw){
+  const lines=String(raw||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const uniq=[];
+  for(const l of lines){
+    if(!uniq.includes(l))uniq.push(l);
+  }
+  return uniq.join(' ');
+}
+
+function compactCoverHookCopy(raw,maxChars=28){
+  const s=deduplicateSlideLines(raw).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
+  if(!s)return '놓치면 후회하는 실사용 핵심 포인트';
+  if(s.length<=maxChars)return s;
+  // Prefer natural clause break (comma, conjunction, or middle word boundary) instead of 4-line run-on sentence
+  const commaIdx=s.indexOf(',');
+  if(commaIdx>=8&&commaIdx<=maxChars){
+    const afterComma=s.slice(commaIdx+1).trim();
+    if(afterComma.length>=8&&afterComma.length<=maxChars+6){
+      return `${s.slice(0,commaIdx).trim()}\n${afterComma}`;
+    }
+  }
+  const words=s.split(/\s+/).filter(Boolean);
+  if(words.length>=5){
+    let acc=[];
+    let len=0;
+    for(const w of words){
+      if(len>0&&len+w.length+1>maxChars)break;
+      acc.push(w);
+      len+=w.length+1;
+    }
+    const trimmed=acc.join(' ');
+    if(trimmed.length>=10)return trimmed;
+  }
+  return s.slice(0,maxChars).trim();
+}
+
+function resolveSmartSlideHookCopy(slide,totalSlides,role){
+  const {title:rawTitle,subtitle:rawSub,bodyText:rawBody}=splitSlideThreeTierText(slide);
+  const sIdx=Math.max(1,Number(slide?.index||1));
+  const hookLines=(typeof extractBestHookLines==='function')?extractBestHookLines():[];
+  const prod=($('product-name')?.value||job?.product?.name||'').trim();
+
+  let headline=deduplicateSlideLines(rawTitle||'');
+  let subcopy=deduplicateSlideLines([rawSub,rawBody].filter(Boolean).join('\n'));
+
+  if(isGenericPlaceholderSlideText(headline)){
+    if(role==='cover'||sIdx===1){
+      const firstHook=hookLines[0]||(prod?`[${prod}] 다들 왜 이걸로 바꿀까?`:'여긴 안 가봤지? 90%가 놓치는 핵심 비밀');
+      const secondHook=hookLines[1]||'직접 써보고 확인한 결정적 차이, 지금 바로 슬라이드를 넘겨 확인하세요.';
+      if(firstHook.includes('|')){
+        const parts=firstHook.split('|').map(x=>x.trim()).filter(Boolean);
+        headline=parts[0]||firstHook;
+        if(isGenericPlaceholderSlideText(subcopy)&&parts[1])subcopy=parts.slice(1).join(' ');
+      }else{
+        headline=firstHook;
+      }
+      if(isGenericPlaceholderSlideText(subcopy)){
+        subcopy=secondHook;
+      }
+    }else if(role==='cta'){
+      headline=hookLines[hookLines.length-1]||(prod?`[${prod}] 실사용 핵심 요약 완료`:'시간 아껴주는 핵심 요약 완료! 지금 바로 확인해 보세요');
+      if(isGenericPlaceholderSlideText(subcopy)){
+        subcopy=hookLines[1]||'첫 댓글과 고정 안내에서 상세 정보와 체크 포인트를 바로 확인하실 수 있습니다.';
+      }
+    }else{
+      const bodyCandidate=hookLines[(sIdx-1)%Math.max(1,hookLines.length)]||'실사용에서 가장 만족도가 높았던 핵심 디테일';
+      if(bodyCandidate.includes('|')){
+        const parts=bodyCandidate.split('|').map(x=>x.trim()).filter(Boolean);
+        headline=parts[0]||bodyCandidate;
+        if(isGenericPlaceholderSlideText(subcopy)&&parts[1])subcopy=parts.slice(1).join(' ');
+      }else{
+        headline=bodyCandidate;
+      }
+      if(isGenericPlaceholderSlideText(subcopy)){
+        subcopy=hookLines[sIdx%Math.max(1,hookLines.length)]||'기존 방식과 비교했을 때 가장 먼저 체감되는 핵심 변화 포인트입니다.';
+      }
+    }
+  }else if(isGenericPlaceholderSlideText(subcopy)){
+    subcopy=hookLines[Math.min(sIdx,Math.max(0,hookLines.length-1))]||'실사용에서 직접 확인한 핵심 포인트와 디테일을 한눈에 정리했습니다.';
+  }
+
+  const finalHead=deduplicateSlideLines(headline)||'놓치면 후회하는 실사용 핵심 포인트';
+  let finalSub=deduplicateSlideLines(subcopy)||'실사용에서 직접 확인한 결정적 차이를 슬라이드로 정리했습니다.';
+  if(finalSub===finalHead&&hookLines[1]){
+    finalSub=deduplicateSlideLines(hookLines[1]);
+  }
+  return {
+    cleanHeadline:finalHead,
+    combinedSub:finalSub
+  };
+}
+
+function splitHeadlineForTwoTierHook(headline){
+  const clean=deduplicateSlideLines(headline).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
+  if(clean.includes(',')){
+    const parts=clean.split(',').map(x=>x.trim()).filter(Boolean);
+    if(parts.length>=2){
+      const topPart=parts[0].slice(0,18).trim();
+      const mainPart=parts.slice(1).join(' ').slice(0,18).trim();
+      if(topPart&&mainPart)return {topLine:topPart,mainLine:mainPart};
+    }
+  }
+  const words=clean.split(/\s+/).filter(Boolean);
+  if(words.length>=4){
+    const mid=Math.min(3,Math.ceil(words.length*0.45));
+    return {
+      topLine:words.slice(0,mid).join(' ').slice(0,18),
+      mainLine:words.slice(mid).join(' ').slice(0,18)
+    };
+  }
+  if(clean.length>10){
+    const cut=Math.min(10,Math.ceil(clean.length*0.45));
+    return {
+      topLine:clean.slice(0,cut).trim(),
+      mainLine:clean.slice(cut,cut+18).trim()
+    };
+  }
+  return {
+    topLine:'그냥 지나치면 후회하는',
+    mainLine:clean||'이거 하나로 종결!'
+  };
+}
+
+function ensureHeadlineHasBoxHighlight(headline){
+  const s=deduplicateSlideLines(headline).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
+  if(s.includes(',')){
+    const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
+    if(parts.length>=2){
+      return `${parts[0].slice(0,19)}\n[${parts.slice(1).join(' ').slice(0,19)}]`;
+    }
+  }
+  const words=s.split(/\s+/).filter(Boolean);
+  if(words.length>=3){
+    const cut=Math.min(4,Math.ceil(words.length*0.48));
+    const line1=words.slice(0,cut).join(' ').slice(0,19);
+    const line2=words.slice(cut).join(' ').slice(0,19);
+    return `${line1}\n[${line2}]`;
+  }
+  return `[${s.slice(0,18)}]`;
+}
+
+function ensureHeadlineHasColorHighlight(headline){
+  const s=deduplicateSlideLines(headline).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
+  if(s.includes(',')){
+    const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
+    if(parts.length>=2){
+      return `*${parts[0].slice(0,18)}*\n${parts.slice(1).join(' ').slice(0,22)}`;
+    }
+  }
+  const words=s.split(/\s+/).filter(Boolean);
+  if(words.length>=3){
+    const cut=Math.min(3,Math.ceil(words.length*0.45));
+    return `*${words.slice(0,cut).join(' ').slice(0,18)}*\n${words.slice(cut).join(' ').slice(0,22)}`;
+  }
+  return `*핵심 포인트* →\n${s.slice(0,20)}`;
+}
+
 function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,presetOverride=null){
   const presetId=presetOverride||getDefaultPresetForSlide(slide,totalSlides,role,template);
   const tplDef=CAROUSEL_20_TEMPLATES[presetId]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
-  const {title:initHead,subtitle:initSubtitle,bodyText:initBodyText}=splitSlideThreeTierText(slide);
+  const {cleanHeadline,combinedSub}=resolveSmartSlideHookCopy(slide,totalSlides,tplDef.role||role);
   const sIdx=Math.max(1,Number(slide?.index||1));
   const sTot=Math.max(1,Number(totalSlides||1));
   const pointIdx=Math.max(1,sIdx-1);
   const pointNumStr=pointIdx<10?`0${pointIdx}`:String(pointIdx);
   const counterStr=`0${sIdx} / 0${sTot}`;
-  const cleanHeadline=(initHead||'클릭하여 메인 제목을 입력하세요').trim();
-  const combinedSub=[initSubtitle,initBodyText].filter(Boolean).join('\n').trim()||'클릭하여 상세 설명 문구를 입력하세요';
 
-  const makeCounter=(fg='#ffffff',bg='rgba(14,17,24,0.78)',x=80.5,y=3.4)=>({
+  const makeCounter=(fg='#ffffff',bg='rgba(10,12,18,0.82)',x=80.5,y=3.4)=>({
     id:'obj_counter',kind:'counter',label:'슬라이드 번호',text:counterStr,
     x,y,widthPct:15,fontSize:20,color:fg,bgColor:bg,bgEnabled:true,borderRadius:999,paddingX:14,paddingY:6,align:'center',bold:true,visible:true
   });
 
   switch(presetId){
-    case 'cover_02_magazine':
+    case 'cover_02_magazine':{
+      // Reference 2: Top Black Banner + Pink/Yellow Highlight Box Hook + Bottom 76% Uncropped Photo ("일본에서 산 껌통안에 / [종이가 들어있는 이유?!]")
+      const boxHookHeadline=ensureHeadlineHasBoxHighlight(cleanHeadline);
       return [
-        makeCounter('#fef3c7','#1c1917',80,3.2),
-        {id:'obj_badge',kind:'badge',label:'매거진 상단 헤더',text:'SPECIAL EDITION · INSIGHT',x:6,y:4,widthPct:0,fontSize:22,color:'#f59e0b',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'메인 매거진 타이틀',text:cleanHeadline,x:6,y:11.5,widthPct:88,fontSize:58,color:'#ffffff',bgColor:'#1c1917',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
-        {id:'obj_stars',kind:'stars',label:'하단 좌측 라벨',text:'EDITOR PICK ★★★★★',x:9,y:85.2,widthPct:0,fontSize:24,color:'#fbbf24',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 요약 설명',text:combinedSub,x:9,y:88.8,widthPct:82,fontSize:25,color:'#f3f4f6',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true}
+        makeCounter('#facc15','rgba(15,23,42,0.88)',81,2.6),
+        {id:'obj_badge',kind:'badge',label:'상단 속보 배지',text:'핵심 포인트 체크',x:6,y:2.6,widthPct:0,fontSize:21,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:15,paddingY:5,align:'left',bold:true,visible:false},
+        {id:'obj_title',kind:'title',label:'상단 블랙 배너 하이라이트 훅',text:boxHookHeadline,x:5,y:5.2,widthPct:90,fontSize:52,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:10,paddingX:8,paddingY:4,align:'center',bold:true,lineHeight:1.26,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 후킹 포인트 칩',text:'★★★★★  실사용 핵심 검증',x:6.5,y:81.2,widthPct:0,fontSize:24,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 장면 설명 문구',text:combinedSub,x:6.5,y:87.8,widthPct:87,fontSize:26,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true}
       ];
-    case 'cover_03_top_hook':
+    }
+    case 'cover_03_top_hook':{
+      // Reference 3: Giant Yellow/White Double-Stroke Hook ("밭일하시는 부모님 / 이거면 끝" & "손에 안 묻는 / 구리스 스프레이")
+      const twoTier=splitHeadlineForTwoTierHook(cleanHeadline);
       return [
-        makeCounter('#0f172a','#facc15',80.5,3.2),
-        {id:'obj_badge',kind:'badge',label:'상단 훅 배지',text:'90%가 놓치는 핵심 공식',x:6.5,y:3.5,widthPct:0,fontSize:26,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'상단 배너 헤드라인',text:cleanHeadline,x:6.5,y:11,widthPct:87,fontSize:54,color:'#ffffff',bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
-        {id:'obj_stars',kind:'stars',label:'플로팅 해시태그 칩',text:'#핵심요약   #실사용검증   #추천꿀팁',x:6.5,y:82.5,widthPct:0,fontSize:24,color:'#fde047',bgColor:'rgba(15,23,42,0.88)',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:8,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명',text:combinedSub,x:6.5,y:89,widthPct:87,fontSize:26,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.32,visible:true}
+        makeCounter('#ffffff','rgba(10,12,18,0.82)',81,3.2),
+        {id:'obj_badge',kind:'badge',label:'상단 화이트 도입 훅 (1열)',text:twoTier.topLine,x:5,y:5.8,widthPct:90,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.15,strokeWidth:8,strokeColor:'#000000',visible:true},
+        {id:'obj_title',kind:'title',label:'초대형 옐로우 임팩트 훅 (2열)',text:twoTier.mainLine,x:4,y:12.8,widthPct:92,fontSize:76,color:'#facc15',bgColor:'transparent',bgEnabled:false,borderRadius:10,paddingX:4,paddingY:4,align:'center',bold:true,lineHeight:1.12,strokeWidth:10,strokeColor:'#000000',visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 별점 배지',text:'★★★★★  직접 써본 결론',x:6.5,y:81.2,widthPct:0,fontSize:25,color:'#fde047',bgColor:'rgba(10,12,18,0.86)',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 핵심 요약',text:combinedSub,x:6.5,y:87.8,widthPct:87,fontSize:26,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true}
       ];
-    case 'cover_04_gallery_ticket':
+    }
+    case 'cover_04_gallery_ticket':{
+      // Reference 4: Canva Editorial Arrow Cover ("FOR SOCIAL MEDIA / 깔끔한 디자인 → 카드뉴스 썸네일 / 잘 터지는 캐러셀 제작하기 →")
+      const colorHookHeadline=ensureHeadlineHasColorHighlight(cleanHeadline);
       return [
-        makeCounter('#ffffff','#0f172a',76,6.2),
-        {id:'obj_badge',kind:'badge',label:'갤러리 카테고리 배지',text:'CURATED ARCHIVE · 01',x:10,y:6.5,widthPct:0,fontSize:22,color:'#2563eb',bgColor:'#dbeafe',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:6,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'갤러리 메인 제목',text:cleanHeadline,x:10,y:66,widthPct:80,fontSize:54,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
-        {id:'obj_stars',kind:'stars',label:'별점 · 큐레이션 태그',text:'★★★★★  VERIFIED REVIEW',x:10,y:81.5,widthPct:0,fontSize:24,color:'#d97706',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 갤러리 설명',text:combinedSub,x:10,y:86,widthPct:80,fontSize:25,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.34,visible:true}
+        makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,3.5),
+        {id:'obj_badge',kind:'badge',label:'상단 에디토리얼 헤더',text:'SPECIAL CURATION · EDITOR PICK',x:6.8,y:4.2,widthPct:0,fontSize:21,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'메인 컬러 하이라이트 타이틀',text:colorHookHeadline,x:6.8,y:61.5,widthPct:86.4,fontSize:58,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'서브 핵심 한줄 공식',text:combinedSub,x:6.8,y:79.5,widthPct:86.4,fontSize:26,color:'#38bdf8',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 스와이프 화살표 바',text:'SWIPE FOR MORE   ───→',x:6.8,y:91.8,widthPct:86.4,fontSize:24,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'right',bold:true,visible:true}
       ];
-    case 'cover_05_review_window':
+    }
+    case 'cover_05_review_window':{
+      // Reference 5: Center Rounded Black Hook Pill ("장 볼때 누구나 한번쯤 하는 고민") + Bottom Social Proof Bar
+      const centerHookText=compactCoverHookCopy(cleanHeadline,24);
+      const shortSub=combinedSub.length>56?`${combinedSub.slice(0,55).trim()}…`:combinedSub;
       return [
-        makeCounter('#38bdf8','#0f172a',76,8.6),
-        {id:'obj_badge',kind:'badge',label:'윈도우 상단 타이틀바',text:'● ● ●   BEST REVIEW WINDOW',x:9.5,y:8.8,widthPct:0,fontSize:21,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_stars',kind:'stars',label:'베스트 별점 배지',text:'★★★★★  실사용 만족도 99%',x:10,y:62,widthPct:0,fontSize:26,color:'#ffffff',bgColor:'#ec4899',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'리뷰 메인 헤드라인',text:cleanHeadline,x:10,y:69,widthPct:80,fontSize:52,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'리뷰 상세 코멘트',text:combinedSub,x:10,y:83.5,widthPct:80,fontSize:25,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.34,visible:true}
+        makeCounter('#ffffff','rgba(15,23,42,0.85)',80.5,3.5),
+        {id:'obj_badge',kind:'badge',label:'상단 릴스·쇼츠 훅 칩',text:'누구나 공감하는 실생활 꿀팁',x:26,y:34.5,widthPct:48,fontSize:23,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'center',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'중앙 블랙 라운드 후킹 박스',text:centerHookText,x:7.5,y:41.5,widthPct:85,fontSize:52,color:'#ffffff',bgColor:'rgba(8,10,15,0.92)',bgEnabled:true,borderRadius:28,paddingX:28,paddingY:22,align:'center',bold:true,lineHeight:1.22,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 카드 구매확정 별점',text:'★★★★★  실사용자 만족도 99% · 베스트 후기',x:10,y:81.8,widthPct:80,fontSize:22,color:'#d97706',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 카드 한줄 요약',text:shortSub,x:10,y:85.8,widthPct:80,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.32,visible:true}
       ];
+    }
 
     // === BODY 10 TEMPLATES ===
     case 'body_01_cinema_split':
@@ -1141,15 +1311,15 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
 
     case 'cover_01_cinema':
     default:{
+      // Reference 1: User's Exact Attached Image 1 (`media_1792183806909_611922f5.png` & Canva "movie review / 라라나 영화처럼")
       const pal=CANVA_THEME_OBJECT_PALETTES[tplDef?.theme||template]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
-      const rawBadge=String(slide?.badge||'').trim();
-      const badgeStr=(!rawBadge||rawBadge.toUpperCase()==='MAIN COVER')?'main cover':rawBadge;
+      const cinemaHead=compactCoverHookCopy(cleanHeadline,24);
       return [
-        makeCounter(pal.counterColor,pal.counterBg,80.5,3.6),
-        {id:'obj_badge',kind:'badge',label:'상단 배지 (main cover)',text:badgeStr,x:6.8,y:58.5,widthPct:0,fontSize:38,color:pal.badgeColor,bgColor:pal.badgeBg,bgEnabled:true,borderRadius:pal.badgeRadius,paddingX:18,paddingY:8,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'메인 헤드라인 제목',text:cleanHeadline,x:6.8,y:66.2,widthPct:86.5,fontSize:64,color:pal.titleColor,bgColor:'#0f172a',bgEnabled:false,borderRadius:10,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
-        {id:'obj_stars',kind:'stars',label:'별점 · 포인트 장식',text:'★★★★★',x:6.8,y:81.8,widthPct:0,fontSize:38,color:pal.starsColor,bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명 문구',text:combinedSub,x:6.8,y:87.4,widthPct:86.5,fontSize:27,color:pal.subColor,bgColor:'rgba(15,23,42,0.65)',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.38,visible:true}
+        makeCounter(pal.counterColor,pal.counterBg,80.5,3.4),
+        {id:'obj_badge',kind:'badge',label:'상단 배지 (main cover)',text:'main cover',x:6.8,y:56.8,widthPct:0,fontSize:38,color:'#ee5646',bgColor:'#101210',bgEnabled:true,borderRadius:10,paddingX:18,paddingY:8,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'메인 헤드라인 제목',text:cinemaHead,x:6.8,y:64.5,widthPct:86.5,fontSize:60,color:'#ffffff',bgColor:'#0f172a',bgEnabled:false,borderRadius:10,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_stars',kind:'stars',label:'별점 · 포인트 장식',text:'★★★★★',x:6.8,y:82.2,widthPct:0,fontSize:38,color:'#faca22',bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명 문구',text:combinedSub,x:6.8,y:87.8,widthPct:86.5,fontSize:26,color:'#f8fafc',bgColor:'rgba(15,23,42,0.65)',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.36,visible:true}
       ];
     }
   }
@@ -1158,13 +1328,25 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
 function applyTemplatePresetToSlide(slide,totalSlides,presetId){
   if(!slide||!CAROUSEL_20_TEMPLATES[presetId])return;
   const tplDef=CAROUSEL_20_TEMPLATES[presetId];
-  // Preserve existing text values from current objects before rebuilding for the new template
+  if(!slide._rawHeadlineBase){
+    const hookLines=(typeof extractBestHookLines==='function')?extractBestHookLines():[];
+    const initTier=splitSlideThreeTierText(slide);
+    let cleanInit=deduplicateSlideLines(initTier.title||'');
+    // If slide.title was a truncated mid-sentence fragment (e.g., starting with "위에 그냥 두자니"), recover the full hook line from job analysis/captions!
+    if(hookLines[0]&&(!cleanInit||cleanInit.length<18||(hookLines[0].includes(cleanInit)&&hookLines[0].length>cleanInit.length))){
+      cleanInit=deduplicateSlideLines(hookLines[0].split('|')[0]);
+    }
+    if(cleanInit&&!isGenericPlaceholderSlideText(cleanInit)){
+      slide._rawHeadlineBase=cleanInit;
+    }
+  }
+  if(slide._rawHeadlineBase){
+    slide.title=slide._rawHeadlineBase;
+  }
   const prevObjs=Array.isArray(slide.canva_objects)?slide.canva_objects:[];
-  const prevTitle=(prevObjs.find(o=>o.kind==='title')?.text||slide.title||'').trim();
   const prevSub=(prevObjs.find(o=>o.kind==='subtitle')?.text||slide.subtitle||'').trim();
-  if(prevTitle)slide.title=prevTitle;
-  if(prevSub){
-    const cleanSub=prevSub.replace(/^(\[AFTER[^\]]*\]\s*|✓\s*|A\.\s*|•\s*핵심 포인트\s*:\s*)/i,'').split(/\r?\n/)[0].trim();
+  if(prevSub&&!isGenericPlaceholderSlideText(prevSub)){
+    const cleanSub=deduplicateSlideLines(prevSub.replace(/^(\[AFTER[^\]]*\]\s*|✓\s*|A\.\s*|•\s*핵심 포인트\s*:\s*)/i,'')).split(/\r?\n/)[0].trim();
     if(cleanSub)slide.subtitle=cleanSub;
   }
   slide.layout_preset=presetId;
@@ -1190,6 +1372,30 @@ function ensureCanvaObjectsForSlide(targetJob,slide,totalSlides,role,template){
     }else{
       slide.canva_objects=buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,slide.layout_preset);
     }
+  }
+  // Auto-upgrade any lingering generic placeholder text ("클릭하여 메인 제목을 입력하세요") with real hook copy from job/analysis/captions!
+  const titleObj=slide.canva_objects.find(o=>o.kind==='title');
+  const subObj=slide.canva_objects.find(o=>o.kind==='subtitle');
+  if(titleObj&&isGenericPlaceholderSlideText(titleObj.text)){
+    const smart=resolveSmartSlideHookCopy(slide,totalSlides,slide.role||role);
+    if(slide.layout_preset==='cover_02_magazine'){
+      titleObj.text=ensureHeadlineHasBoxHighlight(smart.cleanHeadline);
+    }else if(slide.layout_preset==='cover_03_top_hook'){
+      const twoTier=splitHeadlineForTwoTierHook(smart.cleanHeadline);
+      const bObj=slide.canva_objects.find(o=>o.kind==='badge');
+      if(bObj)bObj.text=twoTier.topLine;
+      titleObj.text=twoTier.mainLine;
+    }else if(slide.layout_preset==='cover_04_gallery_ticket'){
+      titleObj.text=ensureHeadlineHasColorHighlight(smart.cleanHeadline);
+    }else{
+      titleObj.text=smart.cleanHeadline;
+    }
+    slide.title=smart.cleanHeadline;
+  }
+  if(subObj&&isGenericPlaceholderSlideText(subObj.text)){
+    const smart=resolveSmartSlideHookCopy(slide,totalSlides,slide.role||role);
+    subObj.text=smart.combinedSub;
+    slide.subtitle=smart.combinedSub;
   }
   if(!slide.bg_transform||typeof slide.bg_transform!=='object'){
     slide.bg_transform={scale:1,x:0,y:0};
@@ -1350,8 +1556,8 @@ function renderObjectFormattedDisplayHtml(rawText,pal){
   const boxFg=pal?.hlBoxText||'#0f172a';
   const accFg=pal?.hlAccent||'#fde047';
   return safe
-    .replace(/\[([^\]]+)\]/g,`<span class="canva-inline-box-hl" style="background:${boxBg};color:${boxFg};padding:0 0.22em;border-radius:0.16em;display:inline-block;">$1</span>`)
-    .replace(/\*([^\*]+)\*/g,`<span class="canva-inline-color-hl" style="color:${accFg};">$1</span>`)
+    .replace(/\[([^\]]+)\]/g,`<span class="canva-inline-box-hl" style="--hl-box-bg:${boxBg};--hl-box-fg:${boxFg};background:${boxBg};color:${boxFg};padding:0.04em 0.28em;border-radius:0.18em;display:inline-block;">$1</span>`)
+    .replace(/\*([^\*]+)\*/g,`<span class="canva-inline-color-hl" style="--hl-acc-fg:${accFg};color:${accFg};">$1</span>`)
     .replace(/\r?\n/g,'<br>');
 }
 
@@ -1494,13 +1700,25 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
 
   // 3. Draw Scrim if present on template
   if(tplDef.scrim&&tplDef.scrim!=='none'){
-    const grad=ctx.createLinearGradient(0,Math.round(H*0.28),0,H);
-    grad.addColorStop(0,'rgba(10,12,18,0)');
-    grad.addColorStop(0.45,'rgba(10,12,18,0.68)');
-    grad.addColorStop(0.8,'rgba(8,10,15,0.92)');
-    grad.addColorStop(1,'rgba(6,8,12,0.97)');
-    ctx.fillStyle=grad;
-    ctx.fillRect(0,0,W,H);
+    if(presetId==='cover_03_top_hook'){
+      // Top & bottom scrim for Giant Top Yellow Hook + Bottom Summary
+      const grad=ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,'rgba(6,8,12,0.86)');
+      grad.addColorStop(0.32,'rgba(6,8,12,0.42)');
+      grad.addColorStop(0.56,'rgba(6,8,12,0.08)');
+      grad.addColorStop(0.86,'rgba(6,8,12,0.88)');
+      grad.addColorStop(1,'rgba(6,8,12,0.96)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,0,W,H);
+    }else{
+      const grad=ctx.createLinearGradient(0,Math.round(H*0.28),0,H);
+      grad.addColorStop(0,'rgba(10,12,18,0)');
+      grad.addColorStop(0.45,'rgba(10,12,18,0.68)');
+      grad.addColorStop(0.8,'rgba(8,10,15,0.92)');
+      grad.addColorStop(1,'rgba(6,8,12,0.97)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,0,W,H);
+    }
   }
 
   // 4. Draw remaining foreground decorBoxes (banners, split panels, comparison boxes, CTA bars, masking tape)
@@ -1509,16 +1727,40 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     drawDecorBoxItem(d);
   }
 
-  // 5. Draw Each Visible Object in slide.canva_objects
+  // 5. Draw Each Visible Object in slide.canva_objects (including `[박스 강조]` and `*색상 강조*` segments + per-object strokes!)
   const fCss=(CSS_FONT_MAP[fontKey]||CSS_FONT_MAP.heavy_kr).replace(/"/g,"'");
   const objs=Array.isArray(slide.canva_objects)?slide.canva_objects:[];
 
+  const parseFormattedSegments=(rawLine)=>{
+    const segments=[];
+    const regex=/\[([^\]]+)\]|\*([^\*]+)\*|([^\[\*]+)/g;
+    let m;
+    while((m=regex.exec(String(rawLine||'')))!==null){
+      if(m[1]!==undefined)segments.push({text:m[1],type:'box'});
+      else if(m[2]!==undefined)segments.push({text:m[2],type:'color'});
+      else if(m[3]!==undefined)segments.push({text:m[3],type:'plain'});
+    }
+    return segments.length?segments:[{text:String(rawLine||''),type:'plain'}];
+  };
+
+  const measureFormattedLinePx=(rawLine,fontSpec)=>{
+    ctx.font=fontSpec;
+    const segs=parseFormattedSegments(rawLine);
+    let w=0;
+    for(const seg of segs){
+      w+=ctx.measureText(seg.text).width+(seg.type==='box'?24:0);
+    }
+    return w;
+  };
+
   const wrapCanvasTextLines=(rawLine,maxPx,fontSpec)=>{
     ctx.font=fontSpec;
-    const cleanLine=String(rawLine||'').replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1');
-    if(!maxPx||maxPx<=0||ctx.measureText(cleanLine).width<=maxPx)return [cleanLine];
-    const words=cleanLine.split(/\s+/);
-    if(words.length<=1){
+    const rawStr=String(rawLine||'').trim();
+    if(!maxPx||maxPx<=0||measureFormattedLinePx(rawStr,fontSpec)<=maxPx)return [rawStr];
+    // Tokenize keeping `[...]` and `*...*` groups intact when wrapping
+    const tokens=rawStr.match(/\[[^\]]+\]|\*[^\*]+\*|\S+/g)||[rawStr];
+    if(tokens.length<=1){
+      const cleanLine=rawStr.replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1');
       const chars=[...cleanLine];
       const out=[];let cur='';
       for(const ch of chars){
@@ -1529,9 +1771,9 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
       return out;
     }
     const out=[];let cur='';
-    for(const w of words){
-      const cand=cur?`${cur} ${w}`:w;
-      if(cur&&ctx.measureText(cand).width>maxPx){out.push(cur);cur=w;}
+    for(const tk of tokens){
+      const cand=cur?`${cur} ${tk}`:tk;
+      if(cur&&measureFormattedLinePx(cand,fontSpec)>maxPx){out.push(cur);cur=tk;}
       else cur=cand;
     }
     if(cur)out.push(cur);
@@ -1563,11 +1805,14 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     }
     let maxLineW=0;
     for(const ln of lines){
-      const m=ctx.measureText(ln).width;
+      const m=measureFormattedLinePx(ln,fontSpec);
       if(m>maxLineW)maxLineW=m;
     }
-    const boxW=maxW&&(obj.kind==='counter'||obj.align==='center')?maxW:Math.ceil(maxLineW+padX*2);
+    const boxW=maxW&&(obj.kind==='counter'||obj.align==='center'||obj.bgEnabled)?maxW:Math.ceil(maxLineW+padX*2);
     const boxH=Math.ceil(lines.length*lineH-(lineH-fSize)+padY*2);
+
+    const effS1W=Number(obj.strokeWidth||s1W||0);
+    const effS1C=obj.strokeColor||s1C||'#000000';
 
     ctx.save();
     if(obj.bgEnabled&&obj.bgColor&&obj.bgColor!=='transparent'){
@@ -1576,33 +1821,55 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
       ctx.fill();
     }
 
+    const hlBoxBg=pal?.hlBoxBg||'#facc15';
+    const hlBoxFg=pal?.hlBoxText||'#0f172a';
+    const hlAccFg=pal?.hlAccent||'#fde047';
+
     for(let i=0;i<lines.length;i++){
       const ln=lines[i];
       const ly=yPx+padY+i*lineH;
-      let lx=xPx+padX;
+      const totalLnW=measureFormattedLinePx(ln,fontSpec);
+      let cursorX=xPx+padX;
       if(obj.align==='center'){
-        const lw=ctx.measureText(ln).width;
-        lx=xPx+Math.round((boxW-lw)/2);
+        cursorX=xPx+Math.round((boxW-totalLnW)/2);
       }else if(obj.align==='right'){
-        const lw=ctx.measureText(ln).width;
-        lx=xPx+boxW-padX-Math.round(lw);
+        cursorX=xPx+boxW-padX-Math.round(totalLnW);
       }
-      if(!obj.bgEnabled&&(s2W>0||s1W>0)){
-        ctx.lineJoin='round';
-        ctx.miterLimit=2;
-        if(s2W>0){
-          ctx.strokeStyle=s2C||'#facc15';
-          ctx.lineWidth=(s1W+s2W)*2;
-          ctx.strokeText(ln,lx,ly);
-        }
-        if(s1W>0){
-          ctx.strokeStyle=s1C||'#000000';
-          ctx.lineWidth=s1W*2;
-          ctx.strokeText(ln,lx,ly);
+
+      const segs=parseFormattedSegments(ln);
+      for(const seg of segs){
+        if(!seg.text)continue;
+        const segTextW=ctx.measureText(seg.text).width;
+        if(seg.type==='box'){
+          const bPadX=12,bPadY=4;
+          ctx.save();
+          ctx.fillStyle=hlBoxBg;
+          drawRoundedRect(cursorX,ly-bPadY,segTextW+bPadX*2,fSize+bPadY*2,Math.max(6,Math.round(fSize*0.16)));
+          ctx.fill();
+          ctx.fillStyle=hlBoxFg;
+          ctx.fillText(seg.text,cursorX+bPadX,ly);
+          ctx.restore();
+          cursorX+=segTextW+bPadX*2;
+        }else{
+          if(!obj.bgEnabled&&(s2W>0||effS1W>0)){
+            ctx.lineJoin='round';
+            ctx.miterLimit=2;
+            if(s2W>0){
+              ctx.strokeStyle=s2C||'#facc15';
+              ctx.lineWidth=(effS1W+s2W)*2;
+              ctx.strokeText(seg.text,cursorX,ly);
+            }
+            if(effS1W>0){
+              ctx.strokeStyle=effS1C;
+              ctx.lineWidth=effS1W*2;
+              ctx.strokeText(seg.text,cursorX,ly);
+            }
+          }
+          ctx.fillStyle=(seg.type==='color')?hlAccFg:(obj.color||'#ffffff');
+          ctx.fillText(seg.text,cursorX,ly);
+          cursorX+=segTextW;
         }
       }
-      ctx.fillStyle=obj.color||'#ffffff';
-      ctx.fillText(ln,lx,ly);
     }
     ctx.restore();
   }
@@ -2061,8 +2328,8 @@ function renderCarouselPreview(){
       const scaleRatio=stageW/1080;
       const curFontKey=fontSelectEl?.value||activeSlide.font_family||job?.carousel?.font_family||'heavy_kr';
       const fCss=(CSS_FONT_MAP[curFontKey]||CSS_FONT_MAP.heavy_kr).replace(/"/g,"'");
-      const s1W=Number(s1Num?.value||0);
-      const s1C=s1Color?.value||'#000000';
+      const s1W=Number(obj.strokeWidth||s1Num?.value||0);
+      const s1C=obj.strokeColor||s1Color?.value||'#000000';
       const s2W=Number(s2Num?.value||0);
       const s2C=s2Color?.value||'#facc15';
 
@@ -2095,7 +2362,7 @@ function renderCarouselPreview(){
       }else{
         tEl.style.background='transparent';
         const isLightText=/^#(fff|fef|f8f|f1f|f3f|fde|fcc|fac|a3e|2dd|38b|ccb)/i.test(String(obj.color||'#ffffff'));
-        const baseShadow=isLightText?'0 2px 6px rgba(0,0,0,0.45)':'none';
+        const baseShadow=isLightText?'0 3px 10px rgba(0,0,0,0.68)':'none';
         tEl.style.textShadow=buildLiveDoubleStrokeTextShadow(s1W,s1C,s2W,s2C,stageW,baseShadow);
       }
     };
@@ -2286,11 +2553,13 @@ function renderCarouselPreview(){
 
         tEl.addEventListener('input',()=>{
           obj.text=tEl.innerText||'';
+          if(obj.kind==='title')activeSlide._rawHeadlineBase=obj.text;
           syncCanvaObjectsToSlideFields();
           scheduleRealtimeSlideSync({},900);
         });
         tEl.addEventListener('blur',()=>{
           obj.text=(tEl.innerText||'').trim();
+          if(obj.kind==='title'&&obj.text)activeSlide._rawHeadlineBase=obj.text;
           node.classList.remove('is-editing-text');
           tEl.contentEditable='false';
           const latestPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
@@ -2561,6 +2830,10 @@ function renderCarouselPreview(){
         job=nextJob;
         const updatedSlide=(job.carousel?.slides||[]).find(s=>Number(s.index)===Number(payload.index));
         if(updatedSlide){
+          // If user switched to a different template while this background save was in flight, keep the newer UI state intact!
+          if(payload.layout_preset&&activeSlide.layout_preset&&payload.layout_preset!==activeSlide.layout_preset){
+            return;
+          }
           const preservedObjs=canvaObjects;
           const preservedBgT=activeSlide.bg_transform;
           const preservedCleanBg=activeSlide._cleanBgDataUrl;
@@ -2949,6 +3222,7 @@ function renderCarouselPreview(){
     btnResetObjects.onclick=()=>{
       pushCanvaUndoSnapshot(activeSlide);
       switchSlideToTemplate20(activeSlide.layout_preset||activePresetId,{syncServer:true,recordUndo:false});
+      selectCanvaObject(selectedCanvaObjectId,{focusText:false});
       activeSlide.bg_transform={scale:1,x:0,y:0};
       applyBgTransformStyle();
       updateBgOffsetReadout();
