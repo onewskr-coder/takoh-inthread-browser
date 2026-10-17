@@ -538,55 +538,243 @@ const CANVA_THEME_OBJECT_PALETTES={
   }
 };
 
-// 20 Distinct Role-Specific Templates (5 Cover + 10 Body + 5 CTA)
+// 37 Distinct Role-Specific Templates (22 Main Covers + 10 Body + 5 CTA)
 const CAROUSEL_20_TEMPLATES={
-  // === 1. 메인 표지 템플릿 (5종 · 0.5초 시선 집중 레퍼런스 직관 구현) ===
+  // === 1. 메인 표지 템플릿 (22종 · Canva/미리캔버스 한국형 카드뉴스 썸네일 그리드 1:1 구현) ===
   cover_01_cinema:{
     id:'cover_01_cinema',role:'cover',theme:'editorial_dark',
-    name:'표지 01 · 시네마 무비 리뷰 (풀블리드)',desc:'풀블리드 사진 + 딥 다크 그라데이션 + main cover 배지 + 초대형 훅 제목 + 별점 5개',
+    name:'표지 01 · 무비 리뷰 시네마 (라라나 영화처럼)',desc:'풀블리드 사진 + 하단 딥 다크 그라데이션 + movie review 코랄 배지 + 볼드 제목 + 별점 5개',
     canvasBg:{type:'dark',color:'#090b10'},
     photoFrame:{x:0,y:0,w:100,h:100,radius:0},
-    scrim:'linear-gradient(180deg, rgba(8,10,15,0.12) 0%, rgba(8,10,15,0) 36%, rgba(8,10,15,0.72) 60%, rgba(6,8,12,0.95) 82%, rgba(4,6,10,0.99) 100%)',
+    scrim:'linear-gradient(180deg, rgba(8,10,15,0.08) 0%, rgba(8,10,15,0) 40%, rgba(8,10,15,0.74) 64%, rgba(6,8,12,0.96) 84%, rgba(4,6,10,0.99) 100%)',
     decorBoxes:[]
   },
   cover_02_magazine:{
-    id:'cover_02_magazine',role:'cover',theme:'highlight_hook',
-    name:'표지 02 · 상단 블랙 훅 배너 (레퍼런스 0.5초 훅)',desc:'상단 블랙 헤더 + 형광 박스 하이라이트 대형 훅 + 하단 76% 상품·장면 원본 사진',
-    canvasBg:{type:'solid',color:'#05070b'},
-    photoFrame:{x:0,y:24,w:100,h:76,radius:0},
-    scrim:'linear-gradient(180deg, rgba(5,7,11,0.55) 0%, rgba(5,7,11,0) 34%, rgba(5,7,11,0.68) 78%, rgba(5,7,11,0.94) 100%)',
+    id:'cover_02_magazine',role:'cover',theme:'mint_modern',
+    name:'표지 02 · 민트 화살표 카페 썸네일 (깔끔한 디자인→)',desc:'풀블리드 사진 + FOR SOCIAL MEDIA 상단 세리프 + 민트 화살표 1열 & 화이트 대형 2열 + 하단 라인',
+    canvasBg:{type:'dark',color:'#0b1311'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(8,16,14,0.42) 0%, rgba(8,16,14,0.05) 35%, rgba(6,14,12,0.72) 68%, rgba(4,10,9,0.95) 100%)',
     decorBoxes:[
-      {x:0,y:0,w:100,h:24.5,bg:'#07090e',radius:0},
-      {x:0,y:24.2,w:100,h:0.6,bg:'#facc15',radius:0}
+      {x:6.8,y:92.5,w:86.4,h:0.35,bg:'rgba(255,255,255,0.78)',radius:2}
     ]
   },
   cover_03_top_hook:{
-    id:'cover_03_top_hook',role:'cover',theme:'magazine_gradient',
-    name:'표지 03 · 자이언트 옐로우 골드 (12만회 쇼츠 훅)',desc:'풀블리드 사진 + 상단 화이트 보조훅 & 초대형 옐로우 2중 테두리 메인 타이틀',
-    canvasBg:{type:'dark',color:'#08090c'},
+    id:'cover_03_top_hook',role:'cover',theme:'clean_white',
+    name:'표지 03 · 코스 배지 로컬 감성 스팟 (여긴 안 가봤지?)',desc:'풀블리드 사진 + 상단 화이트 라운드 코스 캡슐 + 하단 좌측 화이트 2단 볼드 헤드라인',
+    canvasBg:{type:'dark',color:'#0c151c'},
     photoFrame:{x:0,y:0,w:100,h:100,radius:0},
-    scrim:'linear-gradient(180deg, rgba(6,8,12,0.86) 0%, rgba(6,8,12,0.42) 32%, rgba(6,8,12,0.08) 56%, rgba(6,8,12,0.88) 86%, rgba(6,8,12,0.96) 100%)',
-    decorBoxes:[]
+    scrim:'linear-gradient(180deg, rgba(8,15,24,0.32) 0%, rgba(8,15,24,0.02) 42%, rgba(8,15,24,0.68) 74%, rgba(6,11,18,0.94) 100%)',
+    decorBoxes:[
+      {x:6.5,y:5.2,w:42,h:4.8,bg:'rgba(255,255,255,0.92)',radius:999}
+    ]
   },
   cover_04_gallery_ticket:{
-    id:'cover_04_gallery_ticket',role:'cover',theme:'neon_pop',
-    name:'표지 04 · 매거진 화살표 썸네일 (Canva 공식)',desc:'풀블리드 사진 + 상단 에디토리얼 룰 + 컬러 하이라이트 대형 타이틀 + 우측 스와이프 화살표(→)',
-    canvasBg:{type:'dark',color:'#0b0f17'},
+    id:'cover_04_gallery_ticket',role:'cover',theme:'minimal_outline',
+    name:'표지 04 · 에디토리얼 프레임 데일리 꿀팁 ([FASHION])',desc:'풀블리드 사진 + 얇은 화이트 외곽 프레임 + 카테고리 박스 태그 + 좌측 정렬 타이틀 + 하단 요약바',
+    canvasBg:{type:'dark',color:'#0a0d12'},
     photoFrame:{x:0,y:0,w:100,h:100,radius:0},
-    scrim:'linear-gradient(180deg, rgba(8,11,18,0.48) 0%, rgba(8,11,18,0.12) 36%, rgba(8,11,18,0.78) 66%, rgba(6,9,15,0.97) 100%)',
+    scrim:'linear-gradient(180deg, rgba(8,10,14,0.12) 0%, rgba(8,10,14,0.08) 44%, rgba(8,10,14,0.78) 72%, rgba(6,8,12,0.95) 100%)',
     decorBoxes:[
-      {x:6.8,y:9.2,w:86.4,h:0.25,bg:'rgba(255,255,255,0.45)',radius:0},
-      {x:6.8,y:89.5,w:86.4,h:0.25,bg:'rgba(255,255,255,0.28)',radius:0}
+      {x:4.2,y:3.5,w:91.6,h:93,bg:'transparent',borderColor:'rgba(255,255,255,0.72)',borderWidth:1.5,radius:4},
+      {x:8.5,y:85.2,w:0.5,h:3.6,bg:'#ffffff',radius:0}
     ]
   },
   cover_05_review_window:{
     id:'cover_05_review_window',role:'cover',theme:'clean_white',
-    name:'표지 05 · 중앙 블랙 라운드 훅 & 베스트 후기',desc:'풀블리드 사진 + 중앙 고대비 블랙 라운드 훅 박스 + 하단 구매확정 별점 요약바',
-    canvasBg:{type:'dark',color:'#090d16'},
+    name:'표지 05 · 구매 고객 별점 후기 윈도우 (● ● ●)',desc:'블러 사진 배경 + 중앙 화이트 브라우저 창(● ● ● 구매 고객 후기) + 별점 5개 BEST + 상세 리뷰 카드',
+    canvasBg:{type:'blur_dark',color:'#1e293b'},
     photoFrame:{x:0,y:0,w:100,h:100,radius:0},
-    scrim:'linear-gradient(180deg, rgba(8,10,16,0.25) 0%, rgba(8,10,16,0.10) 45%, rgba(8,10,16,0.82) 78%, rgba(6,8,14,0.96) 100%)',
+    scrim:'linear-gradient(180deg, rgba(15,23,42,0.42) 0%, rgba(15,23,42,0.58) 100%)',
     decorBoxes:[
-      {x:6,y:80.5,w:88,h:14,bg:'rgba(255,255,255,0.96)',borderColor:'#e2e8f0',borderWidth:2,radius:18}
+      {x:8.5,y:12,w:83,h:76,bg:'#ffffff',borderColor:'#cbd5e1',borderWidth:2,radius:20,layer:'front'},
+      {x:8.5,y:12,w:83,h:6.8,bg:'#f1f5f9',borderColor:'#e2e8f0',borderWidth:1,radius:18,layer:'front'},
+      {x:13,y:71.5,w:23,h:12.5,bg:'#f8fafc',borderColor:'#cbd5e1',borderWidth:1.5,radius:10,layer:'front'},
+      {x:38.5,y:71.5,w:23,h:12.5,bg:'#f8fafc',borderColor:'#cbd5e1',borderWidth:1.5,radius:10,layer:'front'},
+      {x:64,y:71.5,w:23,h:12.5,bg:'#f8fafc',borderColor:'#cbd5e1',borderWidth:1.5,radius:10,layer:'front'}
+    ]
+  },
+  cover_06_clean_purple_badge:{
+    id:'cover_06_clean_purple_badge',role:'cover',theme:'neon_pop',
+    name:'표지 06 · 퍼플 캡슐 배지 & 노하우 (마케팅 노하우)',desc:'다크 감성 사진 + 상단 계정 핸들 + 하단 소프트 퍼플 캡슐 배지 + 화이트 2줄 깔끔 타이틀',
+    canvasBg:{type:'dark',color:'#121318'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(14,15,20,0.45) 0%, rgba(14,15,20,0.25) 45%, rgba(10,11,16,0.88) 78%, rgba(8,9,13,0.97) 100%)',
+    decorBoxes:[]
+  },
+  cover_07_dark_header_band:{
+    id:'cover_07_dark_header_band',role:'cover',theme:'editorial_dark',
+    name:'표지 07 · 상하 다크 밴드 뉴스레터 (VOL.1)',desc:'상단 다크 헤더(뉴스레터 VOL.1) + 중앙 와이드 사진 + 하단 다크 시트 & 화이트 타이틀 + 핸들 캡슐',
+    canvasBg:{type:'solid',color:'#1e2024'},
+    photoFrame:{x:0,y:14.5,w:100,h:48.5,radius:0},
+    scrim:'none',
+    decorBoxes:[
+      {x:0,y:0,w:100,h:14.5,bg:'#1e2024',radius:0,layer:'front'},
+      {x:0,y:63,w:100,h:37,bg:'#1e2024',radius:0,layer:'front'},
+      {x:7,y:88.5,w:36,h:5.2,bg:'#111317',borderColor:'#475569',borderWidth:1,radius:999,layer:'front'}
+    ]
+  },
+  cover_08_diagonal_navy_sheet:{
+    id:'cover_08_diagonal_navy_sheet',role:'cover',theme:'editorial_dark',
+    name:'표지 08 · 하단 다크시트 비주얼 카드뉴스',desc:'상단 58% 사진 + 하단 42% 다크 슬레이트 시트 + 골드 포인트 라인 + 영문 키커 & 볼드 헤드라인',
+    canvasBg:{type:'solid',color:'#181c20'},
+    photoFrame:{x:0,y:0,w:100,h:58,radius:0},
+    scrim:'none',
+    decorBoxes:[
+      {x:0,y:56,w:100,h:44,bg:'#181c20',radius:0,layer:'front'},
+      {x:7.5,y:56,w:22,h:0.6,bg:'#f59e0b',radius:0,layer:'front'}
+    ]
+  },
+  cover_09_blue_gradient_3d:{
+    id:'cover_09_blue_gradient_3d',role:'cover',theme:'highlight_hook',
+    name:'표지 09 · 블루 그라데이션 3D 썸네일 (블로그/인스타)',desc:'트렌디 로열블루 배경 + 화이트 이너 프레임 + 말풍선 아이콘 + 중앙 3단 네온라임 타이틀 + 자세히보기 버튼',
+    canvasBg:{type:'solid',color:'#5b87f7'},
+    photoFrame:{x:14,y:10,w:72,h:28,radius:18,borderColor:'rgba(255,255,255,0.75)',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:4.5,y:3.8,w:91,h:92.4,bg:'transparent',borderColor:'rgba(255,255,255,0.72)',borderWidth:1.5,radius:18,layer:'front'},
+      {x:28,y:84.5,w:44,h:7.5,bg:'#3b5bdb',borderColor:'#93c5fd',borderWidth:1.5,radius:999,layer:'front'}
+    ]
+  },
+  cover_10_frosted_bottom_tags:{
+    id:'cover_10_frosted_bottom_tags',role:'cover',theme:'highlight_hook',
+    name:'표지 10 · 반투명 다크카드 & 라임 해시태그 (#클릭률)',desc:'상단 60% 밝은 사진 + 하단 40% 반투명 차콜 오버레이 + 화이트 2줄 타이틀 + 형광 라임 해시태그 칩',
+    canvasBg:{type:'dark',color:'#181a1b'},
+    photoFrame:{x:0,y:0,w:100,h:65,radius:0},
+    scrim:'none',
+    decorBoxes:[
+      {x:0,y:58,w:100,h:42,bg:'rgba(26,29,32,0.94)',radius:0,layer:'front'},
+      {x:7,y:88.2,w:48,h:5.5,bg:'#a3e635',radius:999,layer:'front'}
+    ]
+  },
+  cover_11_editorial_news_bracket:{
+    id:'cover_11_editorial_news_bracket',role:'cover',theme:'warm_luxury',
+    name:'표지 11 · [NEWS] 매거진 브래킷 & 블랙 라벨',desc:'풀블리드 감성 사진 + 상단 [ NEWS ] 헤더 + 하단 블랙 캡슐 소제목 + 화이트 대형 2줄 타이틀',
+    canvasBg:{type:'dark',color:'#141210'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(16,14,12,0.38) 0%, rgba(16,14,12,0.06) 40%, rgba(16,14,12,0.72) 72%, rgba(12,10,8,0.94) 100%)',
+    decorBoxes:[
+      {x:6.8,y:9.2,w:86.4,h:0.25,bg:'rgba(255,255,255,0.45)',radius:0,layer:'front'}
+    ]
+  },
+  cover_12_workspace_pick_arrow:{
+    id:'cover_12_workspace_pick_arrow',role:'cover',theme:'minimal_outline',
+    name:'표지 12 · 화이트 픽 배지 & 워크스페이스 (상단 훅)',desc:'다크 무드 사진 + 상단 화이트 캡슐(Editor Pick) + 상단 2줄 화이트 타이틀 + 하단 요약 & 원형 화살표(≫)',
+    canvasBg:{type:'dark',color:'#0f1318'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(10,14,20,0.82) 0%, rgba(10,14,20,0.32) 42%, rgba(10,14,20,0.18) 68%, rgba(8,12,18,0.88) 100%)',
+    decorBoxes:[
+      {x:82,y:88.5,w:10,h:7.5,bg:'#0f172a',borderColor:'rgba(255,255,255,0.75)',borderWidth:2,radius:999,layer:'front'}
+    ]
+  },
+  cover_13_2x2_grid_collage:{
+    id:'cover_13_2x2_grid_collage',role:'cover',theme:'warm_luxury',
+    name:'표지 13 · NEW DROP 감성 그리드 & 크림 하단바',desc:'상단 86% 사진 + 2×2 매거진 그리드 십자 프레임 + 상단 NEW DROP 타이틀 + 하단 크림 베이지 요약바',
+    canvasBg:{type:'solid',color:'#f5f0e6'},
+    photoFrame:{x:0,y:0,w:100,h:86,radius:0},
+    scrim:'linear-gradient(180deg, rgba(15,12,10,0.52) 0%, rgba(15,12,10,0.05) 35%, rgba(15,12,10,0.15) 85%, rgba(15,12,10,0) 100%)',
+    decorBoxes:[
+      {x:49.6,y:16,w:0.8,h:70,bg:'#f5f0e6',radius:0,layer:'front'},
+      {x:0,y:50.5,w:100,h:0.8,bg:'#f5f0e6',radius:0,layer:'front'},
+      {x:0,y:86,w:100,h:14,bg:'#f5f0e6',radius:0,layer:'front'}
+    ]
+  },
+  cover_14_vertical_line_picnic:{
+    id:'cover_14_vertical_line_picnic',role:'cover',theme:'highlight_hook',
+    name:'표지 14 · 좌측 수직선 & 옐로우 TOP 3 (피크닉/맛집)',desc:'풀블리드 사진 + 상단 좌측 화이트 수직 보더 바 + 화이트 키커 + 옐로우/화이트 3줄 대형 타이틀',
+    canvasBg:{type:'dark',color:'#141812'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(12,16,10,0.68) 0%, rgba(12,16,10,0.22) 48%, rgba(12,16,10,0.12) 75%, rgba(10,14,8,0.75) 100%)',
+    decorBoxes:[
+      {x:7.2,y:13.5,w:0.8,h:27,bg:'#ffffff',radius:2,layer:'front'}
+    ]
+  },
+  cover_15_arched_window_travel:{
+    id:'cover_15_arched_window_travel',role:'cover',theme:'magazine_gradient',
+    name:'표지 15 · 다크 라운드 창문 프레임 (명소 BEST 3)',desc:'다크 차콜 매트 배경 + 골드 보더 라운드 창문 액자 + 레드 포인트 배지 + 중앙 2줄 타이틀 + 해시태그 바',
+    canvasBg:{type:'solid',color:'#27272a'},
+    photoFrame:{x:5.5,y:5.5,w:89,h:89,radius:26,borderColor:'#d4af37',borderWidth:2},
+    scrim:'linear-gradient(180deg, rgba(15,15,20,0.25) 0%, rgba(15,15,20,0.58) 52%, rgba(15,15,20,0.78) 100%)',
+    decorBoxes:[
+      {x:13,y:58.5,w:74,h:0.35,bg:'rgba(255,255,255,0.75)',radius:2,layer:'front'},
+      {x:13,y:66,w:52,h:5.2,bg:'rgba(15,23,42,0.78)',borderColor:'rgba(255,255,255,0.45)',borderWidth:1,radius:999,layer:'front'}
+    ]
+  },
+  cover_16_white_poster_circle:{
+    id:'cover_16_white_poster_circle',role:'cover',theme:'clean_white',
+    name:'표지 16 · 화이트 포스터 & 레드 서클 (JAPAN 스타일)',desc:'화이트 포스터 지면 + 상단 초대형 다크 네이비 타이틀 + 레드 원형 포인트 + 중앙 라운드 사진 + 하단 요약 박스',
+    canvasBg:{type:'solid',color:'#ffffff'},
+    photoFrame:{x:9,y:34,w:82,h:48,radius:26,borderColor:'#e2e8f0',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:45.5,y:24.2,w:9,h:7.2,bg:'#ef4444',radius:999,layer:'front'},
+      {x:16,y:86.5,w:68,h:7,bg:'#ffffff',borderColor:'#94a3b8',borderWidth:1.5,radius:8,layer:'front'}
+    ]
+  },
+  cover_17_split_selfcare_pill:{
+    id:'cover_17_split_selfcare_pill',role:'cover',theme:'clean_white',
+    name:'표지 17 · 상하 분할 프레임 & 중앙 화이트 캡슐 (Self care)',desc:'화이트 외곽 보더 + 상하 사진 분할선 + 정중앙 화이트 타원 캡슐 타이틀 + 다크 서브 캡슐 배지',
+    canvasBg:{type:'solid',color:'#e5e0d8'},
+    photoFrame:{x:5.5,y:5.5,w:89,h:89,radius:14},
+    scrim:'linear-gradient(180deg, rgba(15,23,42,0.12) 0%, rgba(15,23,42,0.35) 50%, rgba(15,23,42,0.22) 100%)',
+    decorBoxes:[
+      {x:5.5,y:49.5,w:89,h:1.2,bg:'#ffffff',radius:0,layer:'front'},
+      {x:16,y:43.5,w:68,h:11,bg:'#ffffff',borderColor:'#e2e8f0',borderWidth:2,radius:999,layer:'front'},
+      {x:22,y:56.5,w:56,h:5.5,bg:'rgba(15,23,42,0.88)',radius:999,layer:'front'}
+    ]
+  },
+  cover_18_luxury_popup_serif:{
+    id:'cover_18_luxury_popup_serif',role:'cover',theme:'warm_luxury',
+    name:'표지 18 · 럭셔리 세리프 포스터 (POP-UP STORE)',desc:'풀블리드 무드 사진 + 상하 에디토리얼 룰 + 중앙 세리프 키커(1st) + 대형 2줄 헤드라인 + 날짜/요약',
+    canvasBg:{type:'dark',color:'#1c1613'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(24,18,14,0.35) 0%, rgba(24,18,14,0.48) 52%, rgba(18,13,10,0.88) 100%)',
+    decorBoxes:[
+      {x:36,y:68.5,w:28,h:0.3,bg:'rgba(255,255,255,0.65)',radius:0,layer:'front'},
+      {x:36,y:76.5,w:28,h:0.3,bg:'rgba(255,255,255,0.65)',radius:0,layer:'front'}
+    ]
+  },
+  cover_19_bottom_3hashtags_dark:{
+    id:'cover_19_bottom_3hashtags_dark',role:'cover',theme:'editorial_dark',
+    name:'표지 19 · 다크 감성 & 하단 3대 해시태그 칩 (사진을 활용한)',desc:'풀블리드 다크 무드 사진 + 중앙 좌측 대형 3줄 화이트 타이틀 + 설명 문구 + 하단 3개 화이트 해시태그 캡슐',
+    canvasBg:{type:'dark',color:'#14110f'},
+    photoFrame:{x:0,y:0,w:100,h:100,radius:0},
+    scrim:'linear-gradient(180deg, rgba(16,13,11,0.52) 0%, rgba(16,13,11,0.68) 55%, rgba(12,10,8,0.94) 100%)',
+    decorBoxes:[
+      {x:7,y:81.5,w:86,h:5.5,bg:'rgba(255,255,255,0.94)',radius:999,layer:'front'}
+    ]
+  },
+  cover_20_minimal_white_bookmark:{
+    id:'cover_20_minimal_white_bookmark',role:'cover',theme:'clean_white',
+    name:'표지 20 · 미니멀 화이트 북마크 & 우측 하단 액자',desc:'클린 오프화이트 지면 + 좌측 상단 다크 북마크 아이콘(▉) + 대형 3줄 차콜 타이포 + 우측 하단 미니 사진 액자',
+    canvasBg:{type:'solid',color:'#f8fafc'},
+    photoFrame:{x:52,y:62,w:40,h:30,radius:18,borderColor:'#cbd5e1',borderWidth:2},
+    scrim:'none',
+    decorBoxes:[
+      {x:8.5,y:13,w:4.5,h:5.2,bg:'#1e293b',radius:4,layer:'front'}
+    ]
+  },
+  cover_21_white_ticket_card:{
+    id:'cover_21_white_ticket_card',role:'cover',theme:'clean_white',
+    name:'표지 21 · 화이트 보더 티켓 액자 (FLY TO SEOUL)',desc:'블러 배경 + 중앙 화이트 라운드 티켓 카드 + 상단 티켓 내부 사진 & 화이트 훅 + 하단 블루/네이비 타이틀',
+    canvasBg:{type:'blur_dark',color:'#1e3a8a'},
+    photoFrame:{x:14,y:11,w:72,h:50,radius:16},
+    scrim:'none',
+    decorBoxes:[
+      {x:9.5,y:7,w:81,h:86,bg:'#ffffff',borderColor:'#e2e8f0',borderWidth:2,radius:26,layer:'back'}
+    ]
+  },
+  cover_22_notebook_torn_memo:{
+    id:'cover_22_notebook_torn_memo',role:'cover',theme:'highlight_hook',
+    name:'표지 22 · 스프링 노트 하이라이트 BEST 5 (꼭 챙겨야 할)',desc:'파스텔/모눈 배경 + 상단 라운드 사진 + 하단 화이트 노트 메모지 카드 + 핀 배지 + 옐로우 형광펜 박스 타이틀',
+    canvasBg:{type:'grid_paper',color:'#f6e7ec'},
+    photoFrame:{x:8,y:7,w:84,h:42,radius:18,borderColor:'#ffffff',borderWidth:3},
+    scrim:'none',
+    decorBoxes:[
+      {x:8,y:51,w:84,h:42,bg:'#fffdf9',borderColor:'#e2e8f0',borderWidth:2,radius:18,layer:'front'},
+      {x:13,y:63,w:74,h:0.25,bg:'#e2e8f0',radius:0,layer:'front'},
+      {x:13,y:73,w:74,h:0.25,bg:'#e2e8f0',radius:0,layer:'front'},
+      {x:13,y:83,w:74,h:0.25,bg:'#e2e8f0',radius:0,layer:'front'}
     ]
   },
 
@@ -767,7 +955,13 @@ const CAROUSEL_20_TEMPLATES={
   }
 };
 
-const COVER_PRESET_IDS=['cover_01_cinema','cover_02_magazine','cover_03_top_hook','cover_04_gallery_ticket','cover_05_review_window'];
+const COVER_PRESET_IDS=[
+  'cover_01_cinema','cover_02_magazine','cover_03_top_hook','cover_04_gallery_ticket','cover_05_review_window',
+  'cover_06_clean_purple_badge','cover_07_dark_header_band','cover_08_diagonal_navy_sheet','cover_09_blue_gradient_3d','cover_10_frosted_bottom_tags',
+  'cover_11_editorial_news_bracket','cover_12_workspace_pick_arrow','cover_13_2x2_grid_collage','cover_14_vertical_line_picnic','cover_15_arched_window_travel',
+  'cover_16_white_poster_circle','cover_17_split_selfcare_pill','cover_18_luxury_popup_serif','cover_19_bottom_3hashtags_dark','cover_20_minimal_white_bookmark',
+  'cover_21_white_ticket_card','cover_22_notebook_torn_memo'
+];
 const BODY_PRESET_IDS=[
   'body_01_cinema_split','body_02_magazine_spread','body_03_white_gallery','body_04_top_banner_float','body_05_curation_book',
   'body_06_polaroid_journal','body_07_ui_window','body_08_before_after','body_09_checklist_3step','body_10_full_poster_quote'
@@ -782,10 +976,13 @@ function getDefaultPresetForSlide(slide,totalSlides,role,legacyTemplate){
   const r=role||(sIdx===1?'cover':(sIdx===totalSlides&&totalSlides>=3?'cta':'body'));
   const themeToCover={
     editorial_dark:'cover_01_cinema',
-    highlight_hook:'cover_02_magazine',
-    magazine_gradient:'cover_03_top_hook',
-    neon_pop:'cover_04_gallery_ticket',
-    clean_white:'cover_05_review_window'
+    mint_modern:'cover_02_magazine',
+    clean_white:'cover_03_top_hook',
+    minimal_outline:'cover_04_gallery_ticket',
+    neon_pop:'cover_06_clean_purple_badge',
+    highlight_hook:'cover_10_frosted_bottom_tags',
+    warm_luxury:'cover_11_editorial_news_bracket',
+    magazine_gradient:'cover_15_arched_window_travel'
   };
   const themeToBody={
     editorial_dark:'body_01_cinema_split',
@@ -993,31 +1190,76 @@ function deduplicateSlideLines(raw){
   return uniq.join(' ');
 }
 
-function compactCoverHookCopy(raw,maxChars=28){
-  const s=deduplicateSlideLines(raw).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
-  if(!s)return '놓치면 후회하는 실사용 핵심 포인트';
-  if(s.length<=maxChars)return s;
-  // Prefer natural clause break (comma, conjunction, or middle word boundary) instead of 4-line run-on sentence
+function stripDanglingKoreanEnding(str){
+  let s=String(str||'').trim();
+  s=s.replace(/\s+(매번\s*서랍에|서랍에|그냥\s*두자니|두자니|식탁\s*위에\s*그냥|위에\s*그냥|했는데|하지만|그리고|그래서|보니까|있는데|하는데|같아서|때문에|위해서|중에서|속에서|그냥)$/,'').trim();
+  s=s.replace(/\s+[가-힣]{1,2}(에|에서|으로|로|에게|한테|부터|까지|처럼|보다|만큼)$/,'').trim();
+  return s||String(str||'').trim();
+}
+
+function compactCoverHookCopy(raw,maxChars=24){
+  const s=deduplicateSlideLines(raw)
+    .replace(/\[([^\]]+)\]/g,'$1')
+    .replace(/\*([^\*]+)\*/g,'$1')
+    .replace(/\s*→+\s*/g,' ')
+    .replace(/\s+(BEST\s*\d+|TOP\s*\d+)\s*$/i,'')
+    .trim();
+  if(!s)return '실사용 만족도 1위\n핵심 포인트 총정리';
+  if(s.includes('\n'))return s;
   const commaIdx=s.indexOf(',');
-  if(commaIdx>=8&&commaIdx<=maxChars){
-    const afterComma=s.slice(commaIdx+1).trim();
-    if(afterComma.length>=8&&afterComma.length<=maxChars+6){
-      return `${s.slice(0,commaIdx).trim()}\n${afterComma}`;
-    }
+  if(commaIdx>=5&&commaIdx<=18){
+    const firstPart=stripDanglingKoreanEnding(s.slice(0,commaIdx).trim());
+    const secondRaw=s.slice(commaIdx+1).trim();
+    const secondWords=secondRaw.split(/\s+/).filter(Boolean);
+    const secondPart=stripDanglingKoreanEnding(secondWords.slice(0,3).join(' ').slice(0,16));
+    if(firstPart&&secondPart&&secondPart.length>=4)return `${firstPart}\n${secondPart}`;
   }
   const words=s.split(/\s+/).filter(Boolean);
-  if(words.length>=5){
-    let acc=[];
-    let len=0;
-    for(const w of words){
-      if(len>0&&len+w.length+1>maxChars)break;
-      acc.push(w);
-      len+=w.length+1;
-    }
-    const trimmed=acc.join(' ');
-    if(trimmed.length>=10)return trimmed;
+  if(words.length>=2&&s.length<=maxChars){
+    if(s.length<=13)return s;
+    const mid=Math.max(1,Math.ceil(words.length/2));
+    return `${words.slice(0,mid).join(' ')}\n${words.slice(mid).join(' ')}`;
   }
-  return s.slice(0,maxChars).trim();
+  if(words.length>=4){
+    const line1=words.slice(0,2).join(' ').slice(0,14);
+    let line2=stripDanglingKoreanEnding(words.slice(2,5).join(' ').slice(0,15));
+    if(!line2||/그냥$|위에$|서랍에$/.test(line2)){
+      line2='왜 다들 이걸로 바꿀까?';
+    }
+    if(line1&&line2)return `${line1}\n${line2}`;
+  }
+  return stripDanglingKoreanEnding(s.slice(0,maxChars));
+}
+
+function formatTwoLineNewsCardHeadline(raw){
+  const twoLine=compactCoverHookCopy(raw,26);
+  const parts=twoLine.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length>=2){
+    let l1=parts[0];
+    let l2=parts.slice(1).join(' ');
+    if(/그냥$|위에$|서랍에$/.test(l2)){
+      l2='왜 다들 이걸로 바꿀까?';
+    }
+    return {line1:l1,line2:l2};
+  }
+  const single=(parts[0]||'실사용 핵심 포인트').trim();
+  if(single.length<=10){
+    return {line1:single,line2:'왜 다들 이걸로 바꿀까?'};
+  }
+  const words=single.split(/\s+/).filter(Boolean);
+  if(words.length>=2){
+    const mid=Math.max(1,Math.ceil(words.length/2));
+    const l1=words.slice(0,mid).join(' ');
+    let l2=words.slice(mid).join(' ');
+    if(l2.length<=3||/그냥$|위에$/.test(l2))l2='실사용 핵심 포인트 정리';
+    return {line1:l1,line2:l2};
+  }
+  return {line1:single,line2:'놓치면 아쉬운 핵심 요약'};
+}
+
+function formatThreeLineNewsCardHeadline(raw){
+  const two=formatTwoLineNewsCardHeadline(raw);
+  return `${two.line1}\n${two.line2}\n핵심 포인트 총정리`;
 }
 
 function resolveSmartSlideHookCopy(slide,totalSlides,role){
@@ -1029,9 +1271,17 @@ function resolveSmartSlideHookCopy(slide,totalSlides,role){
   let headline=deduplicateSlideLines(rawTitle||'');
   let subcopy=deduplicateSlideLines([rawSub,rawBody].filter(Boolean).join('\n'));
 
+  // Recover clean headline if current slide.title or subtitle has truncated fragments like "위에 그냥 두자니" or "위에 그냥 위에 그냥"
+  if(/위에\s*그냥|매번\s*서랍에/i.test(headline)){
+    headline=prod?`${prod}\n왜 다들 이걸로 바꿀까?`:'식탁 위 냄비 받침\n왜 다들 이걸로 바꿀까?';
+  }
+  if(/위에\s*그냥\s*위에\s*그냥|매번\s*서랍에/i.test(subcopy)){
+    subcopy='90%가 무심코 지나치는 결정적 차이! 실사용에서 바로 체감되는 핵심 포인트를 슬라이드로 확인하세요.';
+  }
+
   if(isGenericPlaceholderSlideText(headline)){
     if(role==='cover'||sIdx===1){
-      const firstHook=hookLines[0]||(prod?`[${prod}] 다들 왜 이걸로 바꿀까?`:'여긴 안 가봤지? 90%가 놓치는 핵심 비밀');
+      const firstHook=hookLines[0]||(prod?`[${prod}] 왜 다들 이걸로 바꿀까?`:'여긴 안 가봤지? 90%가 놓치는 핵심 비밀');
       const secondHook=hookLines[1]||'직접 써보고 확인한 결정적 차이, 지금 바로 슬라이드를 넘겨 확인하세요.';
       if(firstHook.includes('|')){
         const parts=firstHook.split('|').map(x=>x.trim()).filter(Boolean);
@@ -1062,13 +1312,13 @@ function resolveSmartSlideHookCopy(slide,totalSlides,role){
       }
     }
   }else if(isGenericPlaceholderSlideText(subcopy)){
-    subcopy=hookLines[Math.min(sIdx,Math.max(0,hookLines.length-1))]||'실사용에서 직접 확인한 핵심 포인트와 디테일을 한눈에 정리했습니다.';
+    subcopy='실사용에서 직접 확인한 핵심 포인트와 디테일을 한눈에 정리했습니다.';
   }
 
-  const finalHead=deduplicateSlideLines(headline)||'놓치면 후회하는 실사용 핵심 포인트';
+  const finalHead=stripDanglingKoreanEnding(deduplicateSlideLines(headline))||'놓치면 후회하는 실사용 핵심 포인트';
   let finalSub=deduplicateSlideLines(subcopy)||'실사용에서 직접 확인한 결정적 차이를 슬라이드로 정리했습니다.';
-  if(finalSub===finalHead&&hookLines[1]){
-    finalSub=deduplicateSlideLines(hookLines[1]);
+  if(finalSub===finalHead){
+    finalSub='실사용에서 직접 확인한 결정적 차이를 슬라이드로 한눈에 정리했습니다.';
   }
   return {
     cleanHeadline:finalHead,
@@ -1077,68 +1327,17 @@ function resolveSmartSlideHookCopy(slide,totalSlides,role){
 }
 
 function splitHeadlineForTwoTierHook(headline){
-  const clean=deduplicateSlideLines(headline).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
-  if(clean.includes(',')){
-    const parts=clean.split(',').map(x=>x.trim()).filter(Boolean);
-    if(parts.length>=2){
-      const topPart=parts[0].slice(0,18).trim();
-      const mainPart=parts.slice(1).join(' ').slice(0,18).trim();
-      if(topPart&&mainPart)return {topLine:topPart,mainLine:mainPart};
-    }
-  }
-  const words=clean.split(/\s+/).filter(Boolean);
-  if(words.length>=4){
-    const mid=Math.min(3,Math.ceil(words.length*0.45));
-    return {
-      topLine:words.slice(0,mid).join(' ').slice(0,18),
-      mainLine:words.slice(mid).join(' ').slice(0,18)
-    };
-  }
-  if(clean.length>10){
-    const cut=Math.min(10,Math.ceil(clean.length*0.45));
-    return {
-      topLine:clean.slice(0,cut).trim(),
-      mainLine:clean.slice(cut,cut+18).trim()
-    };
-  }
-  return {
-    topLine:'그냥 지나치면 후회하는',
-    mainLine:clean||'이거 하나로 종결!'
-  };
+  return formatTwoLineNewsCardHeadline(headline);
 }
 
 function ensureHeadlineHasBoxHighlight(headline){
-  const s=deduplicateSlideLines(headline).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
-  if(s.includes(',')){
-    const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
-    if(parts.length>=2){
-      return `${parts[0].slice(0,19)}\n[${parts.slice(1).join(' ').slice(0,19)}]`;
-    }
-  }
-  const words=s.split(/\s+/).filter(Boolean);
-  if(words.length>=3){
-    const cut=Math.min(4,Math.ceil(words.length*0.48));
-    const line1=words.slice(0,cut).join(' ').slice(0,19);
-    const line2=words.slice(cut).join(' ').slice(0,19);
-    return `${line1}\n[${line2}]`;
-  }
-  return `[${s.slice(0,18)}]`;
+  const two=formatTwoLineNewsCardHeadline(headline);
+  return `${two.line1}\n[${two.line2}]`;
 }
 
 function ensureHeadlineHasColorHighlight(headline){
-  const s=deduplicateSlideLines(headline).replace(/\[([^\]]+)\]/g,'$1').replace(/\*([^\*]+)\*/g,'$1').trim();
-  if(s.includes(',')){
-    const parts=s.split(',').map(x=>x.trim()).filter(Boolean);
-    if(parts.length>=2){
-      return `*${parts[0].slice(0,18)}*\n${parts.slice(1).join(' ').slice(0,22)}`;
-    }
-  }
-  const words=s.split(/\s+/).filter(Boolean);
-  if(words.length>=3){
-    const cut=Math.min(3,Math.ceil(words.length*0.45));
-    return `*${words.slice(0,cut).join(' ').slice(0,18)}*\n${words.slice(cut).join(' ').slice(0,22)}`;
-  }
-  return `*핵심 포인트* →\n${s.slice(0,20)}`;
+  const two=formatTwoLineNewsCardHeadline(headline);
+  return `*${two.line1} →*\n${two.line2}`;
 }
 
 function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,presetOverride=null){
@@ -1150,6 +1349,10 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
   const pointIdx=Math.max(1,sIdx-1);
   const pointNumStr=pointIdx<10?`0${pointIdx}`:String(pointIdx);
   const counterStr=`0${sIdx} / 0${sTot}`;
+  const twoLine=formatTwoLineNewsCardHeadline(cleanHeadline);
+  const twoLineJoined=`${twoLine.line1}\n${twoLine.line2}`;
+  const threeLineJoined=formatThreeLineNewsCardHeadline(cleanHeadline);
+  const shortSub=combinedSub.length>48?`${combinedSub.slice(0,47).trim()}…`:combinedSub;
 
   const makeCounter=(fg='#ffffff',bg='rgba(10,12,18,0.82)',x=80.5,y=3.4)=>({
     id:'obj_counter',kind:'counter',label:'슬라이드 번호',text:counterStr,
@@ -1157,49 +1360,220 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
   });
 
   switch(presetId){
+    // === 22 AUTHENTIC KOREAN NEWS-CARD / CAROUSEL MAIN COVER TEMPLATES ===
     case 'cover_02_magazine':{
-      // Reference 2: Top Black Banner + Pink/Yellow Highlight Box Hook + Bottom 76% Uncropped Photo ("일본에서 산 껌통안에 / [종이가 들어있는 이유?!]")
-      const boxHookHeadline=ensureHeadlineHasBoxHighlight(cleanHeadline);
+      // Grid 1 R1C1: FOR SOCIAL MEDIA + 민트 화살표 1열(*깔끔한 디자인 →*) + 화이트 대형 2열(카드뉴스 썸네일) + 하단 라인
+      const mintHeadline=`*${twoLine.line1} →*\n${twoLine.line2}`;
       return [
-        makeCounter('#facc15','rgba(15,23,42,0.88)',81,2.6),
-        {id:'obj_badge',kind:'badge',label:'상단 속보 배지',text:'핵심 포인트 체크',x:6,y:2.6,widthPct:0,fontSize:21,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:15,paddingY:5,align:'left',bold:true,visible:false},
-        {id:'obj_title',kind:'title',label:'상단 블랙 배너 하이라이트 훅',text:boxHookHeadline,x:5,y:5.2,widthPct:90,fontSize:52,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:10,paddingX:8,paddingY:4,align:'center',bold:true,lineHeight:1.26,visible:true},
-        {id:'obj_stars',kind:'stars',label:'하단 후킹 포인트 칩',text:'★★★★★  실사용 핵심 검증',x:6.5,y:81.2,widthPct:0,fontSize:24,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 장면 설명 문구',text:combinedSub,x:6.5,y:87.8,widthPct:87,fontSize:26,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true}
+        makeCounter('#ccfbf1','rgba(15,23,42,0.78)',80.5,3.5),
+        {id:'obj_badge',kind:'badge',label:'상단 매거진 세리프 헤더',text:'FOR SOCIAL MEDIA',x:6.8,y:4.8,widthPct:0,fontSize:22,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'민트 화살표 & 화이트 썸네일 타이틀',text:mintHeadline,x:6.8,y:68.5,widthPct:86.4,fontSize:58,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.22,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 서브 한줄 요약',text:shortSub,x:6.8,y:86.2,widthPct:86.4,fontSize:24,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true},
+        {id:'obj_stars',kind:'stars',label:'우측 하단 스와이프 표시',text:'SWIPE →',x:74,y:93.5,widthPct:19,fontSize:18,color:'#5eead4',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'right',bold:true,visible:false}
       ];
     }
     case 'cover_03_top_hook':{
-      // Reference 3: Giant Yellow/White Double-Stroke Hook ("밭일하시는 부모님 / 이거면 끝" & "손에 안 묻는 / 구리스 스프레이")
-      const twoTier=splitHeadlineForTwoTierHook(cleanHeadline);
+      // Grid 1 R1C2 / Grid 2 R1C5: 상단 화이트 라운드 코스 캡슐(코스 1  핵심 추천 포인트) + 하단 좌측 화이트 2단 볼드 훅(여긴 안 가봤지? / 부산 로컬 감성 스팟 공개)
       return [
-        makeCounter('#ffffff','rgba(10,12,18,0.82)',81,3.2),
-        {id:'obj_badge',kind:'badge',label:'상단 화이트 도입 훅 (1열)',text:twoTier.topLine,x:5,y:5.8,widthPct:90,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.15,strokeWidth:8,strokeColor:'#000000',visible:true},
-        {id:'obj_title',kind:'title',label:'초대형 옐로우 임팩트 훅 (2열)',text:twoTier.mainLine,x:4,y:12.8,widthPct:92,fontSize:76,color:'#facc15',bgColor:'transparent',bgEnabled:false,borderRadius:10,paddingX:4,paddingY:4,align:'center',bold:true,lineHeight:1.12,strokeWidth:10,strokeColor:'#000000',visible:true},
-        {id:'obj_stars',kind:'stars',label:'하단 별점 배지',text:'★★★★★  직접 써본 결론',x:6.5,y:81.2,widthPct:0,fontSize:25,color:'#fde047',bgColor:'rgba(10,12,18,0.86)',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 핵심 요약',text:combinedSub,x:6.5,y:87.8,widthPct:87,fontSize:26,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true}
+        makeCounter('#ffffff','rgba(15,23,42,0.75)',80.5,5.2),
+        {id:'obj_badge',kind:'badge',label:'상단 코스 캡슐 배지',text:'코스 1   놓치면 아쉬운 핵심 포인트',x:8.2,y:6.1,widthPct:0,fontSize:21,color:'#0284c7',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:6,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 도입 질문 훅 (1열)',text:twoLine.line1.endsWith('?')?twoLine.line1:`${twoLine.line1}, 알고 계셨나요?`,x:6.8,y:72.5,widthPct:86,fontSize:40,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'하단 메인 볼드 타이틀 (2열)',text:twoLine.line2,x:6.8,y:79.2,widthPct:86,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보조 캡션',text:shortSub,x:6.8,y:88.5,widthPct:86,fontSize:23,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true}
       ];
     }
     case 'cover_04_gallery_ticket':{
-      // Reference 4: Canva Editorial Arrow Cover ("FOR SOCIAL MEDIA / 깔끔한 디자인 → 카드뉴스 썸네일 / 잘 터지는 캐러셀 제작하기 →")
-      const colorHookHeadline=ensureHeadlineHasColorHighlight(cleanHeadline);
+      // Grid 1 R1C3: 얇은 화이트 외곽 프레임 + [ TREND ] SEASON 카테고리 태그 + 사계절을 담은 / 데일리 핵심 꿀팁 + | 하단 한줄 요약
       return [
-        makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,3.5),
-        {id:'obj_badge',kind:'badge',label:'상단 에디토리얼 헤더',text:'SPECIAL CURATION · EDITOR PICK',x:6.8,y:4.2,widthPct:0,fontSize:21,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'메인 컬러 하이라이트 타이틀',text:colorHookHeadline,x:6.8,y:61.5,widthPct:86.4,fontSize:58,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'서브 핵심 한줄 공식',text:combinedSub,x:6.8,y:79.5,widthPct:86.4,fontSize:26,color:'#38bdf8',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
-        {id:'obj_stars',kind:'stars',label:'하단 스와이프 화살표 바',text:'SWIPE FOR MORE   ───→',x:6.8,y:91.8,widthPct:86.4,fontSize:24,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'right',bold:true,visible:true}
+        makeCounter('#ffffff','rgba(15,23,42,0.75)',78,5.8),
+        {id:'obj_badge',kind:'badge',label:'카테고리 프레임 태그',text:'TREND PICK  |  DAILY GUIDE',x:8.5,y:58.5,widthPct:0,fontSize:20,color:'#ffffff',bgColor:'rgba(15,23,42,0.75)',bgEnabled:true,borderRadius:4,paddingX:14,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'프레임 내부 2줄 메인 타이틀',text:twoLineJoined,x:8.5,y:65,widthPct:83,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'수직선 우측 핵심 한줄 요약',text:shortSub,x:10.5,y:85,widthPct:79,fontSize:23,color:'#f1f5f9',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 중앙 매거진 서명',text:'OFFICIAL CURATION STUDIO',x:25,y:91.8,widthPct:50,fontSize:16,color:'rgba(255,255,255,0.75)',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'center',bold:true,visible:true}
       ];
     }
     case 'cover_05_review_window':{
-      // Reference 5: Center Rounded Black Hook Pill ("장 볼때 누구나 한번쯤 하는 고민") + Bottom Social Proof Bar
-      const centerHookText=compactCoverHookCopy(cleanHeadline,24);
-      const shortSub=combinedSub.length>56?`${combinedSub.slice(0,55).trim()}…`:combinedSub;
+      // Grid 2 R3C4: 구매 고객 후기 화이트 브라우저 창 (● ● ● 구매 고객 후기) + ★★★★★ BEST | 실구매자 후기 + [실사용 검증 완료] + 본문 리뷰
+      const reviewBody=combinedSub.length>76?`${combinedSub.slice(0,75).trim()}…`:combinedSub;
       return [
-        makeCounter('#ffffff','rgba(15,23,42,0.85)',80.5,3.5),
-        {id:'obj_badge',kind:'badge',label:'상단 릴스·쇼츠 훅 칩',text:'누구나 공감하는 실생활 꿀팁',x:26,y:34.5,widthPct:48,fontSize:23,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'center',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'중앙 블랙 라운드 후킹 박스',text:centerHookText,x:7.5,y:41.5,widthPct:85,fontSize:52,color:'#ffffff',bgColor:'rgba(8,10,15,0.92)',bgEnabled:true,borderRadius:28,paddingX:28,paddingY:22,align:'center',bold:true,lineHeight:1.22,visible:true},
-        {id:'obj_stars',kind:'stars',label:'하단 카드 구매확정 별점',text:'★★★★★  실사용자 만족도 99% · 베스트 후기',x:10,y:81.8,widthPct:80,fontSize:22,color:'#d97706',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 카드 한줄 요약',text:shortSub,x:10,y:85.8,widthPct:80,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.32,visible:true}
+        makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,4),
+        {id:'obj_badge',kind:'badge',label:'윈도우 상단 타이틀바',text:'● ● ●   구매 고객 후기',x:12.5,y:13.8,widthPct:0,fontSize:22,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_stars',kind:'stars',label:'별점 & 리뷰어 정보',text:'★★★★★  [BEST]   실사용자 검증 리뷰 · 만족도 99%',x:13.5,y:23.5,widthPct:73,fontSize:24,color:'#f59e0b',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'리뷰 핵심 헤드라인',text:`[${twoLine.line1}] ${twoLine.line2}`,x:13.5,y:32.5,widthPct:73,fontSize:40,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.26,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'구매 고객 상세 후기 본문',text:`“${reviewBody} 직접 써보니 왜 다들 추천하는지 바로 이해됐어요! 앞으로도 계속 정착해서 쓸 예정입니다 :)”`,x:13.5,y:49.5,widthPct:73,fontSize:24,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.45,visible:true}
+      ];
+    }
+    case 'cover_06_clean_purple_badge':{
+      // Grid 1 R1C6 / Grid 2 R1C1: 다크 감성 데스크 + 상단 핸들 + 하단 퍼플 캡슐 배지(마케팅 노하우) + 화이트 2줄 볼드 타이틀(깔끔&세련된 / 카드뉴스 만들기)
+      return [
+        makeCounter('#e9d5ff','rgba(15,23,42,0.82)',80.5,4.2),
+        {id:'obj_stars',kind:'stars',label:'상단 공식 계정 핸들',text:'@studio.official',x:7,y:4.8,widthPct:0,fontSize:20,color:'rgba(255,255,255,0.78)',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_badge',kind:'badge',label:'하단 퍼플 캡슐 배지',text:'핵심 노하우',x:7,y:63.5,widthPct:0,fontSize:24,color:'#ffffff',bgColor:'#a855f7',bgEnabled:true,borderRadius:999,paddingX:20,paddingY:8,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'메인 2줄 화이트 타이틀',text:twoLineJoined,x:7,y:71.5,widthPct:86,fontSize:58,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보조 요약',text:shortSub,x:7,y:88.5,widthPct:86,fontSize:24,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true}
+      ];
+    }
+    case 'cover_07_dark_header_band':{
+      // Grid 2 R2C1: 상단 다크 헤더(뉴스레터 VOL.1) + 중앙 와이드 사진 + 하단 다크 카드(이미지를 넣어서 / 캐러셀 만들기) + 하단 라운드 캡슐(@studio.official →)
+      return [
+        makeCounter('#ffffff','#111317',80.5,4.8),
+        {id:'obj_badge',kind:'badge',label:'상단 뉴스레터 볼륨 헤더',text:'뉴스레터 VOL.1',x:7,y:5.5,widthPct:0,fontSize:22,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'하단 다크 시트 메인 타이틀',text:twoLineJoined,x:7,y:67.5,widthPct:86,fontSize:56,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보조 설명',text:shortSub,x:7,y:82.5,widthPct:86,fontSize:23,color:'#94a3b8',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 캡슐 링크 버튼',text:'@studio.official     →',x:9,y:89.6,widthPct:32,fontSize:20,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:4,paddingY:2,align:'center',bold:true,visible:true}
+      ];
+    }
+    case 'cover_08_diagonal_navy_sheet':{
+      // Grid 2 R2C2: 상단 58% 사진 + 하단 다크 시트 + 골드 바 + CARD NEWS LAYOUT USING PHOTOS + 비주얼이 말하는 / 카드뉴스 + 2줄 설명
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,4),
+        {id:'obj_badge',kind:'badge',label:'영문 에디토리얼 키커',text:'CARD NEWS CURATION · KEY POINT',x:7.5,y:59.2,widthPct:0,fontSize:20,color:'#94a3b8',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'하단 다크시트 2줄 메인 타이틀',text:twoLineJoined,x:7.5,y:64.2,widthPct:85,fontSize:56,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 2줄 상세 설명',text:combinedSub,x:7.5,y:80.5,widthPct:85,fontSize:24,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.38,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 에디터 핸들',text:'@studio.official',x:7.5,y:91.5,widthPct:0,fontSize:19,color:'#64748b',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'left',bold:true,visible:true}
+      ];
+    }
+    case 'cover_09_blue_gradient_3d':{
+      // Grid 2 R2C3: 블루 그라데이션 3D 썸네일 (말풍선 아이콘 + 깔끔한 / *카드뉴스* / 썸네일 + 설명 + 하단 3D 자세히보기 캡슐)
+      const blueTitle=`${twoLine.line1}\n*${twoLine.line2}*`;
+      return [
+        makeCounter('#ffffff','rgba(30,58,138,0.75)',78,5.8),
+        {id:'obj_badge',kind:'badge',label:'상단 화이트 말풍선 배지',text:'● ● ●   핵심 요약 가이드',x:31,y:40.5,widthPct:38,fontSize:22,color:'#1e3a8a',bgColor:'#ffffff',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'center',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'중앙 블루·라임 임팩트 타이틀',text:blueTitle,x:8,y:49.5,widthPct:84,fontSize:60,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:10,paddingX:6,paddingY:4,align:'center',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'중앙 서브 요약 문구',text:shortSub,x:10,y:73.5,widthPct:80,fontSize:24,color:'#e0f2fe',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.32,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 3D 캡슐 버튼',text:'자세히보기 →',x:28,y:86.2,widthPct:44,fontSize:25,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:8,paddingY:4,align:'center',bold:true,visible:true}
+      ];
+    }
+    case 'cover_10_frosted_bottom_tags':{
+      // Grid 2 R2C4: 상단 밝은 사진 + 하단 반투명 차콜 오버레이 + 심플하지만 강력한! + 심플하고 깔끔한 / 카드뉴스 썸네일 + #클릭률UP #핵심정리 + 자세히보기 >
+      return [
+        makeCounter('#a3e635','rgba(15,23,42,0.82)',80.5,4),
+        {id:'obj_badge',kind:'badge',label:'하단 카드 상단 슬로건',text:'심플하지만 강력한 핵심 포인트!',x:7,y:62,widthPct:0,fontSize:23,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'하단 다크카드 2줄 화이트 타이틀',text:twoLineJoined,x:7,y:67.5,widthPct:86,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 라임 해시태그 칩',text:'#핵심요약     #실사용검증',x:8.2,y:89.5,widthPct:45,fontSize:21,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_stars',kind:'stars',label:'우측 하단 자세히보기',text:'자세히보기 ›',x:72,y:89.8,widthPct:21,fontSize:21,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'right',bold:true,visible:true}
+      ];
+    }
+    case 'cover_11_editorial_news_bracket':{
+      // Grid 1 R2C5: 상단 [ NEWS ] + 라인 + 블랙 캡슐(내 손으로 만드는 캐러셀) + 감각적인 / 캐러셀 제작하기
+      return [
+        makeCounter('#fef3c7','rgba(28,25,23,0.82)',80.5,3.8),
+        {id:'obj_stars',kind:'stars',label:'상단 [ NEWS ] 매거진 헤더',text:'[ NEWS ]                                         @studio.official',x:6.8,y:4.8,widthPct:86.4,fontSize:21,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_badge',kind:'badge',label:'하단 블랙 캡슐 서브배지',text:'놓치면 후회하는 핵심 가이드',x:6.8,y:66.5,widthPct:0,fontSize:23,color:'#ffffff',bgColor:'#090a0f',bgEnabled:true,borderRadius:999,paddingX:20,paddingY:8,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'하단 2줄 매거진 타이틀',text:twoLineJoined,x:6.8,y:74.2,widthPct:86.4,fontSize:56,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보조 캡션',text:shortSub,x:6.8,y:89.5,widthPct:86.4,fontSize:23,color:'#e7e5e4',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true}
+      ];
+    }
+    case 'cover_12_workspace_pick_arrow':{
+      // Grid 1 R2C4 / Grid 2 R2C6: 상단 좌측 화이트 캡슐(Editor Pick) + 상단 2줄 화이트 타이틀(집중과 영감을 위한 / 워크스페이스) + 하단 좌측 설명 + 우측 하단 ≫ 버튼
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.78)',80.5,5.5),
+        {id:'obj_badge',kind:'badge',label:'상단 화이트 픽 캡슐',text:'Editor Pick',x:7,y:6,widthPct:0,fontSize:22,color:'#0f172a',bgColor:'#ffffff',bgEnabled:true,borderRadius:999,paddingX:20,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'상단 2줄 화이트 메인 타이틀',text:twoLineJoined,x:7,y:13.5,widthPct:86,fontSize:56,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 좌측 2줄 요약 캡션',text:combinedSub,x:7,y:86.5,widthPct:70,fontSize:22,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
+        {id:'obj_stars',kind:'stars',label:'우측 하단 원형 화살표 아이콘',text:'≫',x:82,y:89.8,widthPct:10,fontSize:28,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:2,paddingY:2,align:'center',bold:true,visible:true}
+      ];
+    }
+    case 'cover_13_2x2_grid_collage':{
+      // Grid 1 R2C3: 2x2 그리드 십자 프레임 + 상단 중앙 NEW DROP 타이틀 + 하단 크림 베이지 푸터 바(지금 안 보면 늦어요!)
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.78)',80.5,3.8),
+        {id:'obj_badge',kind:'badge',label:'상단 중앙 NEW DROP 헤더',text:'NEW DROP · HOT ISSUE',x:25,y:4.2,widthPct:50,fontSize:24,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:4,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'상단 중앙 메인 타이틀',text:twoLine.line1,x:8,y:8.8,widthPct:84,fontSize:46,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 크림 푸터 바 메인 훅',text:`${twoLine.line2}, 지금 안 보면 늦어요!`,x:6.5,y:89.5,widthPct:68,fontSize:30,color:'#1c1917',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 푸터 우측 계정명',text:'@studio.official',x:73,y:91,widthPct:21,fontSize:19,color:'#57534e',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'right',bold:true,visible:true}
+      ];
+    }
+    case 'cover_14_vertical_line_picnic':{
+      // Grid 1 R2C6 / Grid 2 R3C2: 좌측 화이트 수직 바 + 여기가 요즘 대세!! + 봄에 꼭 가야하는 / 피크닉 명소 / TOP 3 (옐로우+화이트)
+      const top3Headline=`*${twoLine.line1}*\n*${twoLine.line2}*\nTOP 3`;
+      return [
+        makeCounter('#fde047','rgba(15,23,42,0.82)',80.5,4.2),
+        {id:'obj_badge',kind:'badge',label:'상단 좌측 화이트 키커',text:'요즘 다들 찾는 핵심 포인트!!',x:10.5,y:12.8,widthPct:0,fontSize:24,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'좌측 수직선 우측 3줄 옐로우 타이틀',text:top3Headline,x:10.5,y:17.8,widthPct:83,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보조 캡션',text:shortSub,x:7.5,y:88.5,widthPct:85,fontSize:24,color:'#f8fafc',bgColor:'rgba(15,23,42,0.72)',bgEnabled:true,borderRadius:10,paddingX:14,paddingY:6,align:'left',bold:true,lineHeight:1.3,visible:true},
+        {id:'obj_stars',kind:'stars',label:'별점 장식',text:'★★★★★',x:10.5,y:40.5,widthPct:0,fontSize:26,color:'#facc15',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'left',bold:true,visible:false}
+      ];
+    }
+    case 'cover_15_arched_window_travel':{
+      // Grid 1 R2C2: 다크 아치/라운드 창문 프레임 + ● 핵심 추천 가이드 + 꼭 확인해야 하는 / 핵심 포인트 BEST 3 + #실사용추천 #핵심가이드
+      return [
+        makeCounter('#fef3c7','rgba(24,24,27,0.85)',76,8.2),
+        {id:'obj_badge',kind:'badge',label:'레드 서클 포인트 배지',text:'●  실사용 핵심 추천 가이드',x:13,y:34.5,widthPct:0,fontSize:24,color:'#ffffff',bgColor:'rgba(220,38,38,0.9)',bgEnabled:true,borderRadius:999,paddingX:16,paddingY:6,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'창문 프레임 중앙 2줄 타이틀',text:`${twoLine.line1}\n${twoLine.line2} BEST 3`,x:13,y:42.5,widthPct:74,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 해시태그 캡슐 문구',text:'#핵심체크  #실사용추천  #가이드',x:14.5,y:67.1,widthPct:49,fontSize:21,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:4,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'창문 하단 한줄 요약',text:shortSub,x:13,y:84.5,widthPct:74,fontSize:23,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.3,visible:true}
+      ];
+    }
+    case 'cover_16_white_poster_circle':{
+      // Grid 1 R2C1: 화이트 포스터 & 레드 서클 (상단 초대형 다크 네이비 타이틀 + 레드 원 + 좌우 해시태그 + 중앙 사진 + 하단 보더 박스 요약)
+      return [
+        makeCounter('#0f172a','#f1f5f9',80.5,3.5),
+        {id:'obj_title',kind:'title',label:'상단 포스터 대형 헤드라인',text:twoLine.line1,x:7,y:8.5,widthPct:86,fontSize:64,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'center',bold:true,lineHeight:1.12,visible:true},
+        {id:'obj_badge',kind:'badge',label:'레드 서클 좌우 해시태그',text:'#핵심포인트                       #실사용체크',x:9,y:25.8,widthPct:82,fontSize:23,color:'#475569',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_stars',kind:'stars',label:'사진 내부 서브 타이틀',text:twoLine.line2,x:14,y:72,widthPct:72,fontSize:38,color:'#ffffff',bgColor:'rgba(15,23,42,0.78)',bgEnabled:true,borderRadius:14,paddingX:18,paddingY:8,align:'center',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보더 박스 핵심 문구',text:`${twoLine.line1} 꼭 확인해야 할 핵심 정리!`,x:17,y:88.2,widthPct:66,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.25,visible:true}
+      ];
+    }
+    case 'cover_17_split_selfcare_pill':{
+      // Grid 1 R3C1: 상하 분할 & 중앙 화이트 타원 캡슐(Self care) + 다크 서브 캡슐
+      return [
+        makeCounter('#0f172a','#ffffff',77,7.5),
+        {id:'obj_badge',kind:'badge',label:'상단 에디토리얼 라벨',text:'DAILY CURATION NOTE',x:9,y:8,widthPct:0,fontSize:20,color:'#ffffff',bgColor:'rgba(15,23,42,0.72)',bgEnabled:true,borderRadius:999,paddingX:16,paddingY:5,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'중앙 화이트 캡슐 메인 타이틀',text:twoLine.line1,x:18,y:46.2,widthPct:64,fontSize:40,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:8,paddingY:4,align:'center',bold:true,lineHeight:1.15,visible:true},
+        {id:'obj_stars',kind:'stars',label:'중앙 하단 다크 캡슐 서브훅',text:twoLine.line2,x:23,y:57.6,widthPct:54,fontSize:23,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:6,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 보조 설명',text:shortSub,x:10,y:86.5,widthPct:80,fontSize:23,color:'#ffffff',bgColor:'rgba(15,23,42,0.68)',bgEnabled:true,borderRadius:12,paddingX:14,paddingY:6,align:'center',bold:true,lineHeight:1.3,visible:true}
+      ];
+    }
+    case 'cover_18_luxury_popup_serif':{
+      // Grid 1 R3C2 / Grid 2 R1C3: 럭셔리 세리프 포스터 (1st / POP-UP STORE / 10.22 - 11.19 + 하단 설명)
+      return [
+        makeCounter('#fef3c7','rgba(28,25,23,0.78)',80.5,4),
+        {id:'obj_badge',kind:'badge',label:'상단 중앙 에디션 넘버',text:'1st Special Edition',x:25,y:18,widthPct:50,fontSize:26,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:4,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'중앙 대형 포스터 타이틀',text:twoLineJoined,x:8,y:25,widthPct:84,fontSize:62,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'center',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_stars',kind:'stars',label:'중앙 상하 라인 사이 핵심 라벨',text:'BEST PICK  ·  100% VERIFIED',x:22,y:70.8,widthPct:56,fontSize:23,color:'#fef3c7',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:4,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 중앙 요약 설명',text:shortSub,x:12,y:80.5,widthPct:76,fontSize:23,color:'#e7e5e4',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.35,visible:true}
+      ];
+    }
+    case 'cover_19_bottom_3hashtags_dark':{
+      // Grid 1 R3C3: 다크 감성 & 중앙 좌측 3줄 화이트 볼드 타이틀(사진을 / 활용한 / 카드뉴스) + 설명 + 하단 3개 화이트 해시태그 캡슐
+      return [
+        makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,4),
+        {id:'obj_badge',kind:'badge',label:'상단 매거진 키커',text:'EDITOR INSIGHT · CARD NEWS',x:7.5,y:16.5,widthPct:0,fontSize:20,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'좌측 대형 3줄 화이트 타이틀',text:threeLineJoined,x:7.5,y:22.5,widthPct:85,fontSize:64,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'중단 서브 설명 문구',text:combinedSub,x:7.5,y:58.5,widthPct:85,fontSize:24,color:'#d6d3d1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.38,visible:true},
+        {id:'obj_stars',kind:'stars',label:'하단 3대 화이트 해시태그 칩',text:'#핵심정보          #실사용팁          #비교정리',x:7,y:82.6,widthPct:86,fontSize:22,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:4,paddingY:2,align:'center',bold:true,visible:true}
+      ];
+    }
+    case 'cover_20_minimal_white_bookmark':{
+      // Grid 2 R1C6: 클린 오프화이트 지면 + 상단 좌측 북마크 아이콘 + 3줄 대형 차콜 타이틀(텍스트만 있는 / 캐러셀 디자인 / 카드뉴스) + 서브 설명 + 우측 하단 액자
+      return [
+        makeCounter('#0f172a','#e2e8f0',80.5,4.2),
+        {id:'obj_badge',kind:'badge',label:'북마크 옆 카테고리 라벨',text:'KEY SUMMARY NOTE',x:15,y:14.2,widthPct:0,fontSize:21,color:'#475569',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'좌측 3줄 미니멀 차콜 타이틀',text:threeLineJoined,x:8.5,y:23.5,widthPct:83,fontSize:60,color:'#1e293b',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'중단 깔끔한 한줄 요약',text:shortSub,x:8.5,y:53.5,widthPct:83,fontSize:24,color:'#64748b',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
+        {id:'obj_stars',kind:'stars',label:'좌측 하단 계정 서명',text:'@studio.official',x:8.5,y:88,widthPct:38,fontSize:20,color:'#94a3b8',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'left',bold:true,visible:true}
+      ];
+    }
+    case 'cover_21_white_ticket_card':{
+      // Grid 1 R3C6: 화이트 보더 티켓 액자 (상단 티켓 사진 위 좌측 화이트 훅 + 하단 화이트 티켓 영역 블루/네이비 대형 타이틀 + 요약)
+      return [
+        makeCounter('#1e3a8a','#dbeafe',75,9.2),
+        {id:'obj_badge',kind:'badge',label:'티켓 사진 상단 화이트 훅',text:twoLine.line1,x:17,y:14.5,widthPct:56,fontSize:30,color:'#ffffff',bgColor:'rgba(15,23,42,0.55)',bgEnabled:true,borderRadius:12,paddingX:14,paddingY:6,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_stars',kind:'stars',label:'티켓 하단 영문 서브헤더',text:'SPECIAL EDITION GUIDE',x:15,y:66.5,widthPct:70,fontSize:22,color:'#3b82f6',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'center',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'티켓 하단 블루 메인 타이틀',text:twoLine.line2,x:13,y:71.2,widthPct:74,fontSize:54,color:'#1d4ed8',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'center',bold:true,lineHeight:1.15,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'티켓 하단 2줄 요약 설명',text:shortSub,x:15,y:82.5,widthPct:70,fontSize:23,color:'#475569',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.3,visible:true}
+      ];
+    }
+    case 'cover_22_notebook_torn_memo':{
+      // Grid 1 R4C3: 스프링 노트 메모지 하이라이트 (상단 사진 + 하단 화이트 줄노트 카드 + 필수 체크 배지 + 옐로우 박스 강조 타이틀 BEST 5)
+      const memoTitle=`${twoLine.line1}\n[${twoLine.line2} BEST 5]`;
+      return [
+        makeCounter('#0f172a','#ffffff',78,9),
+        {id:'obj_badge',kind:'badge',label:'노트 상단 핀 배지',text:'필수 체크 리스트 · BEST 5',x:28,y:53.5,widthPct:44,fontSize:22,color:'#ffffff',bgColor:'#0f172a',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6,align:'center',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'노트 중앙 하이라이트 타이틀',text:memoTitle,x:11,y:61.5,widthPct:78,fontSize:50,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'center',bold:true,lineHeight:1.25,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'노트 하단 한줄 요약',text:shortSub,x:12,y:84.2,widthPct:76,fontSize:23,color:'#475569',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'center',bold:true,lineHeight:1.3,visible:true},
+        {id:'obj_stars',kind:'stars',label:'상단 사진 라벨',text:'CHECK POINT',x:11,y:9.5,widthPct:0,fontSize:20,color:'#0f172a',bgColor:'rgba(255,255,255,0.9)',bgEnabled:true,borderRadius:999,paddingX:14,paddingY:5,align:'left',bold:true,visible:true}
       ];
     }
 
@@ -1209,7 +1583,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
         makeCounter('#ffffff','rgba(15,23,42,0.82)',80.5,3.4),
         {id:'obj_stars',kind:'stars',label:'좌측 대형 번호',text:pointNumStr,x:6.5,y:58.5,widthPct:17,fontSize:92,color:'#ee5646',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:2,paddingY:2,align:'center',bold:true,lineHeight:1,visible:true},
         {id:'obj_badge',kind:'badge',label:'포인트 배지',text:`POINT ${pointNumStr} · 핵심 체크`,x:29,y:58,widthPct:0,fontSize:25,color:'#ee5646',bgColor:'#1e293b',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:6,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'본문 핵심 제목',text:cleanHeadline,x:29,y:65,widthPct:65,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
+        {id:'obj_title',kind:'title',label:'본문 핵심 제목',text:twoLineJoined,x:29,y:65,widthPct:65,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.2,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'본문 상세 설명',text:combinedSub,x:29,y:81.5,widthPct:65,fontSize:26,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.38,visible:true}
       ];
     case 'body_02_magazine_spread':
@@ -1217,14 +1591,14 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
         makeCounter('#fef3c7','#1c1917',80.5,3.2),
         {id:'obj_badge',kind:'badge',label:'좌측 에디토리얼 태그',text:'EDITORIAL\nNOTE',x:6,y:10,widthPct:22,fontSize:24,color:'#f59e0b',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1.25,visible:true},
         {id:'obj_stars',kind:'stars',label:'좌측 인덱스 번호',text:pointNumStr,x:6,y:22,widthPct:22,fontSize:96,color:'#fef3c7',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1,visible:true},
-        {id:'obj_title',kind:'title',label:'매거진 본문 헤드라인',text:cleanHeadline,x:9,y:66.5,widthPct:82,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'매거진 본문 헤드라인',text:twoLineJoined,x:9,y:66.5,widthPct:82,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'매거진 본문 설명',text:combinedSub,x:9,y:81.5,widthPct:82,fontSize:26,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true}
       ];
     case 'body_03_white_gallery':
       return [
         makeCounter('#0f172a','#e2e8f0',79,3.4),
         {id:'obj_badge',kind:'badge',label:'상단 STEP 헤더',text:`STEP ${pointNumStr}  |  KEY POINT`,x:7,y:4.2,widthPct:0,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'화이트 갤러리 본문 제목',text:cleanHeadline,x:7,y:64,widthPct:86,fontSize:50,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'화이트 갤러리 본문 제목',text:twoLineJoined,x:7,y:63.5,widthPct:86,fontSize:48,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'하단 요약 박스 설명',text:combinedSub,x:9.5,y:78.5,widthPct:81,fontSize:26,color:'#1e293b',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.36,visible:true},
         {id:'obj_stars',kind:'stars',label:'우측 포인트 태그',text:`CHECK #${pointIdx}`,x:74,y:60.5,widthPct:0,fontSize:20,color:'#ffffff',bgColor:'#2563eb',bgEnabled:true,borderRadius:999,paddingX:14,paddingY:5,align:'center',bold:true,visible:true}
       ];
@@ -1232,7 +1606,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#a3e635','#1e293b',80,3.2),
         {id:'obj_badge',kind:'badge',label:'상단 라임 배지',text:`KEY POINT ${pointNumStr}`,x:6.5,y:3.5,widthPct:0,fontSize:24,color:'#0f172a',bgColor:'#a3e635',bgEnabled:true,borderRadius:999,paddingX:16,paddingY:6,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'상단 배너 제목',text:cleanHeadline,x:6.5,y:10.5,widthPct:87,fontSize:50,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_title',kind:'title',label:'상단 배너 제목',text:twoLineJoined,x:6.5,y:10.5,widthPct:87,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
         {id:'obj_stars',kind:'stars',label:'플로팅 카드 상단 태그',text:'✓ 실사용 핵심 요약',x:9.5,y:75.8,widthPct:0,fontSize:22,color:'#a3e635',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'플로팅 캡션 본문',text:combinedSub,x:9.5,y:80.5,widthPct:81,fontSize:26,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true}
       ];
@@ -1240,7 +1614,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#2dd4bf','#1e293b',80,4),
         {id:'obj_badge',kind:'badge',label:'큐레이션 상단 라벨',text:`CURATION NOTE · ${pointNumStr}`,x:7,y:4.8,widthPct:0,fontSize:24,color:'#2dd4bf',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'큐레이션 본문 제목',text:cleanHeadline,x:13,y:64.5,widthPct:77,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'큐레이션 본문 제목',text:twoLineJoined,x:13,y:64.5,widthPct:77,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'큐레이션 본문 설명',text:combinedSub,x:13,y:79,widthPct:77,fontSize:26,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true},
         {id:'obj_stars',kind:'stars',label:'우측 하단 번호',text:`#${pointNumStr}`,x:80,y:85.5,widthPct:0,fontSize:28,color:'#2dd4bf',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'right',bold:true,visible:true}
       ];
@@ -1248,7 +1622,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#78350f','#fef3c7',76,8.5),
         {id:'obj_badge',kind:'badge',label:'폴라로이드 아카이브 태그',text:`ARCHIVE NOTE #${pointNumStr}`,x:11,y:60.5,widthPct:0,fontSize:23,color:'#fef3c7',bgColor:'#78350f',bgEnabled:true,borderRadius:6,paddingX:14,paddingY:5,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'폴라로이드 제목',text:cleanHeadline,x:11,y:67,widthPct:78,fontSize:48,color:'#1c1917',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'폴라로이드 제목',text:twoLineJoined,x:11,y:67,widthPct:78,fontSize:46,color:'#1c1917',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'폴라로이드 수첩 메모',text:combinedSub,x:11,y:80.5,widthPct:78,fontSize:25,color:'#44403c',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.36,visible:true},
         {id:'obj_stars',kind:'stars',label:'테이프 라벨',text:'DAILY RECORD',x:41,y:5.5,widthPct:18,fontSize:18,color:'#57534e',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:1,align:'center',bold:true,visible:true}
       ];
@@ -1257,14 +1631,14 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
         makeCounter('#38bdf8','#0f172a',76,8.5),
         {id:'obj_badge',kind:'badge',label:'윈도우 상단 바',text:`● ● ●   INSIGHT WINDOW #${pointNumStr}`,x:10.5,y:8.6,widthPct:0,fontSize:21,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
         {id:'obj_stars',kind:'stars',label:'핵심 칩',text:`KEY POINT ${pointNumStr}`,x:11,y:60.5,widthPct:0,fontSize:22,color:'#ffffff',bgColor:'#2563eb',bgEnabled:true,borderRadius:999,paddingX:15,paddingY:5,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'윈도우 카드 제목',text:cleanHeadline,x:11,y:66.8,widthPct:78,fontSize:48,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'윈도우 카드 제목',text:twoLineJoined,x:11,y:66.8,widthPct:78,fontSize:46,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'윈도우 카드 본문',text:combinedSub,x:11,y:80.5,widthPct:78,fontSize:25,color:'#334155',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true}
       ];
     case 'body_08_before_after':
       return [
         makeCounter('#facc15','#1e293b',80,3.2),
         {id:'obj_badge',kind:'badge',label:'상단 비교 배지',text:`COMPARE POINT ${pointNumStr} · 전후 비교`,x:6,y:3.5,widthPct:0,fontSize:23,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:5,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'비교 핵심 헤드라인',text:cleanHeadline,x:6,y:9.8,widthPct:88,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_title',kind:'title',label:'비교 핵심 헤드라인',text:twoLineJoined,x:6,y:9.8,widthPct:88,fontSize:46,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
         {id:'obj_stars',kind:'stars',label:'좌측 BEFORE 박스 문구',text:'[BEFORE · 기존 아쉬운 점]\n번거롭고 시간이 오래 걸리는 방식',x:8.5,y:69,widthPct:37.5,fontSize:24,color:'#cbd5e1',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.4,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'우측 AFTER 해결 문구',text:`[AFTER · 핵심 해결]\n${combinedSub}`,x:54,y:69,widthPct:37.5,fontSize:24,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.4,visible:true}
       ];
@@ -1272,7 +1646,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#2dd4bf','#111827',78,6.5),
         {id:'obj_badge',kind:'badge',label:'체크리스트 배지',text:`CHECKLIST ${pointNumStr} · 필수 확인`,x:10,y:51.5,widthPct:0,fontSize:24,color:'#042f2e',bgColor:'#2dd4bf',bgEnabled:true,borderRadius:999,paddingX:16,paddingY:6,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'체크리스트 메인 제목',text:cleanHeadline,x:10,y:58,widthPct:80,fontSize:46,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'체크리스트 메인 제목',text:twoLineJoined,x:10,y:58,widthPct:80,fontSize:44,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'체크리스트 상세 항목',text:`✓ ${combinedSub}\n✓ 실사용에서 가장 만족도가 높았던 핵심 디테일`,x:12.5,y:72.5,widthPct:75,fontSize:25,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.45,visible:true},
         {id:'obj_stars',kind:'stars',label:'우측 상단 검증 마크',text:'VERIFIED ✓',x:72,y:51.8,widthPct:0,fontSize:22,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'right',bold:true,visible:true}
       ];
@@ -1280,7 +1654,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#ffffff','rgba(15,23,42,0.75)',77,6),
         {id:'obj_badge',kind:'badge',label:'상단 명조 포스터 인덱스',text:`${pointNumStr} — KEY INSIGHT`,x:9,y:57.5,widthPct:0,fontSize:26,color:'#fde047',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'포스터 메인 인용구',text:cleanHeadline,x:9,y:66,widthPct:82,fontSize:58,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'포스터 메인 인용구',text:twoLineJoined,x:9,y:66,widthPct:82,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'포스터 하단 해설',text:combinedSub,x:9,y:82.5,widthPct:82,fontSize:27,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.38,visible:true},
         {id:'obj_stars',kind:'stars',label:'상단 인용 부호',text:'“',x:8.5,y:48,widthPct:0,fontSize:96,color:'rgba(250,204,21,0.85)',bgColor:'transparent',bgEnabled:false,borderRadius:4,paddingX:2,paddingY:2,align:'left',bold:true,lineHeight:1,visible:true}
       ];
@@ -1290,7 +1664,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#ffffff','#1e293b',76,6.8),
         {id:'obj_badge',kind:'badge',label:'요약 카드 배지',text:'FINAL SUMMARY · 핵심 요약',x:12,y:45,widthPct:0,fontSize:24,color:'#ffffff',bgColor:'#ee5646',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'마지막장 결론 제목',text:cleanHeadline,x:12,y:51.5,widthPct:76,fontSize:48,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'마지막장 결론 제목',text:twoLineJoined,x:12,y:51.5,widthPct:76,fontSize:46,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'핵심 요약 박스 내용',text:`✓ ${combinedSub}`,x:14.5,y:67.5,widthPct:71,fontSize:25,color:'#f8fafc',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.4,visible:true},
         {id:'obj_stars',kind:'stars',label:'하단 댓글 유도 버튼',text:'첫 댓글 · 고정 댓글에서 상세 정보 확인하기 →',x:14,y:85.5,widthPct:72,fontSize:25,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:8,paddingY:4,align:'center',bold:true,visible:true}
       ];
@@ -1298,7 +1672,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#ffffff','#0f172a',76,6),
         {id:'obj_badge',kind:'badge',label:'상단 요약표 태그',text:'SUMMARY TABLE · 한눈에 보는 결론',x:8,y:43,widthPct:0,fontSize:22,color:'#2563eb',bgColor:'#dbeafe',bgEnabled:true,borderRadius:8,paddingX:14,paddingY:5,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'요약표 메인 타이틀',text:cleanHeadline,x:8,y:48.5,widthPct:84,fontSize:46,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_title',kind:'title',label:'요약표 메인 타이틀',text:twoLineJoined,x:8,y:48.5,widthPct:84,fontSize:44,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'3칸 핵심 요약표 내용',text:`• 핵심 포인트 : ${combinedSub}\n• 추천 대상 : 시간·비용 아끼고 싶은 분\n• 상세 정보 : 아래 첫 댓글 링크 참고`,x:10.5,y:60.5,widthPct:79,fontSize:24,color:'#1e293b',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.48,visible:true},
         {id:'obj_stars',kind:'stars',label:'하단 액션 바 문구',text:'저장해두고 필요할 때 바로 꺼내보세요 · 댓글 확인 ›',x:10,y:85.5,widthPct:80,fontSize:24,color:'#facc15',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'center',bold:true,visible:true}
       ];
@@ -1306,7 +1680,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#111827','#f59e0b',77,10),
         {id:'obj_badge',kind:'badge',label:'별점 총평 배지',text:'★★★★★  4.9 / 5.0  EDITOR VERDICT',x:12,y:53.5,widthPct:0,fontSize:24,color:'#111827',bgColor:'#fbbf24',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'실사용 총평 헤드라인',text:cleanHeadline,x:12,y:60.5,widthPct:76,fontSize:48,color:'#fffbeb',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'실사용 총평 헤드라인',text:twoLineJoined,x:12,y:60.5,widthPct:76,fontSize:46,color:'#fffbeb',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'실사용 한줄 결론',text:combinedSub,x:12,y:73,widthPct:76,fontSize:25,color:'#fde68a',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
         {id:'obj_stars',kind:'stars',label:'하단 골드 버튼 문구',text:'프로필 · 첫 댓글에서 최저가/상세 정보 확인하기 →',x:12,y:86.7,widthPct:76,fontSize:25,color:'#111827',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:6,paddingY:4,align:'center',bold:true,visible:true}
       ];
@@ -1314,7 +1688,7 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#042f2e','#2dd4bf',78,8.5),
         {id:'obj_badge',kind:'badge',label:'Q. 질문 라벨',text:'Q. 가장 많이 물어보시는 핵심 포인트는?',x:10,y:44.5,widthPct:80,fontSize:24,color:'#38bdf8',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:2,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'Q. 핵심 질문 제목',text:cleanHeadline,x:10,y:49.5,widthPct:80,fontSize:42,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.16,visible:true},
+        {id:'obj_title',kind:'title',label:'Q. 핵심 질문 제목',text:twoLineJoined,x:10,y:49.5,widthPct:80,fontSize:40,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.16,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'A. 핵심 결론 답변',text:`A. ${combinedSub}`,x:10,y:64.5,widthPct:80,fontSize:26,color:'#ccfbf1',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.38,visible:true},
         {id:'obj_stars',kind:'stars',label:'하단 안내 버튼',text:'더 자세한 정보와 링크는 첫 댓글에서 확인하세요 →',x:10,y:87,widthPct:80,fontSize:24,color:'#042f2e',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'center',bold:true,visible:true}
       ];
@@ -1322,22 +1696,21 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
       return [
         makeCounter('#ffffff','rgba(15,23,42,0.8)',76,6.5),
         {id:'obj_badge',kind:'badge',label:'저장·공유 배지',text:'SAVE & SHARE · 저장 필수',x:10,y:54,widthPct:0,fontSize:25,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'엔딩 포스터 메인 타이틀',text:cleanHeadline,x:10,y:61.5,widthPct:80,fontSize:54,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_title',kind:'title',label:'엔딩 포스터 메인 타이틀',text:twoLineJoined,x:10,y:61.5,widthPct:80,fontSize:52,color:'#ffffff',bgColor:'transparent',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
         {id:'obj_sub',kind:'subtitle',label:'엔딩 포스터 요약 설명',text:combinedSub,x:10,y:75.5,widthPct:80,fontSize:26,color:'#e2e8f0',bgColor:'transparent',bgEnabled:false,borderRadius:6,paddingX:4,paddingY:2,align:'left',bold:true,lineHeight:1.35,visible:true},
         {id:'obj_stars',kind:'stars',label:'하단 화이트 캡슐 버튼',text:'도움이 되셨다면 저장 · 첫 댓글에서 상세 링크 확인하기 ›',x:12,y:85.6,widthPct:76,fontSize:24,color:'#0f172a',bgColor:'transparent',bgEnabled:false,borderRadius:999,paddingX:6,paddingY:4,align:'center',bold:true,visible:true}
       ];
 
     case 'cover_01_cinema':
     default:{
-      // Reference 1: User's Exact Attached Image 1 (`media_1792183806909_611922f5.png` & Canva "movie review / 라라나 영화처럼")
+      // Grid 1 R1C5 / Grid 2 R1C2: movie review 코랄 배지 + 볼드 화이트 타이틀 + 별점 5개 + 하단 2줄 리뷰 요약
       const pal=CANVA_THEME_OBJECT_PALETTES[tplDef?.theme||template]||CANVA_THEME_OBJECT_PALETTES.editorial_dark;
-      const cinemaHead=compactCoverHookCopy(cleanHeadline,24);
       return [
         makeCounter(pal.counterColor,pal.counterBg,80.5,3.4),
-        {id:'obj_badge',kind:'badge',label:'상단 배지 (main cover)',text:'main cover',x:6.8,y:56.8,widthPct:0,fontSize:38,color:'#ee5646',bgColor:'#101210',bgEnabled:true,borderRadius:10,paddingX:18,paddingY:8,align:'left',bold:true,visible:true},
-        {id:'obj_title',kind:'title',label:'메인 헤드라인 제목',text:cinemaHead,x:6.8,y:64.5,widthPct:86.5,fontSize:60,color:'#ffffff',bgColor:'#0f172a',bgEnabled:false,borderRadius:10,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.16,visible:true},
-        {id:'obj_stars',kind:'stars',label:'별점 · 포인트 장식',text:'★★★★★',x:6.8,y:82.2,widthPct:0,fontSize:38,color:'#faca22',bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
-        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명 문구',text:combinedSub,x:6.8,y:87.8,widthPct:86.5,fontSize:26,color:'#f8fafc',bgColor:'rgba(15,23,42,0.65)',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.36,visible:true}
+        {id:'obj_badge',kind:'badge',label:'상단 배지 (movie review)',text:'movie review',x:6.8,y:57.5,widthPct:0,fontSize:34,color:'#ee5646',bgColor:'#101210',bgEnabled:true,borderRadius:8,paddingX:18,paddingY:7,align:'left',bold:true,visible:true},
+        {id:'obj_title',kind:'title',label:'메인 헤드라인 제목',text:twoLineJoined,x:6.8,y:65,widthPct:86.5,fontSize:56,color:'#ffffff',bgColor:'#0f172a',bgEnabled:false,borderRadius:10,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.18,visible:true},
+        {id:'obj_stars',kind:'stars',label:'별점 · 포인트 장식',text:'★★★★★',x:6.8,y:81.5,widthPct:0,fontSize:36,color:'#faca22',bgColor:'#0f172a',bgEnabled:false,borderRadius:8,paddingX:4,paddingY:2,align:'left',bold:true,visible:true},
+        {id:'obj_sub',kind:'subtitle',label:'하단 서브 설명 문구',text:combinedSub,x:6.8,y:87.2,widthPct:86.5,fontSize:24,color:'#f8fafc',bgColor:'rgba(15,23,42,0.65)',bgEnabled:false,borderRadius:8,paddingX:6,paddingY:4,align:'left',bold:true,lineHeight:1.36,visible:true}
       ];
     }
   }
@@ -1381,8 +1754,7 @@ function applyTemplatePresetToSlide(slide,totalSlides,presetId){
     const hookLines=(typeof extractBestHookLines==='function')?extractBestHookLines():[];
     const initTier=splitSlideThreeTierText(slide);
     let cleanInit=deduplicateSlideLines(initTier.title||'');
-    // If slide.title was a truncated mid-sentence fragment (e.g., starting with "위에 그냥 두자니"), recover the full hook line from job analysis/captions!
-    if(hookLines[0]&&(!cleanInit||cleanInit.length<18||(hookLines[0].includes(cleanInit)&&hookLines[0].length>cleanInit.length))){
+    if(hookLines[0]&&(!cleanInit||cleanInit.length<18||(hookLines[0].includes(cleanInit)&&hookLines[0].length>cleanInit.length)||/^위에\s*그냥\s*두자니/i.test(cleanInit))){
       cleanInit=deduplicateSlideLines(hookLines[0].split('|')[0]);
     }
     if(cleanInit&&!isGenericPlaceholderSlideText(cleanInit)){
@@ -1392,12 +1764,17 @@ function applyTemplatePresetToSlide(slide,totalSlides,presetId){
   if(slide._rawHeadlineBase){
     slide.title=slide._rawHeadlineBase;
   }
-  const prevObjs=Array.isArray(slide.canva_objects)?slide.canva_objects:[];
-  const prevSub=(prevObjs.find(o=>o.kind==='subtitle')?.text||slide.subtitle||'').trim();
-  if(prevSub&&!isGenericPlaceholderSlideText(prevSub)){
-    const cleanSub=deduplicateSlideLines(prevSub.replace(/^(\[AFTER[^\]]*\]\s*|✓\s*|A\.\s*|•\s*핵심 포인트\s*:\s*)/i,'')).split(/\r?\n/)[0].trim();
-    if(cleanSub)slide.subtitle=cleanSub;
+  if(!slide._rawSubtitleBase){
+    const initTier=splitSlideThreeTierText(slide);
+    const rawSubCandidate=deduplicateSlideLines([initTier.subtitle,initTier.bodyText].filter(Boolean).join(' ')).trim();
+    if(rawSubCandidate&&!isGenericPlaceholderSlideText(rawSubCandidate)&&!/지금 안 보면 늦어요|꼭 확인해야 할 핵심 정리|^#핵심/.test(rawSubCandidate)){
+      slide._rawSubtitleBase=rawSubCandidate;
+    }else{
+      slide._rawSubtitleBase='실사용에서 직접 확인한 핵심 포인트와 디테일을 한눈에 정리했습니다.';
+    }
   }
+  slide.subtitle=slide._rawSubtitleBase;
+  slide.body_text='';
   slide.layout_preset=presetId;
   slide.role=tplDef.role;
   slide.template=tplDef.theme;
@@ -1439,26 +1816,12 @@ function ensureCanvaObjectsForSlide(targetJob,slide,totalSlides,role,template){
       slide.canva_objects=buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,slide.layout_preset);
     }
   }
-  // Auto-upgrade any lingering generic placeholder text ("클릭하여 메인 제목을 입력하세요") with real hook copy from job/analysis/captions!
   const titleObj=slide.canva_objects.find(o=>o.kind==='title');
   const subObj=slide.canva_objects.find(o=>o.kind==='subtitle');
-  if(titleObj&&isGenericPlaceholderSlideText(titleObj.text)){
-    const smart=resolveSmartSlideHookCopy(slide,totalSlides,slide.role||role);
-    if(slide.layout_preset==='cover_02_magazine'){
-      titleObj.text=ensureHeadlineHasBoxHighlight(smart.cleanHeadline);
-    }else if(slide.layout_preset==='cover_03_top_hook'){
-      const twoTier=splitHeadlineForTwoTierHook(smart.cleanHeadline);
-      const bObj=slide.canva_objects.find(o=>o.kind==='badge');
-      if(bObj)bObj.text=twoTier.topLine;
-      titleObj.text=twoTier.mainLine;
-    }else if(slide.layout_preset==='cover_04_gallery_ticket'){
-      titleObj.text=ensureHeadlineHasColorHighlight(smart.cleanHeadline);
-    }else{
-      titleObj.text=smart.cleanHeadline;
-    }
-    slide.title=smart.cleanHeadline;
-  }
-  if(subObj&&isGenericPlaceholderSlideText(subObj.text)){
+  // If local storage had an old broken fragment like "위에 그냥 두자니 지저분하고 매번 서랍에", refresh the slide objects cleanly!
+  if(titleObj&&(isGenericPlaceholderSlideText(titleObj.text)||/매번\s*서랍에\s*$/i.test(String(titleObj.text||'').trim()))){
+    applyTemplatePresetToSlide(slide,totalSlides,slide.layout_preset);
+  }else if(subObj&&isGenericPlaceholderSlideText(subObj.text)){
     const smart=resolveSmartSlideHookCopy(slide,totalSlides,slide.role||role);
     subObj.text=smart.combinedSub;
     slide.subtitle=smart.combinedSub;
@@ -1734,7 +2097,7 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     const frad=Number(pFrame.radius||0)*1.8;
 
     const iw=imgToDraw.naturalWidth,ih=imgToDraw.naturalHeight;
-    const bgT=slide.bg_transform||{scale:1,x:0,y:0};
+    const bgT=slide?.bg_transform||{scale:1,x:0,y:0};
     const fitMode=bgT.fit||(isFullBleedPhoto?'cover':'contain');
     const userScale=Math.max(0.25,Math.min(3,Number(bgT.scale||1)));
 
@@ -1773,17 +2136,41 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
   // 3. Draw Scrim if present on template
   if(tplDef.scrim&&tplDef.scrim!=='none'){
     if(presetId==='cover_03_top_hook'){
-      // Top & bottom scrim for Giant Top Yellow Hook + Bottom Summary
+      // Top & bottom scrim for Capsule Top Badge + Bottom Hook
       const grad=ctx.createLinearGradient(0,0,0,H);
-      grad.addColorStop(0,'rgba(6,8,12,0.86)');
-      grad.addColorStop(0.32,'rgba(6,8,12,0.42)');
-      grad.addColorStop(0.56,'rgba(6,8,12,0.08)');
-      grad.addColorStop(0.86,'rgba(6,8,12,0.88)');
+      grad.addColorStop(0,'rgba(8,10,16,0.48)');
+      grad.addColorStop(0.28,'rgba(8,10,16,0.12)');
+      grad.addColorStop(0.55,'rgba(8,10,16,0.18)');
+      grad.addColorStop(0.84,'rgba(6,8,12,0.86)');
       grad.addColorStop(1,'rgba(6,8,12,0.96)');
       ctx.fillStyle=grad;
       ctx.fillRect(0,0,W,H);
+    }else if(presetId==='cover_12_workspace_pick_arrow'||presetId==='cover_14_vertical_line_picnic'){
+      // Top-heavy editorial scrim with bottom readability
+      const grad=ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,'rgba(8,12,20,0.82)');
+      grad.addColorStop(0.42,'rgba(8,12,20,0.48)');
+      grad.addColorStop(0.72,'rgba(8,12,20,0.22)');
+      grad.addColorStop(1,'rgba(8,12,20,0.78)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,0,W,H);
+    }else if(presetId==='cover_13_2x2_grid_collage'){
+      const grad=ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,'rgba(12,15,24,0.46)');
+      grad.addColorStop(0.50,'rgba(12,15,24,0.20)');
+      grad.addColorStop(0.88,'rgba(12,15,24,0.42)');
+      grad.addColorStop(1,'rgba(12,15,24,0.55)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,0,W,H);
+    }else if(presetId==='cover_15_arched_window_travel'||presetId==='cover_17_split_selfcare_pill'||presetId==='cover_18_luxury_popup_serif'||presetId==='cover_19_bottom_3hashtags_dark'){
+      const grad=ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,'rgba(12,10,14,0.52)');
+      grad.addColorStop(0.50,'rgba(12,10,14,0.42)');
+      grad.addColorStop(1,'rgba(10,8,12,0.78)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,0,W,H);
     }else{
-      const grad=ctx.createLinearGradient(0,Math.round(H*0.28),0,H);
+      const grad=ctx.createLinearGradient(0,Math.round(H*0.24),0,H);
       grad.addColorStop(0,'rgba(10,12,18,0)');
       grad.addColorStop(0.45,'rgba(10,12,18,0.68)');
       grad.addColorStop(0.8,'rgba(8,10,15,0.92)');
@@ -1801,7 +2188,7 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
 
   // 5. Draw Each Visible Object in slide.canva_objects (including `[박스 강조]` and `*색상 강조*` segments + per-object strokes!)
   const fCss=(CSS_FONT_MAP[fontKey]||CSS_FONT_MAP.heavy_kr).replace(/"/g,"'");
-  const objs=Array.isArray(slide.canva_objects)?slide.canva_objects:[];
+  const objs=Array.isArray(slide?.canva_objects)?slide.canva_objects:[];
 
   const parseFormattedSegments=(rawLine)=>{
     const segments=[];
@@ -2092,7 +2479,7 @@ function renderCarouselPreview(){
     wbPreviewCol.className='carousel-wb-preview-col';
     const wbPreviewZoneTag=document.createElement('div');
     wbPreviewZoneTag.className='wb-zone-kicker-bar';
-    wbPreviewZoneTag.innerHTML='<span class="wb-zone-pill">가운데 · 20종 템플릿(표지 5 · 본문 10 · 마지막 5) 캔버스 (클릭 시 글자 즉시 수정 · 드래그 이동)</span>';
+    wbPreviewZoneTag.innerHTML='<span class="wb-zone-pill">가운데 · 37종 템플릿(표지 22 · 본문 10 · 마지막 5) 대형 캔버스 (클릭 시 글자 즉시 수정 · 드래그 이동)</span>';
     const wbPreviewHeader=document.createElement('div');
     wbPreviewHeader.className='carousel-wb-preview-head';
     const rolePillText=isSingleCard
@@ -3265,6 +3652,14 @@ function renderCarouselPreview(){
       refreshSelectedObjectInspectorUI();
       updateCanvaLiveVisualStyle(false);
       tpl20ChipButtons.forEach(b=>b.classList.toggle('active',b.dataset.presetId===presetId));
+      if(rolePill){
+        rolePill.textContent=isSingleCard?`01 단독 카드 · ${tpl.name}`:`0${activeSlide.index} ${tpl.name}`;
+        rolePill.className=`wb-role-pill role-${tpl.role}`;
+      }
+      const inspTitleEl=inspHead?.querySelector('h4');
+      if(inspTitleEl){
+        inspTitleEl.textContent=`슬라이드 #${activeSlide.index} · ${tpl.name}`;
+      }
       // Update role badge in bottom storyboard card immediately
       const sbBadge=grid.querySelector(`.carousel-storyboard-card[data-slide-index="${activeSlide.index}"] .storyboard-role-badge`);
       if(sbBadge){
@@ -3782,19 +4177,19 @@ function renderCarouselPreview(){
     },isSingleCard?'단독 카드 이미지를 저장하여 게시 첨부 묶음에 반영했습니다!':`슬라이드 #${activeSlide.index} 카드를 이미지로 저장하여 게시 첨부 목록에 추가했습니다!`);
     orderGroup.append(bAttachCurrent);
 
-    const wbHint=text('span','텍스트·배경박스·액자 모두 자유롭게 클릭·드래그·크기 조절 가능 · 20종 템플릿 기반 자유 커스텀');
+    const wbHint=text('span','텍스트·배경박스·액자 모두 자유롭게 클릭·드래그·크기 조절 가능 · 메인 표지 22종 포함 37종 템플릿 자유 커스텀');
     wbHint.className='hint';
     wbHint.style.margin='0';
     wbPreviewFooter.append(orderGroup,wbHint);
     wbPreviewCol.append(wbPreviewZoneTag,wbPreviewHeader,canvaToolbar,wbStage,wbPreviewFooter);
 
-    // === RIGHT COLUMN: 20-TEMPLATE SELECTOR + OBJECT/SHAPE INSPECTOR + INSTANT PHOTO CAPTURE ===
+    // === RIGHT COLUMN: 37-TEMPLATE SELECTOR + OBJECT/SHAPE INSPECTOR + INSTANT PHOTO CAPTURE ===
     const wbInspectorCol=document.createElement('div');
     wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector carousel-tabbed-inspector';
 
     const wbInspZoneTag=document.createElement('div');
     wbInspZoneTag.className='wb-zone-kicker-bar';
-    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 20종 템플릿 + 자유 도형·배지·액자 꾸미기 · 초고속 캡처</span>';
+    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 메인 표지 22종 + 본문 10종 + 마지막 5종 · 자유 꾸미기</span>';
 
     const inspHead=document.createElement('div');
     inspHead.className='wb-inspector-head';
@@ -3811,7 +4206,7 @@ function renderCarouselPreview(){
     inspTabsBar.className='wb-inspector-tabs wb-inspector-tabs-2col';
     inspTabsBar.setAttribute('role','tablist');
     const tabDefs=[
-      {id:'style',label:'① 20종 템플릿 · 자유 요소 꾸미기'},
+      {id:'style',label:'① 표지 22종 · 템플릿 · 자유 꾸미기'},
       {id:'photo',label:'② 초고속 영상 캡처 · 배경 사진'}
     ];
     const tabPanels={};
@@ -3842,7 +4237,7 @@ function renderCarouselPreview(){
     tabPanels.style=tabStylePanel;
 
     // =========================================================================
-    // 20-TEMPLATE CATALOG SELECTOR (메인 표지 5종 / 본문 10종 / 마지막장 5종)
+    // 37-TEMPLATE CATALOG SELECTOR (메인 표지 22종 / 본문 10종 / 마지막장 5종)
     // =========================================================================
     const tpl20Section=document.createElement('div');
     tpl20Section.className='wb-structured-section canva-tpl20-section';
@@ -3865,14 +4260,14 @@ function renderCarouselPreview(){
       renderCarouselPreview();
       message('전체 슬라이드에 서로 다른 표지·본문·마지막장 템플릿 포맷을 자동 배정했습니다!');
     };
-    tpl20Head.append(text('strong','20종 레이아웃 템플릿 (선택 후 모든 요소 자유 배치·수정 가능)'),btnAutoVarySlides);
+    tpl20Head.append(text('strong','뉴스카드·캐러셀 37종 템플릿 (선택 후 모든 요소 자유 배치·수정 가능)'),btnAutoVarySlides);
 
     const tpl20CatBar=document.createElement('div');
     tpl20CatBar.className='canva-tpl20-cat-tabs';
     const catGroups=[
-      {role:'cover',label:'메인 표지 템플릿 (5종)',ids:COVER_PRESET_IDS},
-      {role:'body',label:'본문 템플릿 (10종)',ids:BODY_PRESET_IDS},
-      {role:'cta',label:'마지막장 템플릿 (5종)',ids:CTA_PRESET_IDS}
+      {role:'cover',label:`메인 표지 템플릿 (${COVER_PRESET_IDS.length}종)`,ids:COVER_PRESET_IDS},
+      {role:'body',label:`본문 템플릿 (${BODY_PRESET_IDS.length}종)`,ids:BODY_PRESET_IDS},
+      {role:'cta',label:`마지막장 템플릿 (${CTA_PRESET_IDS.length}종)`,ids:CTA_PRESET_IDS}
     ];
     let activeTplCategory=activeTplDef.role||activeRole||'cover';
     const tpl20GridWrap=document.createElement('div');

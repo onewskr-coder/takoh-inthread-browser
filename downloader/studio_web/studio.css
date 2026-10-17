@@ -4933,9 +4933,13 @@ html[data-theme="dark"] .pro-prop-label {
   border-color: rgba(56, 189, 248, 0.72);
 }
 .canva-object-node.is-selected-object {
+  border: 1.5px solid transparent;
+  box-shadow: none;
+  z-index: 14;
+}
+.canva-object-node.is-selected-object:hover {
   border: 1.5px solid #38bdf8;
   box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
-  z-index: 14;
 }
 .canva-object-node.is-dragging-object {
   border: 2px solid #facc15 !important;
@@ -4975,7 +4979,7 @@ html[data-theme="dark"] .pro-prop-label {
   font-weight: 900 !important;
 }
 .canva-object-text .canva-inline-color-hl {
-  color: var(--hl-acc-fg, #f472b6) !important;
+  color: var(--hl-acc-fg, #5eead4);
   font-weight: 900 !important;
 }
 /* Corner & Side Resize Handles on Selected Object (Canva / MiriCanvas style) */
@@ -4987,7 +4991,8 @@ html[data-theme="dark"] .pro-prop-label {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   z-index: 20;
 }
-.canva-object-node.is-selected-object:not(.is-editing-text) .canva-resize-handle {
+.canva-object-node.is-selected-object:hover:not(.is-editing-text) .canva-resize-handle,
+.canva-object-node.is-dragging-object .canva-resize-handle {
   display: block;
 }
 .canva-resize-handle.handle-nw,
@@ -5041,7 +5046,7 @@ html[data-theme="dark"] .pro-prop-label {
   background: #dc2626 !important;
   border-color: #fca5a5 !important;
 }
-.canva-object-node.is-selected-object:not(.is-editing-text) .canva-object-delete-btn {
+.canva-object-node.is-selected-object:hover:not(.is-editing-text) .canva-object-delete-btn {
   display: inline-flex !important;
 }
 
@@ -5105,7 +5110,7 @@ nav.workspace-tabs button[aria-selected="true"].step-done::after {
 /* ========================================================================= */
 .carousel-wb-grid.carousel-3zone-grid {
   display: grid !important;
-  grid-template-columns: minmax(480px, 1fr) 26px minmax(280px, var(--carousel-inspector-width, 360px)) !important;
+  grid-template-columns: minmax(520px, 1fr) 26px minmax(280px, var(--carousel-inspector-width, 360px)) !important;
   gap: 10px !important;
   align-items: stretch !important;
 }
@@ -5143,8 +5148,8 @@ nav.workspace-tabs button[aria-selected="true"].step-done::after {
 .carousel-wb-preview-col .wb-canvas-frame,
 .carousel-wb-preview-col .wb-large-center-frame {
   width: 100% !important;
-  max-width: min(100%, 580px) !important;
-  max-height: 725px !important;
+  max-width: min(100%, 640px) !important;
+  max-height: 800px !important;
   margin: 0 auto !important;
 }
 
@@ -5775,7 +5780,7 @@ html[data-theme="dark"] .analysis-caption-subitem p {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
   gap: 6px;
-  max-height: 230px;
+  max-height: 300px;
   overflow-y: auto;
   padding-right: 2px;
 }
