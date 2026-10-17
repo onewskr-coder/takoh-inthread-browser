@@ -1,24 +1,20 @@
-# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-17 · 20 Distinct Carousel Templates [Cover 5 · Body 10 · CTA 5] + Instant `<50ms` Video Frame Capture & On-Canvas Text Editing)
+# HANDOFF-RESULT.md — Latest Bounded Task Summary (2026-10-17 · Carousel Keyboard Shortcuts [Ctrl+Z Undo · Ctrl+Y Redo · Arrow/Delete/Copy/Paste] + Magnetic Background Photo Centering)
 
-## 1. Scope & Root Cause Fixed
-1. **Why Carousel Capture Felt Slow & Slides Looked Too Similar**:
-   - Previously, clicking any video frame capture button (`현재 영상장면 즉시적용`, `좌측 영상의 현재 재생 시점으로 배경 즉시 교체`, `-0.5초`, `+0.5초`, `#btn-capture-scrubber-carousel`, or `.frame-replace-slide-btn`) waited synchronously for a backend `/carousel-slide-update` round-trip (`ffmpeg` extraction + PIL compositing + full DOM re-render).
-   - In addition, slides shared a single full-bleed background structure so cover, body, and last (CTA) slides looked structurally identical rather than offering distinct curated layouts.
-2. **Fixes Implemented**:
-   - **[`downloader/studio.py`](downloader/studio.py)**:
-     - Persisted `layout_preset`, `canva_objects`, `bg_transform`, `bg_file`, and `rendered_card_data_url` across `carousel_generate` and `carousel_slide_update`.
+## 1. Scope & Changes Implemented
+1. **Carousel (`02-B`) Keyboard Shortcuts (`Ctrl+Z` Undo, `Ctrl+Y` / `Ctrl+Shift+Z` Redo, `Delete` / `Backspace`, `Arrow` / `Shift+Arrow`, `Ctrl+D`, `Ctrl+C` / `Ctrl+V`, `Escape`)**:
+   - **[`downloader/studio_web/studio.js`](downloader/studio_web/studio.js)**:
+     - Added full multi-step history management (`canvaUndoStack`, `canvaRedoStack`, `captureCanvaSlideSnapshot`, `pushCanvaUndoSnapshot`, `applyCanvaSlideSnapshot`, `performCanvaUndo`, `performCanvaRedo`) tracking template switches, inline text edits, object move/resize/delete/add/duplicate, font/size/color changes, background photo pan/zoom/center-snap, and instant video frame captures.
+     - Wired global `window.addEventListener('keydown', ...)` in `carousel` mode so:
+       - `Ctrl+Z` immediately undoes the last carousel action (`performCanvaUndo()`), including while focused inside an on-canvas `contentEditable` text box.
+       - `Ctrl+Y` or `Ctrl+Shift+Z` immediately redoes the undone action (`performCanvaRedo()`).
+       - `ArrowUp` / `ArrowDown` / `ArrowLeft` / `ArrowRight` nudges the selected object by `0.5%` (`2.5%` with `Shift`).
+       - `Delete` / `Backspace` removes the selected object (when not actively typing text).
+       - `Ctrl+D` duplicates the selected object; `Ctrl+C` / `Ctrl+V` copies and pastes objects across slides; `Escape` exits inline text editing or deselects.
+     - Added visible toolbar buttons `#btn-canva-undo` (`되돌리기 (Ctrl+Z)`) and `#btn-canva-redo` (`다시실행 (Ctrl+Y)`).
+2. **Magnetic Background Photo Centering (`좌우 중앙 X=0%` & `상하 중앙 Y=0%`)**:
    - **[`downloader/studio_web/studio.js`](downloader/studio_web/studio.js)** & **[`downloader/studio_web/studio.css`](downloader/studio_web/studio.css)**:
-     - **Ultra-Fast (`0.5ms–30ms`) Instant Video Frame Capture & Background Swap (`captureInstantVideoFrameToActiveSlide`)**:
-       - Captures the current `<video id="preview">` frame directly onto an in-memory HTML5 `<canvas>` (or immediately swaps to the selected pre-extracted frame URL) and updates `#wb-active-slide-big-img`, `#wb-active-slide-blur-bg-img`, and the bottom storyboard thumbnail in `<30ms` without waiting on a blocking server round-trip. Server persistence runs asynchronously in the background.
-       - Wired all capture entry points (`#btn-canva-instant-video-capture`, `#btn-capture-video-to-slide`, `-0.5초` / `+0.5초`, `#btn-capture-scrubber-carousel`, `#frames .frame-replace-slide-btn`, and custom photo replacement `applyCarouselCustomPhotoDataUrl`) to this instant memory pipeline.
-     - **20 Role-Specific Distinct Templates (`CAROUSEL_20_TEMPLATES`: 메인 표지 5종 · 본문 10종 · 마지막장 5종)**:
-       - Built a structured 20-template catalog where each template defines its own `canvasBg` (`dark`, `solid`, `blur_dark`, `grid_paper`), `photoFrame` (`x, y, w, h, radius, borderColor, borderWidth`), `decorBoxes` (split panels, magazine frames, white gallery cards, top banners, Polaroid frames with masking tape, macOS/browser insight windows, BEFORE/AFTER comparison cards, 3-step checklists, summary tables, Q&A cards, and CTA buttons), and role-tailored `canva_objects`:
-         - **메인 표지 템플릿 (5종)**: `cover_01_cinema`, `cover_02_magazine`, `cover_03_top_hook`, `cover_04_gallery_ticket`, `cover_05_review_window`
-         - **본문 템플릿 (10종)**: `body_01_cinema_split`, `body_02_magazine_spread`, `body_03_white_gallery`, `body_04_top_banner_float`, `body_05_curation_book`, `body_06_polaroid_journal`, `body_07_ui_window`, `body_08_before_after`, `body_09_checklist_3step`, `body_10_full_poster_quote`
-         - **마지막장 템플릿 (5종)**: `cta_01_summary_card`, `cta_02_spec_table`, `cta_03_star_verdict`, `cta_04_qna_card`, `cta_05_minimal_ending`
-       - Added `전체 슬라이드 다른 템플릿 자동배정` (`#btn-canva-auto-vary-templates`) and automatic per-slide preset diversification (`getDefaultPresetForSlide`) so multi-slide carousels assign distinct formats across Cover, Body 1..N, and CTA slides automatically.
-     - **Instant Single-Click On-Screen Text Editing (`0.01s`)**:
-       - Clicking any text object on the center preview canvas immediately activates inline `contentEditable` text editing in place, while dragging moves/resizes the element smoothly.
+     - Added magnetic snap detection (`BG_MAGNET_THRESHOLD_PCT = 2.6`) during background photo dragging inside `.canva-multi-object-stage`. When panning within `±2.6%` of horizontal center (`X = 0%`) or vertical center (`Y = 0%`), the background photo magnetically locks to `0%` and displays dashed cyan snap guide lines (`#canva-bg-snap-line-x`, `#canva-bg-snap-line-y`) plus a live status badge (`#canva-bg-snap-badge`: `배경 사진 정중앙 자석 정렬 (좌우·상하 0%)` / `좌우 중앙 자석 정렬 (X: 0%)` / `상하 중앙 자석 정렬 (Y: 0%)`).
+     - Added double-click on the background photo area and dedicated buttons (`#btn-canva-bg-center-snap` `배경 정중앙`, `#btn-canva-snap-bg-x` `좌우 중앙 정렬 (X=0)`, `#btn-canva-snap-bg-y` `상하 중앙 정렬 (Y=0)`, `#btn-canva-snap-bg-both` `정중앙 자석 배치`) along with a live coordinate readout (`#canva-bg-offset-readout`).
 
 ## 2. Verification Evidence (Separated by Category)
 - **Static & Unit Tests**:
@@ -27,9 +23,9 @@
     - Python syntax compilation (`py_compile`): **PASS**
     - Core Node & Python unit tests (`test_clip_split.cjs`, `test_threads_research_media.cjs`, `test_studio_text_clean.py`): **PASS**
 - **Real Browser / Electron UI Verification**:
-  - Verified in headless Electron (`verify_tpl20_instant_capture.cjs` -> `verify_tpl20_instant_capture.json`):
-    - Confirmed `totalTemplates: 20` (`coverCount: 5`, `bodyCount: 10`, `ctaCount: 5`) and automatic multi-slide template variation (`slide 1: cover_01_cinema`, `slide 2: body_01_cinema_split`, `slide 3: body_02_magazine_spread`, `slide 4: body_03_white_gallery`, `slide 5: cta_01_summary_card`).
-    - Confirmed instant `<50ms` video capture (`instantCaptureElapsedMs: 0.5ms`, `bgChangedImmediately: true`, `updatedTimestamp: 3.4`) and direct on-canvas text editing (`editedText: "화면에서 클릭해 즉시 수정한 본문 타이틀!"`).
-    - Captured visual evidence across distinct templates: `verify_tpl20_cover04_gallery.png`, `verify_tpl20_body08_before_after.png`, `verify_tpl20_body03_edited_instant_capture.png`, and `verify_tpl20_cta02_spec_table.png`.
+  - Verified in headless Electron (`verify_undo_and_bg_magnet.cjs` -> `verify_bg_magnet_snap_and_undo.json` & `verify_bg_magnet_snap_and_undo.png`):
+    - **Template Switch Undo/Redo**: Switched `cover_02_magazine` -> `cover_01_cinema`, pressed `Ctrl+Z` -> restored `cover_02_magazine`, pressed `Ctrl+Y` -> re-applied `cover_01_cinema`.
+    - **Object Nudge Undo/Redo**: Selected `obj_title` (`y: 66.2`), pressed `Shift+ArrowDown` (`y: 68.7`), pressed `Ctrl+Z` (`y: 66.2`), pressed `Ctrl+Y` (`y: 68.7`).
+    - **Magnetic Background Photo Snap**: Dragged background photo off-center (`X: +15.0% · Y: -12.0%`), then dragged back near center (`+0.9%, -0.8%` within `±2.6%` magnetic threshold) and confirmed automatic magnetic snap to `x: 0, y: 0` (`readout: "정중앙 (X: 0% · Y: 0%)"`), `snapLineXVisible: true`, `snapLineYVisible: true`, and `snapBadgeText: "배경 사진 정중앙 자석 정렬 (좌우·상하 0%)"`.
 - **Saved Media / Audio / Paid Provider / Distribution**:
   - User profiles (`%APPDATA%\takoh-studio-browser`), saved references/jobs (`%LOCALAPPDATA%\ONEWS\studio`), and running helper processes on port `5006` were preserved untouched.

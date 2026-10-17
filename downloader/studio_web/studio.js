@@ -829,7 +829,118 @@ function getDefaultPresetForSlide(slide,totalSlides,role,legacyTemplate){
 }
 
 let selectedCanvaObjectId='obj_title';
+let canvaClipboardObject=null;
 const canvaCleanBgMemoryCache=new Map();
+const canvaUndoStack=[];
+const canvaRedoStack=[];
+const MAX_CANVA_UNDO_STEPS=45;
+let activeCanvaStageController=null;
+
+function captureCanvaSlideSnapshot(targetJob,slide){
+  if(!targetJob||!slide)return null;
+  return {
+    jobId:targetJob.id,
+    slideIndex:Number(slide.index||1),
+    layoutPreset:slide.layout_preset||'cover_01_cinema',
+    role:slide.role||'cover',
+    template:slide.template||'editorial_dark',
+    fontFamily:slide.font_family||targetJob?.carousel?.font_family||'heavy_kr',
+    timestamp:Number(slide.timestamp||0),
+    bgFile:slide.bg_file||'',
+    cleanBgDataUrl:slide._cleanBgDataUrl||canvaCleanBgMemoryCache.get(`${targetJob.id}_${slide.index}`)||'',
+    bgTransform:JSON.parse(JSON.stringify(slide.bg_transform||{scale:1,x:0,y:0})),
+    objects:JSON.parse(JSON.stringify(slide.canva_objects||[])),
+    selectedObjId:selectedCanvaObjectId
+  };
+}
+
+function pushCanvaUndoSnapshot(customSlide=null){
+  if(!job)return;
+  const slides=job?.carousel?.slides||[];
+  const s=customSlide||slides.find(x=>Number(x.index)===Number(activeCarouselSlideIndex))||slides[0];
+  if(!s)return;
+  const snap=captureCanvaSlideSnapshot(job,s);
+  if(!snap)return;
+  const prev=canvaUndoStack[canvaUndoStack.length-1];
+  if(prev&&prev.jobId===snap.jobId&&prev.slideIndex===snap.slideIndex){
+    const prevSig=JSON.stringify({p:prev.layoutPreset,bg:prev.bgTransform,u:prev.cleanBgDataUrl,f:prev.bgFile,t:prev.timestamp,o:prev.objects});
+    const curSig=JSON.stringify({p:snap.layoutPreset,bg:snap.bgTransform,u:snap.cleanBgDataUrl,f:snap.bgFile,t:snap.timestamp,o:snap.objects});
+    if(prevSig===curSig)return;
+  }
+  canvaUndoStack.push(snap);
+  if(canvaUndoStack.length>MAX_CANVA_UNDO_STEPS)canvaUndoStack.shift();
+  canvaRedoStack.length=0;
+  if(activeCanvaStageController?.updateUndoRedoButtons)activeCanvaStageController.updateUndoRedoButtons();
+}
+
+function applyCanvaSlideSnapshot(snap){
+  if(!snap||!job||job.id!==snap.jobId)return false;
+  const slides=job?.carousel?.slides||[];
+  const targetSlide=slides.find(s=>Number(s.index)===Number(snap.slideIndex));
+  if(!targetSlide)return false;
+  activeCarouselSlideIndex=Number(snap.slideIndex);
+  targetSlide.layout_preset=snap.layoutPreset;
+  targetSlide.role=snap.role;
+  targetSlide.template=snap.template;
+  targetSlide.font_family=snap.fontFamily;
+  targetSlide.timestamp=snap.timestamp;
+  targetSlide.bg_file=snap.bgFile||'';
+  if(snap.cleanBgDataUrl){
+    targetSlide._cleanBgDataUrl=snap.cleanBgDataUrl;
+    canvaCleanBgMemoryCache.set(`${job.id}_${targetSlide.index}`,snap.cleanBgDataUrl);
+  }else{
+    delete targetSlide._cleanBgDataUrl;
+    canvaCleanBgMemoryCache.delete(`${job.id}_${targetSlide.index}`);
+  }
+  targetSlide.bg_transform=JSON.parse(JSON.stringify(snap.bgTransform||{scale:1,x:0,y:0}));
+  targetSlide.canva_objects=JSON.parse(JSON.stringify(snap.objects||[]));
+  selectedCanvaObjectId=snap.selectedObjId||targetSlide.canva_objects?.[0]?.id||'obj_title';
+  saveCanvaSlideLocalState(job.id,targetSlide.index,targetSlide.canva_objects,targetSlide.bg_transform,targetSlide._cleanBgDataUrl,targetSlide.layout_preset);
+  if(activeCanvaStageController&&activeCanvaStageController.slideIndex===Number(snap.slideIndex)){
+    activeCanvaStageController.restoreFromSlideState(targetSlide);
+  }else{
+    renderCarouselPreview();
+  }
+  return true;
+}
+
+function performCanvaUndo(){
+  if(!job||!canvaUndoStack.length){
+    message('되돌릴 이전 캐러셀 편집 내역이 없습니다.');
+    return false;
+  }
+  const slides=job?.carousel?.slides||[];
+  const curSlide=slides.find(s=>Number(s.index)===Number(activeCarouselSlideIndex))||slides[0];
+  if(curSlide){
+    const curSnap=captureCanvaSlideSnapshot(job,curSlide);
+    if(curSnap)canvaRedoStack.push(curSnap);
+  }
+  const prevSnap=canvaUndoStack.pop();
+  const ok=applyCanvaSlideSnapshot(prevSnap);
+  if(activeCanvaStageController?.updateUndoRedoButtons)activeCanvaStageController.updateUndoRedoButtons();
+  if(ok)message('이전 캐러셀 편집 상태로 되돌렸습니다 (Ctrl+Z).');
+  return ok;
+}
+
+function performCanvaRedo(){
+  if(!job||!canvaRedoStack.length){
+    message('다시 실행할 캐러셀 편집 내역이 없습니다.');
+    return false;
+  }
+  const slides=job?.carousel?.slides||[];
+  const curSlide=slides.find(s=>Number(s.index)===Number(activeCarouselSlideIndex))||slides[0];
+  if(curSlide){
+    const curSnap=captureCanvaSlideSnapshot(job,curSlide);
+    if(curSnap)canvaUndoStack.push(curSnap);
+  }
+  const nextSnap=canvaRedoStack.pop();
+  const ok=applyCanvaSlideSnapshot(nextSnap);
+  if(activeCanvaStageController?.updateUndoRedoButtons)activeCanvaStageController.updateUndoRedoButtons();
+  if(ok)message('캐러셀 편집을 다시 실행했습니다 (Ctrl+Y).');
+  return ok;
+}
+window.performCanvaUndo=performCanvaUndo;
+window.performCanvaRedo=performCanvaRedo;
 
 function getCanvaSlideStorageKey(jobId,slideIdx){
   return `takoh_canva_objs_v3_${jobId}_${slideIdx}`;
@@ -1127,6 +1238,7 @@ async function captureInstantVideoFrameToActiveSlide(targetTime=null,{frameFile=
   if(!job)return null;
   const slides=job?.carousel?.slides||[];
   const activeSlide=slides.find(s=>Number(s.index)===Number(activeCarouselSlideIndex))||slides[0];
+  if(activeSlide)pushCanvaUndoSnapshot(activeSlide);
   const vid=$('preview');
   let capturedDataUrl='';
   let chosenFrameFile=frameFile;
@@ -1765,13 +1877,28 @@ function renderCarouselPreview(){
       }
     };
 
-    // 5. Magnetic Alignment Guide Lines (hidden until dragging near center/left margin)
+    // 5. Magnetic Alignment Guide Lines (for both Text Objects and Background Photo Centering!)
     const snapLineX=document.createElement('div');
     snapLineX.className='canva-snap-line canva-snap-line-x';
     snapLineX.hidden=true;
     const snapLineY=document.createElement('div');
     snapLineY.className='canva-snap-line canva-snap-line-y';
     snapLineY.hidden=true;
+
+    // Magnetic Snap Guide Lines inside `photoFrameBox` specifically for Background Photo Centering (`x=0%`, `y=0%`)
+    const bgSnapLineX=document.createElement('div');
+    bgSnapLineX.id='canva-bg-snap-line-x';
+    bgSnapLineX.className='canva-bg-snap-line canva-bg-snap-line-x';
+    bgSnapLineX.hidden=true;
+    const bgSnapLineY=document.createElement('div');
+    bgSnapLineY.id='canva-bg-snap-line-y';
+    bgSnapLineY.className='canva-bg-snap-line canva-bg-snap-line-y';
+    bgSnapLineY.hidden=true;
+    const bgSnapBadge=document.createElement('div');
+    bgSnapBadge.id='canva-bg-snap-badge';
+    bgSnapBadge.className='canva-bg-snap-badge';
+    bgSnapBadge.hidden=true;
+    photoFrameBox.append(bgSnapLineX,bgSnapLineY,bgSnapBadge);
 
     // 6. Interactive Object Layer (`#wb-live-typing-overlay` container for compatibility)
     const liveOverlay=document.createElement('div');
@@ -1794,8 +1921,22 @@ function renderCarouselPreview(){
     // Forward declare style controls & selected object inspector controls
     let roleSelect,tplSelect,fontSelectEl,s1Num,s1Color,s2Num,s2Color;
     let objLabelPill,objFontSizeRange,objFontSizeNum,objColorInput,objBgToggle,objBgColorInput,objAlignBtns=[];
+    let btnCanvaUndo,btnCanvaRedo,bgOffsetReadoutEl,bgZoomRangeRef,bgZoomValRef;
     const domNodeByObjId=new Map();
     const textElByObjId=new Map();
+
+    const updateBgOffsetReadout=()=>{
+      if(!bgOffsetReadoutEl)return;
+      const bx=Number(activeSlide.bg_transform?.x||0);
+      const by=Number(activeSlide.bg_transform?.y||0);
+      if(Math.abs(bx)<0.05&&Math.abs(by)<0.05){
+        bgOffsetReadoutEl.textContent='정중앙 (X: 0% · Y: 0%)';
+        bgOffsetReadoutEl.classList.add('is-centered');
+      }else{
+        bgOffsetReadoutEl.textContent=`X: ${bx>0?'+':''}${bx.toFixed(1)}% · Y: ${by>0?'+':''}${by.toFixed(1)}%`;
+        bgOffsetReadoutEl.classList.remove('is-centered');
+      }
+    };
 
     const getSelectedObject=()=>{
       return canvaObjects.find(o=>o.id===selectedCanvaObjectId)||canvaObjects[0]||null;
@@ -1864,6 +2005,7 @@ function renderCarouselPreview(){
         const tEl=textElByObjId.get(objId);
         const oData=canvaObjects.find(x=>x.id===objId);
         if(node&&tEl&&oData){
+          pushCanvaUndoSnapshot(activeSlide);
           node.classList.add('is-editing-text');
           tEl.contentEditable='true';
           tEl.textContent=oData.text||'';
@@ -1954,6 +2096,7 @@ function renderCarouselPreview(){
           hEl.addEventListener('pointerdown',e=>{
             e.preventDefault();
             e.stopPropagation();
+            pushCanvaUndoSnapshot(activeSlide);
             selectCanvaObject(obj.id,{focusText:false});
             const stageRect=wbStage.getBoundingClientRect();
             const startX=e.clientX,startY=e.clientY;
@@ -1998,6 +2141,7 @@ function renderCarouselPreview(){
         delBtn.onclick=e=>{
           e.preventDefault();
           e.stopPropagation();
+          pushCanvaUndoSnapshot(activeSlide);
           obj.visible=false;
           renderAllCanvaObjectNodes();
           scheduleRealtimeSlideSync({},500);
@@ -2026,26 +2170,44 @@ function renderCarouselPreview(){
           if(!isDraggingObj)return;
           const dx=e.clientX-dragStartClientX;
           const dy=e.clientY-dragStartClientY;
-          if(Math.abs(dx)>3||Math.abs(dy)>3)movedDuringPress=true;
+          if(!movedDuringPress&&(Math.abs(dx)>3||Math.abs(dy)>3)){
+            pushCanvaUndoSnapshot(activeSlide);
+            movedDuringPress=true;
+          }
           if(!movedDuringPress)return;
           const stageRect=wbStage.getBoundingClientRect();
+          const nodeRect=node.getBoundingClientRect();
+          const nodeWidthPct=Math.max(4,Math.min(96,(nodeRect.width/Math.max(1,stageRect.width))*100));
+          const nodeHeightPct=Math.max(3,Math.min(90,(nodeRect.height/Math.max(1,stageRect.height))*100));
           let nextX=objStartX+(dx/Math.max(1,stageRect.width))*100;
           let nextY=objStartY+(dy/Math.max(1,stageRect.height))*100;
           nextX=Math.max(-5,Math.min(94,nextX));
           nextY=Math.max(1,Math.min(94,nextY));
 
-          if(Math.abs(nextX-6.8)<1.4){
+          // Magnetic Snap for Object: Left Margin (6.8%), Horizontal Center (center of object = 50% or left = 50%)
+          const objCenterX=nextX+(nodeWidthPct/2);
+          if(Math.abs(objCenterX-50)<1.8){
+            nextX=50-(nodeWidthPct/2);
+            snapLineX.style.left='50%';
+            snapLineX.hidden=false;
+          }else if(Math.abs(nextX-6.8)<1.5){
             nextX=6.8;
             snapLineX.style.left='6.8%';
             snapLineX.hidden=false;
-          }else if(Math.abs(nextX-50)<1.4){
+          }else if(Math.abs(nextX-50)<1.5){
             nextX=50;
             snapLineX.style.left='50%';
             snapLineX.hidden=false;
           }else{
             snapLineX.hidden=true;
           }
-          if(Math.abs(nextY-50)<1.4){
+
+          const objCenterY=nextY+(nodeHeightPct/2);
+          if(Math.abs(objCenterY-50)<1.8){
+            nextY=50-(nodeHeightPct/2);
+            snapLineY.style.top='50%';
+            snapLineY.hidden=false;
+          }else if(Math.abs(nextY-50)<1.5){
             nextY=50;
             snapLineY.style.top='50%';
             snapLineY.hidden=false;
@@ -2104,8 +2266,9 @@ function renderCarouselPreview(){
       }
     };
 
-    // Clicking empty stage background deselects active text editing or pans background photo if dragged
-    let isPanningBg=false,bgStartClientX=0,bgStartClientY=0,bgOrigX=0,bgOrigY=0;
+    // === MAGNETIC BACKGROUND PHOTO PANNING (LEFT/RIGHT X=0% & TOP/BOTTOM Y=0% SNAP) ===
+    const BG_MAGNET_THRESHOLD_PCT=2.6;
+    let isPanningBg=false,bgMovedDuringDrag=false,bgStartClientX=0,bgStartClientY=0,bgOrigX=0,bgOrigY=0;
     wbStage.addEventListener('pointerdown',e=>{
       if(e.target.closest('.canva-object-node'))return;
       for(const [id,node] of domNodeByObjId.entries()){
@@ -2119,27 +2282,87 @@ function renderCarouselPreview(){
         }
       }
       isPanningBg=true;
+      bgMovedDuringDrag=false;
       bgStartClientX=e.clientX;
       bgStartClientY=e.clientY;
       bgOrigX=Number(activeSlide.bg_transform?.x||0);
       bgOrigY=Number(activeSlide.bg_transform?.y||0);
+      try{wbStage.setPointerCapture?.(e.pointerId);}catch{}
     });
     wbStage.addEventListener('pointermove',e=>{
       if(!isPanningBg)return;
       const dx=e.clientX-bgStartClientX;
       const dy=e.clientY-bgStartClientY;
-      if(Math.abs(dx)<4&&Math.abs(dy)<4)return;
+      if(!bgMovedDuringDrag&&(Math.abs(dx)>=3||Math.abs(dy)>=3)){
+        pushCanvaUndoSnapshot(activeSlide);
+        bgMovedDuringDrag=true;
+      }
+      if(!bgMovedDuringDrag)return;
       const stageRect=wbStage.getBoundingClientRect();
       activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
-      activeSlide.bg_transform.x=Math.max(-40,Math.min(40,Number((bgOrigX+(dx/Math.max(1,stageRect.width))*100).toFixed(1))));
-      activeSlide.bg_transform.y=Math.max(-40,Math.min(40,Number((bgOrigY+(dy/Math.max(1,stageRect.height))*100).toFixed(1))));
+      let nextBgX=Math.max(-45,Math.min(45,bgOrigX+(dx/Math.max(1,stageRect.width))*100));
+      let nextBgY=Math.max(-45,Math.min(45,bgOrigY+(dy/Math.max(1,stageRect.height))*100));
+
+      // Magnet Snap to Horizontal Center (좌우 중앙 X = 0%) and Vertical Center (상하 중앙 Y = 0%)
+      let snappedX=false,snappedY=false;
+      if(Math.abs(nextBgX)<=BG_MAGNET_THRESHOLD_PCT){
+        nextBgX=0;
+        snappedX=true;
+      }
+      if(Math.abs(nextBgY)<=BG_MAGNET_THRESHOLD_PCT){
+        nextBgY=0;
+        snappedY=true;
+      }
+      bgSnapLineX.hidden=!snappedX;
+      bgSnapLineY.hidden=!snappedY;
+      if(snappedX||snappedY){
+        bgSnapBadge.hidden=false;
+        bgSnapBadge.textContent=(snappedX&&snappedY)?'배경 사진 정중앙 자석 정렬 (좌우·상하 0%)':(snappedX?'배경 좌우 중앙 자석 정렬 (X: 0%)':'배경 상하 중앙 자석 정렬 (Y: 0%)');
+      }else{
+        bgSnapBadge.hidden=true;
+      }
+
+      activeSlide.bg_transform.x=Number(nextBgX.toFixed(1));
+      activeSlide.bg_transform.y=Number(nextBgY.toFixed(1));
       applyBgTransformStyle();
+      updateBgOffsetReadout();
     });
-    wbStage.addEventListener('pointerup',()=>{
+    const finishBgPanPointer=e=>{
       if(!isPanningBg)return;
       isPanningBg=false;
+      bgSnapLineX.hidden=true;
+      bgSnapLineY.hidden=true;
+      bgSnapBadge.hidden=true;
+      try{wbStage.releasePointerCapture?.(e.pointerId);}catch{}
+      if(bgMovedDuringDrag){
+        saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+        refreshClientThumbInstant();
+        scheduleRealtimeSlideSync({},900);
+      }
+    };
+    wbStage.addEventListener('pointerup',finishBgPanPointer);
+    wbStage.addEventListener('pointercancel',finishBgPanPointer);
+    // Double-clicking background photo area snaps background immediately to exact center (X=0, Y=0)
+    wbStage.addEventListener('dblclick',e=>{
+      if(e.target.closest('.canva-object-node'))return;
+      pushCanvaUndoSnapshot(activeSlide);
+      activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
+      activeSlide.bg_transform.x=0;
+      activeSlide.bg_transform.y=0;
+      applyBgTransformStyle();
+      updateBgOffsetReadout();
+      bgSnapLineX.hidden=false;
+      bgSnapLineY.hidden=false;
+      bgSnapBadge.hidden=false;
+      bgSnapBadge.textContent='배경 사진 정중앙 배치 완료';
+      setTimeout(()=>{
+        bgSnapLineX.hidden=true;
+        bgSnapLineY.hidden=true;
+        bgSnapBadge.hidden=true;
+      },750);
       saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
       refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},800);
     });
 
     // Support Drag-and-Drop image onto the preview stage
@@ -2151,6 +2374,7 @@ function renderCarouselPreview(){
       const f=e.dataTransfer?.files?.[0];
       if(!f)return;
       try{
+        pushCanvaUndoSnapshot(activeSlide);
         const dataUrl=await readImageFileAsDataUrl(f);
         activeSlide._cleanBgDataUrl=dataUrl;
         canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dataUrl);
@@ -2343,9 +2567,10 @@ function renderCarouselPreview(){
     // Instant (<10ms) Template Switcher Function — switches between any of the 20 templates immediately!
     let tpl20ChipButtons=[];
     let tpl20CategoryTabs=[];
-    const switchSlideToTemplate20=(presetId,{syncServer=true}={})=>{
+    const switchSlideToTemplate20=(presetId,{syncServer=true,recordUndo=true}={})=>{
       const tpl=CAROUSEL_20_TEMPLATES[presetId];
       if(!tpl)return;
+      if(recordUndo)pushCanvaUndoSnapshot(activeSlide);
       applyTemplatePresetToSlide(activeSlide,effectiveSlides.length,presetId);
       canvaObjects.length=0;
       canvaObjects.push(...activeSlide.canva_objects);
@@ -2369,10 +2594,146 @@ function renderCarouselPreview(){
       }
     };
 
+    // Bind activeCanvaStageController so Ctrl+Z / Ctrl+Y / Arrow keys / Delete / Ctrl+D work seamlessly in 0.01s!
+    const updateUndoRedoButtons=()=>{
+      if(btnCanvaUndo)btnCanvaUndo.disabled=(canvaUndoStack.length===0);
+      if(btnCanvaRedo)btnCanvaRedo.disabled=(canvaRedoStack.length===0);
+    };
+    const snapBackgroundPhotoAxis=(axis='both')=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
+      if(axis==='x'||axis==='both')activeSlide.bg_transform.x=0;
+      if(axis==='y'||axis==='both')activeSlide.bg_transform.y=0;
+      applyBgTransformStyle();
+      updateBgOffsetReadout();
+      bgSnapLineX.hidden=!(axis==='x'||axis==='both');
+      bgSnapLineY.hidden=!(axis==='y'||axis==='both');
+      bgSnapBadge.hidden=false;
+      bgSnapBadge.textContent=axis==='both'?'배경 사진 정중앙 자석 정렬 완료':(axis==='x'?'배경 좌우 중앙 정렬 완료':'배경 상하 중앙 정렬 완료');
+      setTimeout(()=>{
+        bgSnapLineX.hidden=true;
+        bgSnapLineY.hidden=true;
+        bgSnapBadge.hidden=true;
+      },650);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},800);
+    };
+    activeCanvaStageController={
+      slideIndex:Number(activeSlide.index),
+      updateUndoRedoButtons,
+      snapBackgroundPhotoAxis,
+      restoreFromSlideState:(restoredSlide)=>{
+        canvaObjects.length=0;
+        canvaObjects.push(...(restoredSlide.canva_objects||[]));
+        const presetId=restoredSlide.layout_preset||'cover_01_cinema';
+        if(roleSelect)roleSelect.value=restoredSlide.role||'cover';
+        if(tplSelect)tplSelect.value=restoredSlide.template||'editorial_dark';
+        if(fontSelectEl)fontSelectEl.value=restoredSlide.font_family||'heavy_kr';
+        const nextBgUrl=resolveCleanSlideBackgroundUrl(job,restoredSlide,Date.now());
+        bigImg.src=nextBgUrl;
+        blurBgImg.src=nextBgUrl;
+        applyBgTransformStyle();
+        updateBgOffsetReadout();
+        if(bgZoomRangeRef){
+          bgZoomRangeRef.value=String(Math.round(Number(restoredSlide.bg_transform?.scale||1)*100));
+          if(bgZoomValRef)bgZoomValRef.textContent=`${bgZoomRangeRef.value}%`;
+        }
+        renderTemplateStructureOnStage(presetId);
+        renderAllCanvaObjectNodes();
+        tpl20ChipButtons.forEach(b=>b.classList.toggle('active',b.dataset.presetId===presetId));
+        refreshSelectedObjectInspectorUI();
+        updateCanvaLiveVisualStyle(false);
+        scheduleRealtimeSlideSync({},800);
+      },
+      handleShortcutKey:(e)=>{
+        const activeEl=document.activeElement;
+        const isEditingText=activeEl&&(activeEl.isContentEditable||activeEl.tagName==='INPUT'||activeEl.tagName==='TEXTAREA'||activeEl.tagName==='SELECT');
+        if(e.key==='Escape'&&activeEl&&activeEl.isContentEditable){
+          e.preventDefault();
+          activeEl.blur();
+          return true;
+        }
+        if(isEditingText)return false;
+        const selObj=getSelectedObject();
+        if(!selObj)return false;
+        // Delete / Backspace hides selected object
+        if(e.key==='Delete'||e.key==='Backspace'){
+          e.preventDefault();
+          pushCanvaUndoSnapshot(activeSlide);
+          selObj.visible=false;
+          renderAllCanvaObjectNodes();
+          scheduleRealtimeSlideSync({},600);
+          message(`"${selObj.label||selObj.kind}" 요소를 숨겼습니다 (Ctrl+Z로 복원 가능).`);
+          return true;
+        }
+        // Arrow keys nudge selected object (Shift+Arrow = 2.5%, Arrow = 0.5%)
+        if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+          e.preventDefault();
+          pushCanvaUndoSnapshot(activeSlide);
+          const step=e.shiftKey?2.5:0.5;
+          if(e.key==='ArrowLeft')selObj.x=Number(Math.max(-5,Number(selObj.x||0)-step).toFixed(2));
+          if(e.key==='ArrowRight')selObj.x=Number(Math.min(94,Number(selObj.x||0)+step).toFixed(2));
+          if(e.key==='ArrowUp')selObj.y=Number(Math.max(1,Number(selObj.y||0)-step).toFixed(2));
+          if(e.key==='ArrowDown')selObj.y=Number(Math.min(94,Number(selObj.y||0)+step).toFixed(2));
+          const node=domNodeByObjId.get(selObj.id);
+          if(node){
+            node.style.left=`${selObj.x}%`;
+            node.style.top=`${selObj.y}%`;
+          }
+          scheduleRealtimeSlideSync({},700);
+          return true;
+        }
+        // Ctrl+D duplicates selected object
+        if((e.ctrlKey||e.metaKey)&&(e.key==='d'||e.key==='D')){
+          e.preventDefault();
+          pushCanvaUndoSnapshot(activeSlide);
+          const dup=JSON.parse(JSON.stringify(selObj));
+          dup.id=`obj_dup_${Date.now().toString(36)}`;
+          dup.kind='custom';
+          dup.label=`${selObj.label||'텍스트'} 복제`;
+          dup.x=Math.min(90,Number(selObj.x||10)+3);
+          dup.y=Math.min(90,Number(selObj.y||20)+4);
+          canvaObjects.push(dup);
+          selectedCanvaObjectId=dup.id;
+          renderAllCanvaObjectNodes();
+          refreshSelectedObjectInspectorUI();
+          scheduleRealtimeSlideSync({},700);
+          message('선택한 텍스트 요소를 복제했습니다 (Ctrl+D).');
+          return true;
+        }
+        // Ctrl+C copies selected object
+        if((e.ctrlKey||e.metaKey)&&(e.key==='c'||e.key==='C')){
+          canvaClipboardObject=JSON.parse(JSON.stringify(selObj));
+          message(`"${selObj.label||selObj.kind}" 요소를 복사했습니다 (Ctrl+C).`);
+          return true;
+        }
+        // Ctrl+V pastes copied object if clipboard has a Canva object
+        if((e.ctrlKey||e.metaKey)&&(e.key==='v'||e.key==='V')&&canvaClipboardObject){
+          e.preventDefault();
+          pushCanvaUndoSnapshot(activeSlide);
+          const pasted=JSON.parse(JSON.stringify(canvaClipboardObject));
+          pasted.id=`obj_paste_${Date.now().toString(36)}`;
+          pasted.kind='custom';
+          pasted.x=Math.min(90,Number(pasted.x||10)+3);
+          pasted.y=Math.min(90,Number(pasted.y||20)+4);
+          canvaObjects.push(pasted);
+          selectedCanvaObjectId=pasted.id;
+          renderAllCanvaObjectNodes();
+          refreshSelectedObjectInspectorUI();
+          scheduleRealtimeSlideSync({},700);
+          message('복사한 텍스트 요소를 붙여넣었습니다 (Ctrl+V).');
+          return true;
+        }
+        return false;
+      }
+    };
+
     // Populate Canva Floating Toolbar above the canvas
     const wrapSelectedCanvaText=(openChar,closeChar,fallbackWord)=>{
       const selObj=getSelectedObject()||canvaObjects.find(o=>o.kind==='title')||canvaObjects[0];
       if(!selObj)return;
+      pushCanvaUndoSnapshot(activeSlide);
       const tEl=textElByObjId.get(selObj.id);
       const sel=window.getSelection();
       if(tEl&&sel&&sel.rangeCount>0&&tEl.contains(sel.anchorNode)){
@@ -2389,11 +2750,34 @@ function renderCarouselPreview(){
       scheduleRealtimeSlideSync({},800);
     };
 
+    btnCanvaUndo=text('button','되돌리기 (Ctrl+Z)');
+    btnCanvaUndo.type='button';
+    btnCanvaUndo.id='btn-canva-undo';
+    btnCanvaUndo.className='secondary btn-xs';
+    btnCanvaUndo.title='방금 이동·수정한 텍스트나 배경 위치, 템플릿 변경을 이전 상태로 되돌립니다 (Ctrl+Z)';
+    btnCanvaUndo.onclick=()=>performCanvaUndo();
+
+    btnCanvaRedo=text('button','다시실행 (Ctrl+Y)');
+    btnCanvaRedo.type='button';
+    btnCanvaRedo.id='btn-canva-redo';
+    btnCanvaRedo.className='secondary btn-xs';
+    btnCanvaRedo.title='되돌린 캐러셀 편집을 다시 적용합니다 (Ctrl+Y 또는 Ctrl+Shift+Z)';
+    btnCanvaRedo.onclick=()=>performCanvaRedo();
+    updateUndoRedoButtons();
+
+    const btnBgCenterSnap=text('button','배경 정중앙');
+    btnBgCenterSnap.type='button';
+    btnBgCenterSnap.id='btn-canva-bg-center-snap';
+    btnBgCenterSnap.className='secondary btn-xs';
+    btnBgCenterSnap.title='배경 사진을 좌우·상하 정중앙(X: 0%, Y: 0%)에 자석처럼 즉시 맞춥니다';
+    btnBgCenterSnap.onclick=()=>snapBackgroundPhotoAxis('both');
+
     const btnAddTextObj=text('button','+ 텍스트 추가');
     btnAddTextObj.type='button';
     btnAddTextObj.id='btn-canva-add-text-object';
     btnAddTextObj.className='secondary btn-xs';
     btnAddTextObj.onclick=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
       const newId=`obj_custom_${Date.now().toString(36)}`;
       const lines=extractBestHookLines();
       const sampleTxt=lines[(canvaObjects.length)%Math.max(1,lines.length)]||'클릭하여 텍스트를 수정하세요';
@@ -2427,6 +2811,7 @@ function renderCarouselPreview(){
     btnAddStarsOrBadge.id='btn-canva-add-decor-object';
     btnAddStarsOrBadge.className='secondary btn-xs';
     btnAddStarsOrBadge.onclick=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
       const hiddenObj=canvaObjects.find(o=>o.visible===false);
       if(hiddenObj){
         hiddenObj.visible=true;
@@ -2484,9 +2869,11 @@ function renderCarouselPreview(){
     btnResetObjects.id='btn-canva-reset-objects';
     btnResetObjects.className='secondary btn-xs';
     btnResetObjects.onclick=()=>{
-      switchSlideToTemplate20(activeSlide.layout_preset||activePresetId,{syncServer:true});
+      pushCanvaUndoSnapshot(activeSlide);
+      switchSlideToTemplate20(activeSlide.layout_preset||activePresetId,{syncServer:true,recordUndo:false});
       activeSlide.bg_transform={scale:1,x:0,y:0};
       applyBgTransformStyle();
+      updateBgOffsetReadout();
     };
 
     const btnCanvaSaveImg=text('button','이미지 저장 (현재 카드 확정)');
@@ -2511,7 +2898,7 @@ function renderCarouselPreview(){
       message(`슬라이드 #${activeSlide.index} 이미지를 다운로드했습니다!`);
     };
 
-    canvaToolbar.append(btnInstantVideoCap,btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
+    canvaToolbar.append(btnCanvaUndo,btnCanvaRedo,btnInstantVideoCap,btnBgCenterSnap,btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
 
     // Slide Order & Quick Action Bar right below the Large Preview
     const wbPreviewFooter=document.createElement('div');
@@ -2782,6 +3169,9 @@ function renderCarouselPreview(){
       updateCanvaLiveVisualStyle(false);
       scheduleRealtimeSlideSync({},900);
     };
+    objFontSizeRange.onpointerdown=()=>pushCanvaUndoSnapshot(activeSlide);
+    objFontSizeNum.onfocus=()=>pushCanvaUndoSnapshot(activeSlide);
+    objColorInput.onpointerdown=()=>pushCanvaUndoSnapshot(activeSlide);
     objFontSizeRange.oninput=()=>{objFontSizeNum.value=objFontSizeRange.value;applySelObjSizeColor();};
     objFontSizeNum.oninput=()=>{objFontSizeRange.value=objFontSizeNum.value;applySelObjSizeColor();};
     objColorInput.oninput=applySelObjSizeColor;
@@ -2811,6 +3201,7 @@ function renderCarouselPreview(){
       aBtn.onclick=()=>{
         const selObj=getSelectedObject();
         if(!selObj)return;
+        pushCanvaUndoSnapshot(activeSlide);
         selObj.align=aKey;
         objAlignBtns.forEach(b=>b.classList.toggle('active',b===aBtn));
         updateCanvaLiveVisualStyle(false);
@@ -2827,7 +3218,8 @@ function renderCarouselPreview(){
       updateCanvaLiveVisualStyle(false);
       scheduleRealtimeSlideSync({},900);
     };
-    objBgToggle.onchange=applySelObjBg;
+    objBgToggle.onchange=()=>{pushCanvaUndoSnapshot(activeSlide);applySelObjBg();};
+    objBgColorInput.onpointerdown=()=>pushCanvaUndoSnapshot(activeSlide);
     objBgColorInput.oninput=()=>{objBgToggle.checked=true;applySelObjBg();};
     cObjBg.append(bgToggleLbl,objBgColorInput,alignGroup);
 
@@ -2843,6 +3235,7 @@ function renderCarouselPreview(){
       chip.title=fMeta.desc;
       chip.textContent=fMeta.name;
       chip.onclick=()=>{
+        pushCanvaUndoSnapshot(activeSlide);
         if($('carousel-cover-hook-formula'))$('carousel-cover-hook-formula').value=fKey;
         hookChipsRow.querySelectorAll('.pro-preset-pill').forEach(c=>c.classList.toggle('active',c===chip));
         const prod=($('product-name')?.value||job?.product?.name||'').trim();
@@ -2941,7 +3334,7 @@ function renderCarouselPreview(){
     tabStylePanel.append(tpl20Section,styleSheet);
 
     // =========================================================================
-    // TAB 2 PANEL: ② 초고속 영상 캡처 · 배경 사진 교체 · 확대/위치 조절
+    // TAB 2 PANEL: ② 초고속 영상 캡처 · 배경 사진 교체 · 확대/마그넷 중앙 배치
     // =========================================================================
     const tabPhotoPanel=document.createElement('div');
     tabPhotoPanel.className='wb-tab-panel';
@@ -2951,14 +3344,14 @@ function renderCarouselPreview(){
     photoBox.className='wb-structured-section wb-photo-edit-box';
     const photoHead=document.createElement('div');
     photoHead.className='wb-section-head';
-    const photoTitle=text('strong','슬라이드 배경 사진 교체 및 확대/위치 조절');
+    const photoTitle=text('strong','슬라이드 배경 사진 교체 · 확대 · 마그넷 중앙 배치');
     const photoBadge=text('span',activeSlide.custom_image?'외부 사진 적용됨':'영상/원본 프레임');
     photoBadge.className='wb-section-pill'+(activeSlide.custom_image?' active':'');
     photoHead.append(photoTitle,photoBadge);
 
     const bgZoomRow=document.createElement('div');
     bgZoomRow.className='pro-prop-ctrl pro-prop-ctrl-slider';
-    bgZoomRow.style.margin='8px 0';
+    bgZoomRow.style.margin='8px 0 6px';
     const bgZoomLbl=text('span','배경 사진 확대/축소:');
     bgZoomLbl.style.cssText='font-size:12px;font-weight:700;';
     const bgZoomRange=document.createElement('input');
@@ -2966,23 +3359,54 @@ function renderCarouselPreview(){
     bgZoomRange.value=String(Math.round(Number(activeSlide.bg_transform?.scale||1)*100));
     const bgZoomVal=text('span',`${bgZoomRange.value}%`);
     bgZoomVal.className='pro-unit-tag';
-    const btnBgResetPan=text('button','배경 위치 초기화');
+    bgZoomRangeRef=bgZoomRange;
+    bgZoomValRef=bgZoomVal;
+    const btnBgResetPan=text('button','배경 배율·위치 초기화');
     btnBgResetPan.type='button';btnBgResetPan.className='secondary btn-xs';
+    bgZoomRange.onpointerdown=()=>pushCanvaUndoSnapshot(activeSlide);
     bgZoomRange.oninput=()=>{
       activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
       activeSlide.bg_transform.scale=Number(bgZoomRange.value)/100;
       bgZoomVal.textContent=`${bgZoomRange.value}%`;
       applyBgTransformStyle();
       refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},900);
     };
     btnBgResetPan.onclick=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
       activeSlide.bg_transform={scale:1,x:0,y:0};
       bgZoomRange.value='100';
       bgZoomVal.textContent='100%';
       applyBgTransformStyle();
+      updateBgOffsetReadout();
       refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},800);
     };
     bgZoomRow.append(bgZoomLbl,bgZoomRange,bgZoomVal,btnBgResetPan);
+
+    // Magnetic Background Centering Quick Bar (좌우 중앙 / 상하 중앙 / 정중앙 자석 정렬)
+    const bgMagnetBar=document.createElement('div');
+    bgMagnetBar.className='canva-bg-magnet-bar';
+    bgOffsetReadoutEl=document.createElement('span');
+    bgOffsetReadoutEl.id='canva-bg-offset-readout';
+    bgOffsetReadoutEl.className='canva-bg-offset-pill';
+    updateBgOffsetReadout();
+    const btnSnapBgX=text('button','좌우 중앙 정렬 (X=0)');
+    btnSnapBgX.type='button';
+    btnSnapBgX.id='btn-canva-snap-bg-x';
+    btnSnapBgX.className='secondary btn-xs';
+    btnSnapBgX.onclick=()=>snapBackgroundPhotoAxis('x');
+    const btnSnapBgY=text('button','상하 중앙 정렬 (Y=0)');
+    btnSnapBgY.type='button';
+    btnSnapBgY.id='btn-canva-snap-bg-y';
+    btnSnapBgY.className='secondary btn-xs';
+    btnSnapBgY.onclick=()=>snapBackgroundPhotoAxis('y');
+    const btnSnapBgBoth=text('button','정중앙 자석 배치');
+    btnSnapBgBoth.type='button';
+    btnSnapBgBoth.id='btn-canva-snap-bg-both';
+    btnSnapBgBoth.className='secondary btn-xs';
+    btnSnapBgBoth.onclick=()=>snapBackgroundPhotoAxis('both');
+    bgMagnetBar.append(bgOffsetReadoutEl,btnSnapBgX,btnSnapBgY,btnSnapBgBoth);
 
     const photoActionRow=document.createElement('div');
     photoActionRow.className='wb-photo-action-row';
@@ -2998,6 +3422,7 @@ function renderCarouselPreview(){
     btnPastePhoto.className='secondary btn-xs wb-paste-highlight-btn';
     btnPastePhoto.onclick=async()=>{
       try{
+        pushCanvaUndoSnapshot(activeSlide);
         const dataUrl=await readClipboardImageAsDataUrl();
         activeSlide._cleanBgDataUrl=dataUrl;
         canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dataUrl);
@@ -3075,9 +3500,9 @@ function renderCarouselPreview(){
       };
       photoActionRow.append(btnResetFrame);
     }
-    const photoHint=text('p','팁: 사진 영역을 마우스로 드래그하면 구도를 상하좌우로 움직일 수 있으며, 좌측 영상 캡처 버튼을 누르면 서버 대기 없이 0.05초 만에 배경에 즉시 적용됩니다.');
+    const photoHint=text('p','팁: 사진 영역을 마우스로 드래그하면 구도를 상하좌우로 움직일 수 있으며, 중앙 근처에서 좌우·상하 마그넷 정렬이 자동 작동합니다. 사진을 더블클릭하면 즉시 정중앙(0%, 0%)으로 배치됩니다.');
     photoHint.className='hint';
-    photoBox.append(photoHead,bgZoomRow,photoActionRow,photoHint);
+    photoBox.append(photoHead,bgZoomRow,bgMagnetBar,photoActionRow,photoHint);
     tabPhotoPanel.prepend(photoBox);
 
     roleSelect.onchange=()=>{
@@ -3096,6 +3521,7 @@ function renderCarouselPreview(){
       }
     };
     fontSelectEl.onchange=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
       activeSlide.font_family=fontSelectEl.value;
       applyWbFontPreview(fontSelectEl.value);
       updateCanvaLiveVisualStyle();
@@ -5737,6 +6163,26 @@ if($('btn-overlay-undo'))$('btn-overlay-undo').addEventListener('click',()=>{
   performEditorUndo();
 });
 window.addEventListener('keydown',e=>{
+  const isCarouselStage=window.currentProductionStage==='carousel'||Boolean(document.querySelector('#carousel-workbench .canva-multi-object-stage')?.offsetParent);
+  if(isCarouselStage&&job){
+    const keyLower=(e.key||'').toLowerCase();
+    // Ctrl+Z: Undo in 02-B Carousel Studio (works even inside contenteditable text objects)
+    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&keyLower==='z'){
+      e.preventDefault();
+      performCanvaUndo();
+      return;
+    }
+    // Ctrl+Y or Ctrl+Shift+Z: Redo in 02-B Carousel Studio
+    if((e.ctrlKey||e.metaKey)&&(keyLower==='y'||(e.shiftKey&&keyLower==='z'))){
+      e.preventDefault();
+      performCanvaRedo();
+      return;
+    }
+    // Object manipulation shortcuts (Delete, Arrow keys, Ctrl+D, Ctrl+C, Ctrl+V, Escape)
+    if(activeCanvaStageController&&typeof activeCanvaStageController.handleShortcutKey==='function'){
+      if(activeCanvaStageController.handleShortcutKey(e))return;
+    }
+  }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&(e.key==='z'||e.key==='Z')){
     const activeEl=document.activeElement;
     const isNativeInput=activeEl&&(activeEl.tagName==='INPUT'||activeEl.tagName==='TEXTAREA');

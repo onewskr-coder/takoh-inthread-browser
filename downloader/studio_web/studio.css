@@ -5828,3 +5828,75 @@ html[data-theme="dark"] .canva-tpl20-chip.active strong {
 html[data-theme="dark"] .canva-tpl20-chip.active small {
   color: #e2e8f0 !important;
 }
+
+/* ========================================================================= */
+/* 02-B MAGNETIC BACKGROUND PHOTO SNAP GUIDES & OFFSET BAR                   */
+/* ========================================================================= */
+.canva-bg-snap-line {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+}
+.canva-bg-snap-line-x {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.85);
+  transform: translateX(-1px);
+}
+.canva-bg-snap-line-y {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px dashed #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.85);
+  transform: translateY(-1px);
+}
+.canva-bg-snap-badge {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #38bdf8;
+  border: 1px solid #38bdf8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 7;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.canva-bg-magnet-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+}
+.canva-bg-offset-pill {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.canva-bg-magnet-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+html[data-theme="dark"] .canva-bg-magnet-bar {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] .canva-bg-offset-pill {
+  color: #38bdf8 !important;
+}
