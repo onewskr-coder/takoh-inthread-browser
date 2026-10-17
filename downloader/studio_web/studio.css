@@ -5932,3 +5932,98 @@ html[data-theme="dark"] .canva-bg-magnet-bar {
 html[data-theme="dark"] .canva-bg-offset-pill {
   color: #38bdf8 !important;
 }
+
+/* ========================================================================= */
+/* 02-B FREEFORM INTERACTIVE DECOR BOXES & PHOTO FRAME EDITOR                */
+/* ========================================================================= */
+.canva-decor-box.is-interactive-decor {
+  pointer-events: auto !important;
+  cursor: grab;
+  transition: box-shadow 0.12s ease;
+}
+.canva-decor-box.is-interactive-decor:hover {
+  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.75);
+}
+.canva-decor-box.is-interactive-decor.is-dragging-decor {
+  cursor: grabbing;
+  transition: none !important;
+}
+.canva-decor-box.is-interactive-decor.is-selected-decor {
+  box-shadow: 0 0 0 2px #38bdf8, 0 6px 18px rgba(15, 23, 42, 0.35) !important;
+  z-index: 9 !important;
+}
+.canva-decor-resize-handle,
+.canva-pf-resize-handle {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  display: none;
+  z-index: 12;
+  pointer-events: auto;
+}
+.canva-decor-box.is-selected-decor .canva-decor-resize-handle,
+.canva-photo-frame-box.is-photo-frame-editing .canva-pf-resize-handle {
+  display: block;
+}
+.canva-photo-frame-box.is-photo-frame-editing {
+  box-shadow: inset 0 0 0 2.5px #facc15, 0 0 0 2px #38bdf8 !important;
+  overflow: visible !important;
+}
+.canva-decor-resize-handle.handle-nw, .canva-pf-resize-handle.handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.canva-decor-resize-handle.handle-ne, .canva-pf-resize-handle.handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.canva-decor-resize-handle.handle-sw, .canva-pf-resize-handle.handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.canva-decor-resize-handle.handle-se, .canva-pf-resize-handle.handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.canva-decor-resize-handle.handle-n,  .canva-pf-resize-handle.handle-n  { top: -6px; left: calc(50% - 5.5px); cursor: ns-resize; }
+.canva-decor-resize-handle.handle-s,  .canva-pf-resize-handle.handle-s  { bottom: -6px; left: calc(50% - 5.5px); cursor: ns-resize; }
+.canva-decor-resize-handle.handle-w,  .canva-pf-resize-handle.handle-w  { left: -6px; top: calc(50% - 5.5px); cursor: ew-resize; }
+.canva-decor-resize-handle.handle-e,  .canva-pf-resize-handle.handle-e  { right: -6px; top: calc(50% - 5.5px); cursor: ew-resize; }
+
+.canva-decor-delete-btn {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 14;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.canva-decor-box.is-selected-decor .canva-decor-delete-btn {
+  display: inline-flex;
+}
+.canva-freeform-builder-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  margin-bottom: 10px;
+}
+html[data-theme="dark"] .canva-freeform-builder-section {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+#btn-canva-toggle-photo-frame-edit.active {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+}
+

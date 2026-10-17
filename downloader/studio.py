@@ -6696,10 +6696,16 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                         s['stroke_color'] = stroke_color
                         s['double_stroke_width'] = double_stroke_width
                         s['double_stroke_color'] = double_stroke_color
+                        if data.get('layout_preset'):
+                            s['layout_preset'] = str(data.get('layout_preset')).strip()[:60]
                         if isinstance(data.get('canva_objects'), list):
                             s['canva_objects'] = data.get('canva_objects')
                         if isinstance(data.get('bg_transform'), dict):
                             s['bg_transform'] = data.get('bg_transform')
+                        if isinstance(data.get('custom_photo_frame'), dict):
+                            s['custom_photo_frame'] = data.get('custom_photo_frame')
+                        if isinstance(data.get('custom_decor_boxes'), list):
+                            s['custom_decor_boxes'] = data.get('custom_decor_boxes')
                         s['sha256'] = slide_sha
                 if 'carousel' in job:
                     if slide_idx == 1 and s_text:

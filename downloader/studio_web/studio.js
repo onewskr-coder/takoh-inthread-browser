@@ -845,6 +845,8 @@ function captureCanvaSlideSnapshot(targetJob,slide){
     bgFile:slide.bg_file||'',
     cleanBgDataUrl:slide._cleanBgDataUrl||canvaCleanBgMemoryCache.get(`${targetJob.id}_${slide.index}`)||'',
     bgTransform:JSON.parse(JSON.stringify(slide.bg_transform||{scale:1,x:0,y:0})),
+    customPhotoFrame:slide.custom_photo_frame?JSON.parse(JSON.stringify(slide.custom_photo_frame)):null,
+    customDecorBoxes:Array.isArray(slide.custom_decor_boxes)?JSON.parse(JSON.stringify(slide.custom_decor_boxes)):null,
     objects:JSON.parse(JSON.stringify(slide.canva_objects||[])),
     selectedObjId:selectedCanvaObjectId
   };
@@ -853,14 +855,14 @@ function captureCanvaSlideSnapshot(targetJob,slide){
 function pushCanvaUndoSnapshot(customSlide=null){
   if(!job)return;
   const slides=job?.carousel?.slides||[];
-  const s=customSlide||slides.find(x=>Number(x.index)===Number(activeCarouselSlideIndex))||slides[0];
+  const s=customSlide||activeCanvaStageController?.activeSlideRef||slides.find(x=>Number(x.index)===Number(activeCarouselSlideIndex))||slides[0];
   if(!s)return;
   const snap=captureCanvaSlideSnapshot(job,s);
   if(!snap)return;
   const prev=canvaUndoStack[canvaUndoStack.length-1];
   if(prev&&prev.jobId===snap.jobId&&prev.slideIndex===snap.slideIndex){
-    const prevSig=JSON.stringify({p:prev.layoutPreset,bg:prev.bgTransform,u:prev.cleanBgDataUrl,f:prev.bgFile,t:prev.timestamp,o:prev.objects});
-    const curSig=JSON.stringify({p:snap.layoutPreset,bg:snap.bgTransform,u:snap.cleanBgDataUrl,f:snap.bgFile,t:snap.timestamp,o:snap.objects});
+    const prevSig=JSON.stringify({p:prev.layoutPreset,bg:prev.bgTransform,pf:prev.customPhotoFrame,db:prev.customDecorBoxes,u:prev.cleanBgDataUrl,f:prev.bgFile,t:prev.timestamp,o:prev.objects});
+    const curSig=JSON.stringify({p:snap.layoutPreset,bg:snap.bgTransform,pf:snap.customPhotoFrame,db:snap.customDecorBoxes,u:snap.cleanBgDataUrl,f:snap.bgFile,t:snap.timestamp,o:snap.objects});
     if(prevSig===curSig)return;
   }
   canvaUndoStack.push(snap);
@@ -872,7 +874,7 @@ function pushCanvaUndoSnapshot(customSlide=null){
 function applyCanvaSlideSnapshot(snap){
   if(!snap||!job||job.id!==snap.jobId)return false;
   const slides=job?.carousel?.slides||[];
-  const targetSlide=slides.find(s=>Number(s.index)===Number(snap.slideIndex));
+  const targetSlide=slides.find(s=>Number(s.index)===Number(snap.slideIndex))||activeCanvaStageController?.activeSlideRef;
   if(!targetSlide)return false;
   activeCarouselSlideIndex=Number(snap.slideIndex);
   targetSlide.layout_preset=snap.layoutPreset;
@@ -889,9 +891,19 @@ function applyCanvaSlideSnapshot(snap){
     canvaCleanBgMemoryCache.delete(`${job.id}_${targetSlide.index}`);
   }
   targetSlide.bg_transform=JSON.parse(JSON.stringify(snap.bgTransform||{scale:1,x:0,y:0}));
+  if(snap.customPhotoFrame){
+    targetSlide.custom_photo_frame=JSON.parse(JSON.stringify(snap.customPhotoFrame));
+  }else{
+    delete targetSlide.custom_photo_frame;
+  }
+  if(Array.isArray(snap.customDecorBoxes)){
+    targetSlide.custom_decor_boxes=JSON.parse(JSON.stringify(snap.customDecorBoxes));
+  }else{
+    delete targetSlide.custom_decor_boxes;
+  }
   targetSlide.canva_objects=JSON.parse(JSON.stringify(snap.objects||[]));
   selectedCanvaObjectId=snap.selectedObjId||targetSlide.canva_objects?.[0]?.id||'obj_title';
-  saveCanvaSlideLocalState(job.id,targetSlide.index,targetSlide.canva_objects,targetSlide.bg_transform,targetSlide._cleanBgDataUrl,targetSlide.layout_preset);
+  saveCanvaSlideLocalState(job.id,targetSlide.index,targetSlide.canva_objects,targetSlide.bg_transform,targetSlide._cleanBgDataUrl,targetSlide.layout_preset,targetSlide.custom_photo_frame,targetSlide.custom_decor_boxes);
   if(activeCanvaStageController&&activeCanvaStageController.slideIndex===Number(snap.slideIndex)){
     activeCanvaStageController.restoreFromSlideState(targetSlide);
   }else{
@@ -906,7 +918,7 @@ function performCanvaUndo(){
     return false;
   }
   const slides=job?.carousel?.slides||[];
-  const curSlide=slides.find(s=>Number(s.index)===Number(activeCarouselSlideIndex))||slides[0];
+  const curSlide=activeCanvaStageController?.activeSlideRef||slides.find(s=>Number(s.index)===Number(activeCarouselSlideIndex))||slides[0];
   if(curSlide){
     const curSnap=captureCanvaSlideSnapshot(job,curSlide);
     if(curSnap)canvaRedoStack.push(curSnap);
@@ -941,10 +953,16 @@ window.performCanvaRedo=performCanvaRedo;
 function getCanvaSlideStorageKey(jobId,slideIdx){
   return `takoh_canva_objs_v4_${jobId}_${slideIdx}`;
 }
-function saveCanvaSlideLocalState(jobId,slideIdx,objects,bgTransform,cleanBgUrl,layoutPreset){
+function saveCanvaSlideLocalState(jobId,slideIdx,objects,bgTransform,cleanBgUrl,layoutPreset,customPhotoFrame=null,customDecorBoxes=null){
   if(!jobId||!slideIdx)return;
   try{
-    const payload={objects,bgTransform:bgTransform||{scale:1,x:0,y:0},layoutPreset:layoutPreset||''};
+    const payload={
+      objects,
+      bgTransform:bgTransform||{scale:1,x:0,y:0},
+      layoutPreset:layoutPreset||'',
+      ...(customPhotoFrame?{customPhotoFrame}:{}),
+      ...(Array.isArray(customDecorBoxes)?{customDecorBoxes}:{})
+    };
     localStorage.setItem(getCanvaSlideStorageKey(jobId,slideIdx),JSON.stringify(payload));
     if(cleanBgUrl&&cleanBgUrl.startsWith('data:image/')){
       canvaCleanBgMemoryCache.set(`${jobId}_${slideIdx}`,cleanBgUrl);
@@ -1325,6 +1343,37 @@ function buildDefaultCanvaObjectsForSlide(slide,totalSlides,role,template,preset
   }
 }
 
+function cloneDefaultDecorBoxesForTemplate(tplDef){
+  const src=Array.isArray(tplDef?.decorBoxes)?tplDef.decorBoxes:[];
+  return src.map((d,idx)=>({
+    id:d.id||`decor_${idx}`,
+    label:d.label||`배경/장식 박스 #${idx+1}`,
+    x:Number(d.x||0),
+    y:Number(d.y||0),
+    w:Number(d.w||20),
+    h:Number(d.h||12),
+    bg:d.bg||'rgba(15,23,42,0.88)',
+    borderColor:d.borderColor||'#334155',
+    borderWidth:Number(d.borderWidth||0),
+    radius:Number(d.radius||0),
+    layer:d.layer||(Number(d.h||0)>=75?'back':'front'),
+    visible:d.visible!==false
+  }));
+}
+
+function cloneDefaultPhotoFrameForTemplate(tplDef){
+  const pf=tplDef?.photoFrame||{x:0,y:0,w:100,h:100,radius:0};
+  return {
+    x:Number(pf.x||0),
+    y:Number(pf.y||0),
+    w:Number(pf.w??100),
+    h:Number(pf.h??100),
+    radius:Number(pf.radius||0),
+    borderColor:pf.borderColor||'#334155',
+    borderWidth:Number(pf.borderWidth||0)
+  };
+}
+
 function applyTemplatePresetToSlide(slide,totalSlides,presetId){
   if(!slide||!CAROUSEL_20_TEMPLATES[presetId])return;
   const tplDef=CAROUSEL_20_TEMPLATES[presetId];
@@ -1352,6 +1401,8 @@ function applyTemplatePresetToSlide(slide,totalSlides,presetId){
   slide.layout_preset=presetId;
   slide.role=tplDef.role;
   slide.template=tplDef.theme;
+  slide.custom_photo_frame=cloneDefaultPhotoFrameForTemplate(tplDef);
+  slide.custom_decor_boxes=cloneDefaultDecorBoxesForTemplate(tplDef);
   slide.canva_objects=buildDefaultCanvaObjectsForSlide(slide,totalSlides,tplDef.role,tplDef.theme,presetId);
 }
 
@@ -1363,6 +1414,21 @@ function ensureCanvaObjectsForSlide(targetJob,slide,totalSlides,role,template){
       slide.layout_preset=localState.layoutPreset;
     }else{
       slide.layout_preset=getDefaultPresetForSlide(slide,totalSlides,role,template);
+    }
+  }
+  const tplDef=CAROUSEL_20_TEMPLATES[slide.layout_preset]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+  if(!slide.custom_photo_frame||typeof slide.custom_photo_frame!=='object'){
+    if(localState?.customPhotoFrame&&typeof localState.customPhotoFrame==='object'){
+      slide.custom_photo_frame=JSON.parse(JSON.stringify(localState.customPhotoFrame));
+    }else{
+      slide.custom_photo_frame=cloneDefaultPhotoFrameForTemplate(tplDef);
+    }
+  }
+  if(!Array.isArray(slide.custom_decor_boxes)){
+    if(localState&&Array.isArray(localState.customDecorBoxes)){
+      slide.custom_decor_boxes=JSON.parse(JSON.stringify(localState.customDecorBoxes));
+    }else{
+      slide.custom_decor_boxes=cloneDefaultDecorBoxesForTemplate(tplDef);
     }
   }
   if(!Array.isArray(slide.canva_objects)||!slide.canva_objects.length){
@@ -1542,7 +1608,9 @@ async function captureInstantVideoFrameToActiveSlide(targetTime=null,{frameFile=
           ...(capturedDataUrl.startsWith('data:image/')?{image_data_url:capturedDataUrl}:{clear_custom_image:true}),
           canva_objects:activeSlide.canva_objects,
           layout_preset:activeSlide.layout_preset,
-          bg_transform:activeSlide.bg_transform
+          bg_transform:activeSlide.bg_transform,
+          custom_photo_frame:activeSlide.custom_photo_frame,
+          custom_decor_boxes:activeSlide.custom_decor_boxes
         });
       }catch{}
     },40);
@@ -1621,8 +1689,9 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     ctx.restore();
   }
 
-  // Helper to draw a decorBox list
+  // Helper to draw a decorBox item
   const drawDecorBoxItem=d=>{
+    if(!d||d.visible===false)return;
     const dx=(Number(d.x||0)/100)*W;
     const dy=(Number(d.y||0)/100)*H;
     const dw=(Number(d.w||0)/100)*W;
@@ -1642,23 +1711,26 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     ctx.restore();
   };
 
-  const pFrame=tplDef.photoFrame||{x:0,y:0,w:100,h:100,radius:0};
-  const isFullBleedPhoto=(pFrame.x===0&&pFrame.y===0&&pFrame.w===100&&pFrame.h===100);
+  const pFrame=(slide?.custom_photo_frame&&typeof slide.custom_photo_frame==='object')
+    ?slide.custom_photo_frame
+    :(tplDef.photoFrame||{x:0,y:0,w:100,h:100,radius:0});
+  const isFullBleedPhoto=(Number(pFrame.x||0)===0&&Number(pFrame.y||0)===0&&Number(pFrame.w??100)===100&&Number(pFrame.h??100)===100);
 
-  // If photo sits inside a card (not full bleed), draw full-card backing decorBoxes first (where h >= 80)
-  const decorList=Array.isArray(tplDef.decorBoxes)?tplDef.decorBoxes:[];
-  if(!isFullBleedPhoto){
-    for(const d of decorList){
-      if(Number(d.h||0)>=75)drawDecorBoxItem(d);
-    }
+  // Use slide.custom_decor_boxes when present so user's moved/resized/added/deleted boxes render identically on export!
+  const decorList=Array.isArray(slide?.custom_decor_boxes)
+    ?slide.custom_decor_boxes
+    :(Array.isArray(tplDef.decorBoxes)?tplDef.decorBoxes:[]);
+  const isBackDecor=(d)=>d.layer==='back'||(!d.layer&&!isFullBleedPhoto&&Number(d.h||0)>=75);
+  for(const d of decorList){
+    if(isBackDecor(d))drawDecorBoxItem(d);
   }
 
   // 2. Draw Photo inside `photoFrame` rect with `bg_transform` pan/zoom & fitMode (`contain` prevents cropping inside boxes!)
   if(imgToDraw&&imgToDraw.naturalWidth>0&&imgToDraw.naturalHeight>0){
     const fx=(Number(pFrame.x||0)/100)*W;
     const fy=(Number(pFrame.y||0)/100)*H;
-    const fw=(Number(pFrame.w||100)/100)*W;
-    const fh=(Number(pFrame.h||100)/100)*H;
+    const fw=(Number(pFrame.w??100)/100)*W;
+    const fh=(Number(pFrame.h??100)/100)*H;
     const frad=Number(pFrame.radius||0)*1.8;
 
     const iw=imgToDraw.naturalWidth,ih=imgToDraw.naturalHeight;
@@ -1721,9 +1793,9 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     }
   }
 
-  // 4. Draw remaining foreground decorBoxes (banners, split panels, comparison boxes, CTA bars, masking tape)
+  // 4. Draw remaining foreground decorBoxes (banners, split panels, comparison boxes, CTA bars, masking tape, user-added shapes)
   for(const d of decorList){
-    if(!isFullBleedPhoto&&Number(d.h||0)>=75)continue;
+    if(isBackDecor(d))continue;
     drawDecorBoxItem(d);
   }
 
@@ -2093,8 +2165,10 @@ function renderCarouselPreview(){
     const isCurrentTemplateFullBleed=()=>{
       const pid=activeSlide.layout_preset||wbStage.dataset.layoutPreset||'cover_01_cinema';
       const t=CAROUSEL_20_TEMPLATES[pid]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
-      const pf=t.photoFrame||{x:0,y:0,w:100,h:100};
-      return pf.x===0&&pf.y===0&&pf.w===100&&pf.h===100;
+      const pf=(activeSlide.custom_photo_frame&&typeof activeSlide.custom_photo_frame==='object')
+        ?activeSlide.custom_photo_frame
+        :(t.photoFrame||{x:0,y:0,w:100,h:100});
+      return Number(pf.x||0)===0&&Number(pf.y||0)===0&&Number(pf.w??100)===100&&Number(pf.h??100)===100;
     };
     const getEffectivePhotoFitMode=()=>{
       const bgT=activeSlide.bg_transform||{scale:1,x:0,y:0};
@@ -2127,11 +2201,84 @@ function renderCarouselPreview(){
     const scrimLayer=document.createElement('div');
     scrimLayer.className='canva-stage-scrim';
 
-    // 4. Foreground Structural Decor Layer (banners, split dividers, comparison boxes, checklist boxes, CTA buttons, masking tape)
+    // 4. Foreground Structural Decor Layer (banners, split dividers, comparison boxes, checklist boxes, CTA buttons, masking tape, user-added shapes)
     const frontDecorLayer=document.createElement('div');
     frontDecorLayer.className='canva-decor-layer canva-decor-layer-front';
 
-    // Helper to apply any of the 20 template structures (`canvasBg`, `photoFrame`, `decorBoxes`, `scrim`) to the live DOM stage!
+    let selectedDecorBoxId=null;
+    let isPhotoFrameEditMode=false;
+    const domNodeByDecorId=new Map();
+    let btnTogglePhotoFrameEdit=null;
+
+    const applyPhotoFrameRectToDom=()=>{
+      const pid=activeSlide.layout_preset||wbStage.dataset.layoutPreset||'cover_01_cinema';
+      const tpl=CAROUSEL_20_TEMPLATES[pid]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+      const pf=(activeSlide.custom_photo_frame&&typeof activeSlide.custom_photo_frame==='object')
+        ?activeSlide.custom_photo_frame
+        :(tpl.photoFrame||{x:0,y:0,w:100,h:100,radius:0});
+      photoFrameBox.style.left=`${Number(pf.x||0)}%`;
+      photoFrameBox.style.top=`${Number(pf.y||0)}%`;
+      photoFrameBox.style.width=`${Number(pf.w??100)}%`;
+      photoFrameBox.style.height=`${Number(pf.h??100)}%`;
+      photoFrameBox.style.borderRadius=pf.radius?`${pf.radius}px`:'0px';
+      photoFrameBox.style.border=(pf.borderWidth&&pf.borderColor)?`${pf.borderWidth}px solid ${pf.borderColor}`:'none';
+      photoFrameBox.classList.toggle('is-photo-frame-editing',Boolean(isPhotoFrameEditMode));
+      applyBgTransformStyle();
+    };
+
+    // Add 8-way resize handles + drag move directly on photoFrameBox when `isPhotoFrameEditMode` is active!
+    const pfHandles=['nw','ne','sw','se','n','s','w','e'];
+    for(const dir of pfHandles){
+      const hEl=document.createElement('span');
+      hEl.className=`canva-pf-resize-handle handle-${dir}`;
+      hEl.dataset.handleDir=dir;
+      hEl.title='사진 액자 박스 크기 조절 (드래그)';
+      hEl.addEventListener('pointerdown',e=>{
+        if(!isPhotoFrameEditMode)return;
+        e.preventDefault();
+        e.stopPropagation();
+        pushCanvaUndoSnapshot(activeSlide);
+        const pid=activeSlide.layout_preset||wbStage.dataset.layoutPreset||'cover_01_cinema';
+        const tpl=CAROUSEL_20_TEMPLATES[pid]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+        if(!activeSlide.custom_photo_frame||typeof activeSlide.custom_photo_frame!=='object'){
+          activeSlide.custom_photo_frame=cloneDefaultPhotoFrameForTemplate(tpl);
+        }
+        const pf=activeSlide.custom_photo_frame;
+        const stageRect=wbStage.getBoundingClientRect();
+        const startX=e.clientX,startY=e.clientY;
+        const origX=Number(pf.x||0),origY=Number(pf.y||0),origW=Number(pf.w??100),origH=Number(pf.h??100);
+        hEl.setPointerCapture?.(e.pointerId);
+        const onMove=ev=>{
+          const dxPct=((ev.clientX-startX)/Math.max(1,stageRect.width))*100;
+          const dyPct=((ev.clientY-startY)/Math.max(1,stageRect.height))*100;
+          if(dir.includes('e'))pf.w=Number(Math.max(15,Math.min(100-origX,origW+dxPct)).toFixed(1));
+          if(dir.includes('s'))pf.h=Number(Math.max(15,Math.min(100-origY,origH+dyPct)).toFixed(1));
+          if(dir.includes('w')){
+            const nextX=Math.max(0,Math.min(origX+origW-15,origX+dxPct));
+            pf.w=Number((origW-(nextX-origX)).toFixed(1));
+            pf.x=Number(nextX.toFixed(1));
+          }
+          if(dir.includes('n')){
+            const nextY=Math.max(0,Math.min(origY+origH-15,origY+dyPct));
+            pf.h=Number((origH-(nextY-origY)).toFixed(1));
+            pf.y=Number(nextY.toFixed(1));
+          }
+          applyPhotoFrameRectToDom();
+          refreshClientThumbInstant();
+        };
+        const onUp=()=>{
+          hEl.removeEventListener('pointermove',onMove);
+          hEl.removeEventListener('pointerup',onUp);
+          saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+          scheduleRealtimeSlideSync({},700);
+        };
+        hEl.addEventListener('pointermove',onMove);
+        hEl.addEventListener('pointerup',onUp);
+      });
+      photoFrameBox.append(hEl);
+    }
+
+    // Helper to apply any of the 20 template structures (`canvasBg`, `custom_photo_frame`, `custom_decor_boxes`, `scrim`) to the live DOM stage!
     const renderTemplateStructureOnStage=(presetId)=>{
       const tpl=CAROUSEL_20_TEMPLATES[presetId]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
       wbStage.dataset.layoutPreset=tpl.id;
@@ -2141,15 +2288,16 @@ function renderCarouselPreview(){
       wbStage.classList.toggle('is-grid-paper',cBg.type==='grid_paper');
       blurBgImg.hidden=(cBg.type!=='blur_dark');
 
-      const pf=tpl.photoFrame||{x:0,y:0,w:100,h:100,radius:0};
-      const isFull=(pf.x===0&&pf.y===0&&pf.w===100&&pf.h===100);
-      photoFrameBox.style.left=`${Number(pf.x||0)}%`;
-      photoFrameBox.style.top=`${Number(pf.y||0)}%`;
-      photoFrameBox.style.width=`${Number(pf.w||100)}%`;
-      photoFrameBox.style.height=`${Number(pf.h||100)}%`;
-      photoFrameBox.style.borderRadius=pf.radius?`${pf.radius}px`:'0px';
-      photoFrameBox.style.border=(pf.borderWidth&&pf.borderColor)?`${pf.borderWidth}px solid ${pf.borderColor}`:'none';
-      applyBgTransformStyle();
+      if(!activeSlide.custom_photo_frame||typeof activeSlide.custom_photo_frame!=='object'){
+        activeSlide.custom_photo_frame=cloneDefaultPhotoFrameForTemplate(tpl);
+      }
+      if(!Array.isArray(activeSlide.custom_decor_boxes)){
+        activeSlide.custom_decor_boxes=cloneDefaultDecorBoxesForTemplate(tpl);
+      }
+
+      const pf=activeSlide.custom_photo_frame;
+      const isFull=(Number(pf.x||0)===0&&Number(pf.y||0)===0&&Number(pf.w??100)===100&&Number(pf.h??100)===100);
+      applyPhotoFrameRectToDom();
 
       if(tpl.scrim&&tpl.scrim!=='none'){
         scrimLayer.hidden=false;
@@ -2160,25 +2308,167 @@ function renderCarouselPreview(){
 
       backDecorLayer.replaceChildren();
       frontDecorLayer.replaceChildren();
-      const dList=Array.isArray(tpl.decorBoxes)?tpl.decorBoxes:[];
-      for(const d of dList){
+      domNodeByDecorId.clear();
+      const dList=Array.isArray(activeSlide.custom_decor_boxes)?activeSlide.custom_decor_boxes:[];
+      dList.forEach((d,idx)=>{
+        if(!d||d.visible===false)return;
+        if(!d.id)d.id=`decor_${idx}`;
         const box=document.createElement('div');
-        box.className='canva-decor-box';
+        box.className='canva-decor-box is-interactive-decor'+(d.id===selectedDecorBoxId?' is-selected-decor':'');
+        box.dataset.decorId=d.id;
         box.style.left=`${Number(d.x||0)}%`;
         box.style.top=`${Number(d.y||0)}%`;
         box.style.width=`${Number(d.w||0)}%`;
         box.style.height=`${Number(d.h||0)}%`;
         box.style.background=d.bg||'transparent';
         box.style.borderRadius=Number(d.radius||0)>=900?'999px':`${Number(d.radius||0)}px`;
-        if(d.borderWidth&&d.borderColor){
-          box.style.border=`${d.borderWidth}px solid ${d.borderColor}`;
+        box.style.border=(d.borderWidth&&d.borderColor)?`${d.borderWidth}px solid ${d.borderColor}`:'none';
+
+        // 8-direction resize handles on every decor box so the user can freely resize any template card/banner/divider/shape!
+        const dHandles=['nw','ne','sw','se','n','s','w','e'];
+        for(const dir of dHandles){
+          const hEl=document.createElement('span');
+          hEl.className=`canva-decor-resize-handle handle-${dir}`;
+          hEl.dataset.handleDir=dir;
+          hEl.title='도형·박스 크기 조절 (드래그)';
+          hEl.addEventListener('pointerdown',ev=>{
+            ev.preventDefault();
+            ev.stopPropagation();
+            pushCanvaUndoSnapshot(activeSlide);
+            if(typeof selectDecorBox==='function')selectDecorBox(d.id);
+            const stageRect=wbStage.getBoundingClientRect();
+            const startX=ev.clientX,startY=ev.clientY;
+            const origX=Number(d.x||0),origY=Number(d.y||0),origW=Number(d.w||10),origH=Number(d.h||10);
+            hEl.setPointerCapture?.(ev.pointerId);
+            const onMove=mv=>{
+              const dxPct=((mv.clientX-startX)/Math.max(1,stageRect.width))*100;
+              const dyPct=((mv.clientY-startY)/Math.max(1,stageRect.height))*100;
+              if(dir.includes('e'))d.w=Number(Math.max(2,Math.min(100-origX,origW+dxPct)).toFixed(1));
+              if(dir.includes('s'))d.h=Number(Math.max(0.5,Math.min(100-origY,origH+dyPct)).toFixed(1));
+              if(dir.includes('w')){
+                const nx=Math.max(0,Math.min(origX+origW-2,origX+dxPct));
+                d.w=Number((origW-(nx-origX)).toFixed(1));
+                d.x=Number(nx.toFixed(1));
+              }
+              if(dir.includes('n')){
+                const ny=Math.max(0,Math.min(origY+origH-0.5,origY+dyPct));
+                d.h=Number((origH-(ny-origY)).toFixed(1));
+                d.y=Number(ny.toFixed(1));
+              }
+              box.style.left=`${d.x}%`;
+              box.style.top=`${d.y}%`;
+              box.style.width=`${d.w}%`;
+              box.style.height=`${d.h}%`;
+              refreshSelectedObjectInspectorUI();
+              refreshClientThumbInstant();
+            };
+            const onUp=()=>{
+              hEl.removeEventListener('pointermove',onMove);
+              hEl.removeEventListener('pointerup',onUp);
+              saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+              scheduleRealtimeSlideSync({},650);
+            };
+            hEl.addEventListener('pointermove',onMove);
+            hEl.addEventListener('pointerup',onUp);
+          });
+          box.append(hEl);
         }
-        if(!isFull&&Number(d.h||0)>=75){
+
+        // Delete button (`×`) on selected decor box
+        const delDecorBtn=document.createElement('button');
+        delDecorBtn.type='button';
+        delDecorBtn.className='canva-decor-delete-btn';
+        delDecorBtn.textContent='×';
+        delDecorBtn.title='이 배경/장식 박스 삭제 (Ctrl+Z로 복원 가능)';
+        delDecorBtn.onclick=ev=>{
+          ev.preventDefault();
+          ev.stopPropagation();
+          pushCanvaUndoSnapshot(activeSlide);
+          d.visible=false;
+          if(selectedDecorBoxId===d.id)selectedDecorBoxId=null;
+          renderTemplateStructureOnStage(activeSlide.layout_preset||presetId);
+          refreshSelectedObjectInspectorUI();
+          saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+          scheduleRealtimeSlideSync({},600);
+          message('선택한 도형·장식 박스를 숨겼습니다 (Ctrl+Z로 복원 가능).');
+        };
+        box.append(delDecorBtn);
+
+        // Pointer drag to move decor box freely across the canvas (`x`, `y` in %)
+        let isDragDecor=false,movedDecor=false,startClientX=0,startClientY=0,origDx=0,origDy=0;
+        box.addEventListener('pointerdown',ev=>{
+          if(ev.target===delDecorBtn||ev.target.classList?.contains('canva-decor-resize-handle'))return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if(typeof selectDecorBox==='function')selectDecorBox(d.id);
+          isDragDecor=true;
+          movedDecor=false;
+          startClientX=ev.clientX;
+          startClientY=ev.clientY;
+          origDx=Number(d.x||0);
+          origDy=Number(d.y||0);
+          box.classList.add('is-dragging-decor');
+          box.setPointerCapture?.(ev.pointerId);
+        });
+        box.addEventListener('pointermove',ev=>{
+          if(!isDragDecor)return;
+          const dx=ev.clientX-startClientX;
+          const dy=ev.clientY-startClientY;
+          if(!movedDecor&&(Math.abs(dx)>3||Math.abs(dy)>3)){
+            pushCanvaUndoSnapshot(activeSlide);
+            movedDecor=true;
+          }
+          if(!movedDecor)return;
+          const stageRect=wbStage.getBoundingClientRect();
+          let nx=origDx+(dx/Math.max(1,stageRect.width))*100;
+          let ny=origDy+(dy/Math.max(1,stageRect.height))*100;
+          nx=Math.max(-10,Math.min(96,nx));
+          ny=Math.max(-10,Math.min(96,ny));
+          const centerX=nx+(Number(d.w||0)/2);
+          if(Math.abs(centerX-50)<1.8){
+            nx=50-(Number(d.w||0)/2);
+            snapLineX.style.left='50%';
+            snapLineX.hidden=false;
+          }else{
+            snapLineX.hidden=true;
+          }
+          const centerY=ny+(Number(d.h||0)/2);
+          if(Math.abs(centerY-50)<1.8){
+            ny=50-(Number(d.h||0)/2);
+            snapLineY.style.top='50%';
+            snapLineY.hidden=false;
+          }else{
+            snapLineY.hidden=true;
+          }
+          d.x=Number(nx.toFixed(1));
+          d.y=Number(ny.toFixed(1));
+          box.style.left=`${d.x}%`;
+          box.style.top=`${d.y}%`;
+          refreshClientThumbInstant();
+        });
+        const finishDecorDrag=ev=>{
+          if(!isDragDecor)return;
+          isDragDecor=false;
+          box.classList.remove('is-dragging-decor');
+          snapLineX.hidden=true;
+          snapLineY.hidden=true;
+          try{box.releasePointerCapture?.(ev.pointerId);}catch{}
+          if(movedDecor){
+            saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+            scheduleRealtimeSlideSync({},650);
+          }
+        };
+        box.addEventListener('pointerup',finishDecorDrag);
+        box.addEventListener('pointercancel',finishDecorDrag);
+
+        const isBack=(d.layer==='back')||(!d.layer&&!isFull&&Number(d.h||0)>=75);
+        if(isBack){
           backDecorLayer.append(box);
         }else{
           frontDecorLayer.append(box);
         }
-      }
+        domNodeByDecorId.set(d.id,box);
+      });
       if(rolePill){
         rolePill.textContent=isSingleCard?`01 단독 카드 · ${tpl.name}`:`0${activeSlide.index} ${tpl.name}`;
         rolePill.className=`wb-role-pill role-${tpl.role||activeRole}`;
@@ -2229,6 +2519,7 @@ function renderCarouselPreview(){
     // Forward declare style controls & selected object inspector controls
     let roleSelect,tplSelect,fontSelectEl,s1Num,s1Color,s2Num,s2Color;
     let objLabelPill,objFontSizeRange,objFontSizeNum,objColorInput,objBgToggle,objBgColorInput,objAlignBtns=[];
+    let decorInspectorRow,decorBgColorInput,decorBorderColorInput,decorBorderWidthNum,decorRadiusRange;
     let btnCanvaUndo,btnCanvaRedo,bgOffsetReadoutEl,bgZoomRangeRef,bgZoomValRef;
     const domNodeByObjId=new Map();
     const textElByObjId=new Map();
@@ -2248,6 +2539,10 @@ function renderCarouselPreview(){
 
     const getSelectedObject=()=>{
       return canvaObjects.find(o=>o.id===selectedCanvaObjectId)||canvaObjects[0]||null;
+    };
+    const getSelectedDecorBox=()=>{
+      if(!selectedDecorBoxId||!Array.isArray(activeSlide.custom_decor_boxes))return null;
+      return activeSlide.custom_decor_boxes.find(d=>d.id===selectedDecorBoxId&&d.visible!==false)||null;
     };
 
     const syncCanvaObjectsToSlideFields=()=>{
@@ -2272,11 +2567,22 @@ function renderCarouselPreview(){
       activeSlide.subtitle=sVal;
       activeSlide.body_text=bodyVal;
       activeSlide.text=[tVal,sVal,bodyVal].filter(Boolean).join('\n');
-      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
       return {bVal,tVal,sVal,bodyVal};
     };
 
     const refreshSelectedObjectInspectorUI=()=>{
+      const selDecor=getSelectedDecorBox();
+      if(selDecor){
+        if(objLabelPill)objLabelPill.textContent=`도형 박스 (${Math.round(selDecor.w)}%×${Math.round(selDecor.h)}%)`;
+        if(decorInspectorRow)decorInspectorRow.hidden=false;
+        if(decorBgColorInput&&/^#[0-9a-fA-F]{6}$/.test(String(selDecor.bg||'')))decorBgColorInput.value=selDecor.bg;
+        if(decorBorderColorInput&&/^#[0-9a-fA-F]{6}$/.test(String(selDecor.borderColor||'')))decorBorderColorInput.value=selDecor.borderColor;
+        if(decorBorderWidthNum)decorBorderWidthNum.value=String(Number(selDecor.borderWidth||0));
+        if(decorRadiusRange)decorRadiusRange.value=String(Math.min(48,Number(selDecor.radius||0)));
+        return;
+      }
+      if(decorInspectorRow)decorInspectorRow.hidden=true;
       const selObj=getSelectedObject();
       if(!selObj)return;
       if(objLabelPill)objLabelPill.textContent=selObj.label||selObj.kind||'텍스트 객체';
@@ -2292,8 +2598,32 @@ function renderCarouselPreview(){
       objAlignBtns.forEach(b=>b.classList.toggle('active',b.dataset.align===(selObj.align||'left')));
     };
 
+    var selectDecorBox=(decorId)=>{
+      selectedDecorBoxId=decorId;
+      for(const [id,boxNode] of domNodeByDecorId.entries()){
+        boxNode.classList.toggle('is-selected-decor',id===decorId);
+      }
+      if(decorId){
+        const curPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
+        for(const [id,node] of domNodeByObjId.entries()){
+          node.classList.remove('is-selected-object','is-editing-text');
+          const tEl=textElByObjId.get(id);
+          if(tEl){
+            tEl.contentEditable='false';
+            const oData=canvaObjects.find(x=>x.id===id);
+            if(oData)tEl.innerHTML=renderObjectFormattedDisplayHtml(oData.text,curPal);
+          }
+        }
+      }
+      refreshSelectedObjectInspectorUI();
+    };
+
     const selectCanvaObject=(objId,{focusText=false}={})=>{
       const curPal=CANVA_THEME_OBJECT_PALETTES[CAROUSEL_20_TEMPLATES[activeSlide.layout_preset]?.theme||activeSlide.template||'editorial_dark']||pal;
+      selectedDecorBoxId=null;
+      for(const [,boxNode] of domNodeByDecorId.entries()){
+        boxNode.classList.remove('is-selected-decor');
+      }
       selectedCanvaObjectId=objId;
       for(const [id,node] of domNodeByObjId.entries()){
         node.classList.toggle('is-selected-object',id===objId);
@@ -2376,7 +2706,7 @@ function renderCarouselPreview(){
       for(const obj of canvaObjects){
         if(obj.visible===false)continue;
         const node=document.createElement('div');
-        node.className=`canva-object-node canva-obj-kind-${obj.kind||'custom'}`+(obj.id===selectedCanvaObjectId?' is-selected-object':'');
+        node.className=`canva-object-node canva-obj-kind-${obj.kind||'custom'}`+((!selectedDecorBoxId&&obj.id===selectedCanvaObjectId)?' is-selected-object':'');
         node.dataset.objectId=obj.id;
         node.dataset.objectKind=obj.kind||'custom';
         if(obj.kind==='badge')node.id='canva-edit-badge-wrap';
@@ -2462,7 +2792,7 @@ function renderCarouselPreview(){
           if(node.classList.contains('is-editing-text'))return;
           e.preventDefault();
           e.stopPropagation();
-          const wasAlreadySelected=(selectedCanvaObjectId===obj.id);
+          const wasAlreadySelected=(selectedCanvaObjectId===obj.id&&!selectedDecorBoxId);
           selectCanvaObject(obj.id,{focusText:false});
           isDraggingObj=true;
           movedDuringPress=false;
@@ -2576,11 +2906,12 @@ function renderCarouselPreview(){
       }
     };
 
-    // === MAGNETIC BACKGROUND PHOTO PANNING (LEFT/RIGHT X=0% & TOP/BOTTOM Y=0% SNAP) ===
+    // === MAGNETIC BACKGROUND PHOTO PANNING OR PHOTO FRAME BOX MOVING ===
     const BG_MAGNET_THRESHOLD_PCT=2.6;
     let isPanningBg=false,bgMovedDuringDrag=false,bgStartClientX=0,bgStartClientY=0,bgOrigX=0,bgOrigY=0;
     wbStage.addEventListener('pointerdown',e=>{
-      if(e.target.closest('.canva-object-node'))return;
+      if(e.target.closest('.canva-object-node')||e.target.closest('.canva-decor-box')||e.target.closest('.canva-pf-resize-handle'))return;
+      selectDecorBox(null);
       for(const [id,node] of domNodeByObjId.entries()){
         node.classList.remove('is-editing-text');
         const tEl=textElByObjId.get(id);
@@ -2595,8 +2926,14 @@ function renderCarouselPreview(){
       bgMovedDuringDrag=false;
       bgStartClientX=e.clientX;
       bgStartClientY=e.clientY;
-      bgOrigX=Number(activeSlide.bg_transform?.x||0);
-      bgOrigY=Number(activeSlide.bg_transform?.y||0);
+      if(isPhotoFrameEditMode){
+        const pf=activeSlide.custom_photo_frame||{x:0,y:0,w:100,h:100};
+        bgOrigX=Number(pf.x||0);
+        bgOrigY=Number(pf.y||0);
+      }else{
+        bgOrigX=Number(activeSlide.bg_transform?.x||0);
+        bgOrigY=Number(activeSlide.bg_transform?.y||0);
+      }
       try{wbStage.setPointerCapture?.(e.pointerId);}catch{}
     });
     wbStage.addEventListener('pointermove',e=>{
@@ -2609,6 +2946,28 @@ function renderCarouselPreview(){
       }
       if(!bgMovedDuringDrag)return;
       const stageRect=wbStage.getBoundingClientRect();
+      if(isPhotoFrameEditMode){
+        const pf=activeSlide.custom_photo_frame||(activeSlide.custom_photo_frame={x:0,y:0,w:100,h:100,radius:0});
+        const maxPx=Math.max(0,100-Number(pf.w??100));
+        const maxPy=Math.max(0,100-Number(pf.h??100));
+        let nx=Math.max(0,Math.min(maxPx,bgOrigX+(dx/Math.max(1,stageRect.width))*100));
+        let ny=Math.max(0,Math.min(maxPy,bgOrigY+(dy/Math.max(1,stageRect.height))*100));
+        if(Math.abs((nx+Number(pf.w??100)/2)-50)<1.8){
+          nx=50-Number(pf.w??100)/2;
+          snapLineX.style.left='50%';
+          snapLineX.hidden=false;
+        }else snapLineX.hidden=true;
+        if(Math.abs((ny+Number(pf.h??100)/2)-50)<1.8){
+          ny=50-Number(pf.h??100)/2;
+          snapLineY.style.top='50%';
+          snapLineY.hidden=false;
+        }else snapLineY.hidden=true;
+        pf.x=Number(nx.toFixed(1));
+        pf.y=Number(ny.toFixed(1));
+        applyPhotoFrameRectToDom();
+        refreshClientThumbInstant();
+        return;
+      }
       activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
       let nextBgX=Math.max(-45,Math.min(45,bgOrigX+(dx/Math.max(1,stageRect.width))*100));
       let nextBgY=Math.max(-45,Math.min(45,bgOrigY+(dy/Math.max(1,stageRect.height))*100));
@@ -2643,9 +3002,11 @@ function renderCarouselPreview(){
       bgSnapLineX.hidden=true;
       bgSnapLineY.hidden=true;
       bgSnapBadge.hidden=true;
+      snapLineX.hidden=true;
+      snapLineY.hidden=true;
       try{wbStage.releasePointerCapture?.(e.pointerId);}catch{}
       if(bgMovedDuringDrag){
-        saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+        saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
         refreshClientThumbInstant();
         scheduleRealtimeSlideSync({},900);
       }
@@ -2654,7 +3015,7 @@ function renderCarouselPreview(){
     wbStage.addEventListener('pointercancel',finishBgPanPointer);
     // Double-clicking background photo area snaps background immediately to exact center (X=0, Y=0)
     wbStage.addEventListener('dblclick',e=>{
-      if(e.target.closest('.canva-object-node'))return;
+      if(e.target.closest('.canva-object-node')||e.target.closest('.canva-decor-box'))return;
       pushCanvaUndoSnapshot(activeSlide);
       activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
       activeSlide.bg_transform.x=0;
@@ -2670,7 +3031,7 @@ function renderCarouselPreview(){
         bgSnapLineY.hidden=true;
         bgSnapBadge.hidden=true;
       },750);
-      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
       refreshClientThumbInstant();
       scheduleRealtimeSlideSync({},800);
     });
@@ -2725,6 +3086,8 @@ function renderCarouselPreview(){
         double_stroke_color:extra.double_stroke_color!==undefined?extra.double_stroke_color:(s2Color?.value||'#facc15'),
         canva_objects:canvaObjects,
         bg_transform:activeSlide.bg_transform||{scale:1,x:0,y:0},
+        custom_photo_frame:activeSlide.custom_photo_frame,
+        custom_decor_boxes:activeSlide.custom_decor_boxes,
         ...(extra.rendered_card_data_url?{rendered_card_data_url:extra.rendered_card_data_url}:{}),
         ...(extra.image_data_url?{image_data_url:extra.image_data_url}:{}),
         ...(extra.erase_mode?{erase_mode:extra.erase_mode}:{}),
@@ -2838,14 +3201,18 @@ function renderCarouselPreview(){
           const preservedBgT=activeSlide.bg_transform;
           const preservedCleanBg=activeSlide._cleanBgDataUrl;
           const preservedPreset=activeSlide.layout_preset;
+          const preservedPf=activeSlide.custom_photo_frame;
+          const preservedDecor=activeSlide.custom_decor_boxes;
           Object.assign(activeSlide,updatedSlide);
           activeSlide.canva_objects=preservedObjs;
           activeSlide.bg_transform=preservedBgT;
           activeSlide.layout_preset=preservedPreset;
+          activeSlide.custom_photo_frame=preservedPf;
+          activeSlide.custom_decor_boxes=preservedDecor;
           if(preservedCleanBg)activeSlide._cleanBgDataUrl=preservedCleanBg;
           activeSlide._compositedThumbDataUrl=compositedDataUrl;
           delete activeSlide._isVirtualPreview;
-          saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+          saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
           if(liveSyncBadge){
             liveSyncBadge.textContent='저장 완료';
             liveSyncBadge.classList.remove('syncing');
@@ -2886,6 +3253,7 @@ function renderCarouselPreview(){
       const tpl=CAROUSEL_20_TEMPLATES[presetId];
       if(!tpl)return;
       if(recordUndo)pushCanvaUndoSnapshot(activeSlide);
+      selectedDecorBoxId=null;
       applyTemplatePresetToSlide(activeSlide,effectiveSlides.length,presetId);
       canvaObjects.length=0;
       canvaObjects.push(...activeSlide.canva_objects);
@@ -2930,17 +3298,20 @@ function renderCarouselPreview(){
         bgSnapLineY.hidden=true;
         bgSnapBadge.hidden=true;
       },650);
-      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
       refreshClientThumbInstant();
       scheduleRealtimeSlideSync({},800);
     };
     activeCanvaStageController={
       slideIndex:Number(activeSlide.index),
+      activeSlideRef:activeSlide,
       updateUndoRedoButtons,
       snapBackgroundPhotoAxis,
       restoreFromSlideState:(restoredSlide)=>{
+        Object.assign(activeSlide,restoredSlide);
         canvaObjects.length=0;
         canvaObjects.push(...(restoredSlide.canva_objects||[]));
+        activeSlide.canva_objects=canvaObjects;
         const presetId=restoredSlide.layout_preset||'cover_01_cinema';
         if(roleSelect)roleSelect.value=restoredSlide.role||'cover';
         if(tplSelect)tplSelect.value=restoredSlide.template||'editorial_dark';
@@ -2971,6 +3342,47 @@ function renderCarouselPreview(){
           return true;
         }
         if(isEditingText)return false;
+        const selDecor=getSelectedDecorBox();
+        if(selDecor){
+          if(e.key==='Delete'||e.key==='Backspace'){
+            e.preventDefault();
+            pushCanvaUndoSnapshot(activeSlide);
+            selDecor.visible=false;
+            selectedDecorBoxId=null;
+            renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+            refreshSelectedObjectInspectorUI();
+            scheduleRealtimeSlideSync({},600);
+            message('선택한 도형·장식 박스를 숨겼습니다 (Ctrl+Z로 복원 가능).');
+            return true;
+          }
+          if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+            e.preventDefault();
+            pushCanvaUndoSnapshot(activeSlide);
+            const step=e.shiftKey?2.5:0.5;
+            if(e.key==='ArrowLeft')selDecor.x=Number(Math.max(-10,Number(selDecor.x||0)-step).toFixed(1));
+            if(e.key==='ArrowRight')selDecor.x=Number(Math.min(96,Number(selDecor.x||0)+step).toFixed(1));
+            if(e.key==='ArrowUp')selDecor.y=Number(Math.max(-10,Number(selDecor.y||0)-step).toFixed(1));
+            if(e.key==='ArrowDown')selDecor.y=Number(Math.min(96,Number(selDecor.y||0)+step).toFixed(1));
+            renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+            scheduleRealtimeSlideSync({},650);
+            return true;
+          }
+          if((e.ctrlKey||e.metaKey)&&(e.key==='d'||e.key==='D')){
+            e.preventDefault();
+            pushCanvaUndoSnapshot(activeSlide);
+            const dup=JSON.parse(JSON.stringify(selDecor));
+            dup.id=`decor_dup_${Date.now().toString(36)}`;
+            dup.x=Math.min(90,Number(selDecor.x||10)+3);
+            dup.y=Math.min(90,Number(selDecor.y||10)+3);
+            activeSlide.custom_decor_boxes.push(dup);
+            selectedDecorBoxId=dup.id;
+            renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+            refreshSelectedObjectInspectorUI();
+            scheduleRealtimeSlideSync({},650);
+            message('선택한 도형·장식 박스를 복제했습니다 (Ctrl+D).');
+            return true;
+          }
+        }
         const selObj=getSelectedObject();
         if(!selObj)return false;
         // Delete / Backspace hides selected object
@@ -3070,7 +3482,7 @@ function renderCarouselPreview(){
     btnCanvaUndo.type='button';
     btnCanvaUndo.id='btn-canva-undo';
     btnCanvaUndo.className='secondary btn-xs';
-    btnCanvaUndo.title='방금 이동·수정한 텍스트나 배경 위치, 템플릿 변경을 이전 상태로 되돌립니다 (Ctrl+Z)';
+    btnCanvaUndo.title='방금 이동·수정한 텍스트나 도형 박스, 액자 크기, 템플릿 변경을 이전 상태로 되돌립니다 (Ctrl+Z)';
     btnCanvaUndo.onclick=()=>performCanvaUndo();
 
     btnCanvaRedo=text('button','다시실행 (Ctrl+Y)');
@@ -3113,7 +3525,7 @@ function renderCarouselPreview(){
         updateBgOffsetReadout();
       }
       applyBgTransformStyle();
-      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
       refreshClientThumbInstant();
       scheduleRealtimeSlideSync({},800);
       message(nextFit==='contain'?'사진이 박스 안에서 잘리지 않도록 전체 맞춤(100% 표시)으로 적용했습니다.':'사진을 박스에 꽉 채우기 모드로 전환했습니다.');
@@ -3157,42 +3569,95 @@ function renderCarouselPreview(){
       scheduleRealtimeSlideSync({},900);
     };
 
-    const btnAddStarsOrBadge=text('button','+ 배지·요소 복원');
+    const btnAddShapeBox=text('button','+ 도형·박스 추가');
+    btnAddShapeBox.type='button';
+    btnAddShapeBox.id='btn-canva-add-shape-box';
+    btnAddShapeBox.className='secondary btn-xs';
+    btnAddShapeBox.title='캔버스 위에 자유롭게 크기와 위치, 색상, 모서리 둥글기를 조절할 수 있는 배경/강조 도형 박스를 추가합니다';
+    const addCustomShapePreset=(shapeCfg={})=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      if(!Array.isArray(activeSlide.custom_decor_boxes))activeSlide.custom_decor_boxes=[];
+      const newDecorId=`decor_custom_${Date.now().toString(36)}`;
+      const newBox={
+        id:newDecorId,
+        label:shapeCfg.label||`자유 도형 박스 #${activeSlide.custom_decor_boxes.length+1}`,
+        x:shapeCfg.x??10,
+        y:shapeCfg.y??62,
+        w:shapeCfg.w??80,
+        h:shapeCfg.h??20,
+        bg:shapeCfg.bg||'#0f172a',
+        borderColor:shapeCfg.borderColor||'#facc15',
+        borderWidth:shapeCfg.borderWidth??2,
+        radius:shapeCfg.radius??16,
+        layer:shapeCfg.layer||'front',
+        visible:true
+      };
+      activeSlide.custom_decor_boxes.push(newBox);
+      selectedDecorBoxId=newDecorId;
+      renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+      selectDecorBox(newDecorId);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+      scheduleRealtimeSlideSync({},800);
+      message('캔버스에 자유 도형 박스를 추가했습니다. 모서리 핸들로 크기·위치를 자유롭게 조절하세요.');
+    };
+    btnAddShapeBox.onclick=()=>addCustomShapePreset();
+
+    const btnAddStarsOrBadge=text('button','+ 배지·스티커 추가');
     btnAddStarsOrBadge.type='button';
     btnAddStarsOrBadge.id='btn-canva-add-decor-object';
     btnAddStarsOrBadge.className='secondary btn-xs';
-    btnAddStarsOrBadge.onclick=()=>{
+    const addCustomStickerObject=(stickerCfg={})=>{
       pushCanvaUndoSnapshot(activeSlide);
+      const newId=`obj_sticker_${Date.now().toString(36)}`;
+      canvaObjects.push({
+        id:newId,
+        kind:stickerCfg.kind||'badge',
+        label:stickerCfg.label||'포인트 스티커 배지',
+        text:stickerCfg.text||'POINT CHECK',
+        x:stickerCfg.x??8,
+        y:stickerCfg.y??14,
+        widthPct:stickerCfg.widthPct??0,
+        fontSize:stickerCfg.fontSize??28,
+        color:stickerCfg.color||pal.badgeColor||'#0f172a',
+        bgColor:stickerCfg.bgColor||pal.badgeBg||'#facc15',
+        bgEnabled:stickerCfg.bgEnabled!==false,
+        borderRadius:stickerCfg.borderRadius??999,
+        paddingX:stickerCfg.paddingX??18,
+        paddingY:stickerCfg.paddingY??7,
+        align:stickerCfg.align||'center',
+        bold:true,
+        visible:true
+      });
+      selectedCanvaObjectId=newId;
+      renderAllCanvaObjectNodes();
+      selectCanvaObject(newId,{focusText:false});
+      scheduleRealtimeSlideSync({},800);
+    };
+    btnAddStarsOrBadge.onclick=()=>{
       const hiddenObj=canvaObjects.find(o=>o.visible===false);
       if(hiddenObj){
+        pushCanvaUndoSnapshot(activeSlide);
         hiddenObj.visible=true;
         selectedCanvaObjectId=hiddenObj.id;
+        renderAllCanvaObjectNodes();
+        refreshSelectedObjectInspectorUI();
+        scheduleRealtimeSlideSync({},800);
       }else{
-        const newId=`obj_badge_${Date.now().toString(36)}`;
-        canvaObjects.push({
-          id:newId,
-          kind:'badge',
-          label:'추가 포인트 배지',
-          text:'POINT CHECK',
-          x:6.8,
-          y:52,
-          widthPct:0,
-          fontSize:28,
-          color:pal.badgeColor,
-          bgColor:pal.badgeBg,
-          bgEnabled:true,
-          borderRadius:10,
-          paddingX:16,
-          paddingY:6,
-          align:'left',
-          bold:true,
-          visible:true
-        });
-        selectedCanvaObjectId=newId;
+        addCustomStickerObject();
       }
-      renderAllCanvaObjectNodes();
-      refreshSelectedObjectInspectorUI();
-      scheduleRealtimeSlideSync({},900);
+    };
+
+    btnTogglePhotoFrameEdit=text('button','액자 크기·위치 조절');
+    btnTogglePhotoFrameEdit.type='button';
+    btnTogglePhotoFrameEdit.id='btn-canva-toggle-photo-frame-edit';
+    btnTogglePhotoFrameEdit.className='secondary btn-xs';
+    btnTogglePhotoFrameEdit.title='켜면 사진이 들어가는 액자 프레임 자체의 위치와 크기를 마우스로 자유롭게 늘리거나 줄일 수 있습니다';
+    btnTogglePhotoFrameEdit.onclick=()=>{
+      isPhotoFrameEditMode=!isPhotoFrameEditMode;
+      btnTogglePhotoFrameEdit.classList.toggle('active',isPhotoFrameEditMode);
+      btnTogglePhotoFrameEdit.textContent=isPhotoFrameEditMode?'액자 조절 완료 (잠금)':'액자 크기·위치 조절';
+      applyPhotoFrameRectToDom();
+      message(isPhotoFrameEditMode?'사진 액자 자유 조절 모드가 켜졌습니다. 사진 테두리 핸들을 드래그해 액자 크기와 위치를 조절하세요.':'사진 액자 위치를 고정했습니다.');
     };
 
     const btnCanvaBoxHl=text('button','+ [박스 강조]');btnCanvaBoxHl.type='button';btnCanvaBoxHl.className='secondary btn-xs';
@@ -3250,7 +3715,7 @@ function renderCarouselPreview(){
       message(`슬라이드 #${activeSlide.index} 이미지를 다운로드했습니다!`);
     };
 
-    canvaToolbar.append(btnCanvaUndo,btnCanvaRedo,btnInstantVideoCap,btnBgFitToggle,btnBgCenterSnap,btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
+    canvaToolbar.append(btnCanvaUndo,btnCanvaRedo,btnInstantVideoCap,btnBgFitToggle,btnBgCenterSnap,btnTogglePhotoFrameEdit,btnAddTextObj,btnAddShapeBox,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
 
     // Slide Order & Quick Action Bar right below the Large Preview
     const wbPreviewFooter=document.createElement('div');
@@ -3317,19 +3782,19 @@ function renderCarouselPreview(){
     },isSingleCard?'단독 카드 이미지를 저장하여 게시 첨부 묶음에 반영했습니다!':`슬라이드 #${activeSlide.index} 카드를 이미지로 저장하여 게시 첨부 목록에 추가했습니다!`);
     orderGroup.append(bAttachCurrent);
 
-    const wbHint=text('span','텍스트 클릭: 화면에서 바로 글자 수정 · 드래그: 위치 이동 · 우측에서 20종 템플릿(표지 5 · 본문 10 · 마지막 5) 즉시 변경');
+    const wbHint=text('span','텍스트·배경박스·액자 모두 자유롭게 클릭·드래그·크기 조절 가능 · 20종 템플릿 기반 자유 커스텀');
     wbHint.className='hint';
     wbHint.style.margin='0';
     wbPreviewFooter.append(orderGroup,wbHint);
     wbPreviewCol.append(wbPreviewZoneTag,wbPreviewHeader,canvaToolbar,wbStage,wbPreviewFooter);
 
-    // === RIGHT COLUMN: 20-TEMPLATE SELECTOR + OBJECT INSPECTOR + INSTANT PHOTO CAPTURE ===
+    // === RIGHT COLUMN: 20-TEMPLATE SELECTOR + OBJECT/SHAPE INSPECTOR + INSTANT PHOTO CAPTURE ===
     const wbInspectorCol=document.createElement('div');
     wbInspectorCol.className='carousel-wb-inspector-col carousel-wb-inspector carousel-tabbed-inspector';
 
     const wbInspZoneTag=document.createElement('div');
     wbInspZoneTag.className='wb-zone-kicker-bar';
-    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 20종 템플릿 선택 (표지 5 · 본문 10 · 마지막 5) · 객체 스타일 · 초고속 캡처</span>';
+    wbInspZoneTag.innerHTML='<span class="wb-zone-pill wb-zone-pill-right">우측 · 20종 템플릿 + 자유 도형·배지·액자 꾸미기 · 초고속 캡처</span>';
 
     const inspHead=document.createElement('div');
     inspHead.className='wb-inspector-head';
@@ -3346,7 +3811,7 @@ function renderCarouselPreview(){
     inspTabsBar.className='wb-inspector-tabs wb-inspector-tabs-2col';
     inspTabsBar.setAttribute('role','tablist');
     const tabDefs=[
-      {id:'style',label:'① 20종 템플릿 · 객체 스타일'},
+      {id:'style',label:'① 20종 템플릿 · 자유 요소 꾸미기'},
       {id:'photo',label:'② 초고속 영상 캡처 · 배경 사진'}
     ];
     const tabPanels={};
@@ -3395,12 +3860,12 @@ function renderCarouselPreview(){
           ?COVER_PRESET_IDS[0]
           :(r==='cta'?CTA_PRESET_IDS[0]:BODY_PRESET_IDS[(idx-1)%BODY_PRESET_IDS.length]);
         applyTemplatePresetToSlide(s,effectiveSlides.length,nextPreset);
-        saveCanvaSlideLocalState(job.id,s.index,s.canva_objects,s.bg_transform,s._cleanBgDataUrl,s.layout_preset);
+        saveCanvaSlideLocalState(job.id,s.index,s.canva_objects,s.bg_transform,s._cleanBgDataUrl,s.layout_preset,s.custom_photo_frame,s.custom_decor_boxes);
       });
       renderCarouselPreview();
       message('전체 슬라이드에 서로 다른 표지·본문·마지막장 템플릿 포맷을 자동 배정했습니다!');
     };
-    tpl20Head.append(text('strong','20종 레이아웃 템플릿 선택 (클릭 시 0.01초 즉시 적용)'),btnAutoVarySlides);
+    tpl20Head.append(text('strong','20종 레이아웃 템플릿 (선택 후 모든 요소 자유 배치·수정 가능)'),btnAutoVarySlides);
 
     const tpl20CatBar=document.createElement('div');
     tpl20CatBar.className='canva-tpl20-cat-tabs';
@@ -3449,6 +3914,95 @@ function renderCarouselPreview(){
     renderTpl20CategoryGrid(activeTplCategory);
     tpl20Section.append(tpl20Head,tpl20CatBar,tpl20GridWrap);
 
+    // =========================================================================
+    // FREEFORM ELEMENT & DECORATION BUILDER BAR (도형·배너·구분선·스티커·액자 자유 배치)
+    // =========================================================================
+    const freeformBuilderSection=document.createElement('div');
+    freeformBuilderSection.className='wb-structured-section canva-freeform-builder-section';
+    const fbHead=document.createElement('div');
+    fbHead.className='wb-section-head';
+    const btnClearAllDecor=text('button','배경박스 모두 비우기');
+    btnClearAllDecor.type='button';
+    btnClearAllDecor.id='btn-canva-clear-all-decor';
+    btnClearAllDecor.className='secondary btn-xs';
+    btnClearAllDecor.title='템플릿의 기본 배경 카드/박스를 모두 숨기고 깨끗한 사진 위에서 백지 상태처럼 자유롭게 꾸밉니다';
+    btnClearAllDecor.onclick=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      activeSlide.custom_decor_boxes=[];
+      activeSlide.custom_photo_frame={x:0,y:0,w:100,h:100,radius:0,borderColor:'#334155',borderWidth:0};
+      selectedDecorBoxId=null;
+      renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+      refreshSelectedObjectInspectorUI();
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+      scheduleRealtimeSlideSync({},700);
+      message('배경 도형 박스를 모두 비우고 전체 사진 캔버스로 전환했습니다. 원하는 요소를 자유롭게 배치하세요!');
+    };
+    fbHead.append(text('strong','자유 도형 · 배지 스티커 · 사진 액자 꾸미기 (클릭 즉시 추가)'),btnClearAllDecor);
+
+    const shapeQuickBar=document.createElement('div');
+    shapeQuickBar.className='pro-preset-inline-bar';
+    const shapePresets=[
+      {label:'+ 다크 반투명 카드',cfg:{label:'다크 반투명 카드',x:6,y:58,w:88,h:32,bg:'#0f172a',borderColor:'#334155',borderWidth:1,radius:22}},
+      {label:'+ 화이트 요약 카드',cfg:{label:'화이트 요약 카드',x:6,y:58,w:88,h:32,bg:'#ffffff',borderColor:'#e2e8f0',borderWidth:2,radius:22}},
+      {label:'+ 옐로우 강조 배너',cfg:{label:'옐로우 강조 배너',x:8,y:82,w:84,h:9,bg:'#facc15',borderColor:'#eab308',borderWidth:0,radius:999}},
+      {label:'+ 테두리 프레임',cfg:{label:'테두리 강조 프레임',x:5,y:5,w:90,h:90,bg:'transparent',borderColor:'#facc15',borderWidth:3,radius:24}},
+      {label:'+ 가로 구분선',cfg:{label:'가로 구분선',x:8,y:52,w:84,h:0.8,bg:'#facc15',borderColor:'#facc15',borderWidth:0,radius:4}}
+    ];
+    for(const sp of shapePresets){
+      const b=text('button',sp.label);
+      b.type='button';
+      b.className='pro-preset-pill';
+      b.onclick=()=>addCustomShapePreset(sp.cfg);
+      shapeQuickBar.append(b);
+    }
+
+    const stickerQuickBar=document.createElement('div');
+    stickerQuickBar.className='pro-preset-inline-bar';
+    stickerQuickBar.style.marginTop='5px';
+    const stickerPresets=[
+      {label:'+ 별점 ★★★★★',cfg:{kind:'stars',label:'별점 스티커',text:'★★★★★',x:8,y:54,fontSize:38,color:'#facc15',bgColor:'transparent',bgEnabled:false}},
+      {label:'+ CHECK 배지',cfg:{kind:'badge',label:'CHECK 배지',text:'CHECK POINT',x:8,y:12,fontSize:24,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6}},
+      {label:'+ BEST 태그',cfg:{kind:'badge',label:'BEST 태그',text:'EDITOR BEST',x:8,y:12,fontSize:24,color:'#ffffff',bgColor:'#ee5646',bgEnabled:true,borderRadius:10,paddingX:16,paddingY:6}},
+      {label:'+ Q&A 질문칩',cfg:{kind:'badge',label:'Q&A 배지',text:'Q. 핵심 포인트',x:8,y:12,fontSize:24,color:'#0f172a',bgColor:'#38bdf8',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:6}},
+      {label:'+ 하단 CTA 캡슐',cfg:{kind:'custom',label:'하단 CTA 캡슐 버튼',text:'프로필 · 첫 댓글에서 상세 링크 확인하기 →',x:10,y:86,widthPct:80,fontSize:25,color:'#0f172a',bgColor:'#facc15',bgEnabled:true,borderRadius:999,paddingX:18,paddingY:10,align:'center'}}
+    ];
+    for(const st of stickerPresets){
+      const b=text('button',st.label);
+      b.type='button';
+      b.className='pro-preset-pill';
+      b.onclick=()=>addCustomStickerObject(st.cfg);
+      stickerQuickBar.append(b);
+    }
+
+    const pfPresetBar=document.createElement('div');
+    pfPresetBar.className='pro-preset-inline-bar';
+    pfPresetBar.style.marginTop='5px';
+    const applyPhotoFramePreset=(pfRect,msgText)=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      activeSlide.custom_photo_frame={...pfRect};
+      applyPhotoFrameRectToDom();
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+      refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},700);
+      message(msgText);
+    };
+    const pfPresets=[
+      {label:'사진: 전체 풀블리드 100%',rect:{x:0,y:0,w:100,h:100,radius:0,borderColor:'#334155',borderWidth:0}},
+      {label:'사진: 상단 74% 배너형',rect:{x:0,y:0,w:100,h:74,radius:0,borderColor:'#334155',borderWidth:0}},
+      {label:'사진: 상단 라운드 액자',rect:{x:6,y:5,w:88,h:52,radius:22,borderColor:'#334155',borderWidth:2}},
+      {label:'사진: 중앙 매거진 창문',rect:{x:9,y:17,w:82,h:52,radius:18,borderColor:'#facc15',borderWidth:2}},
+      {label:'사진: 우측 세로 액자',rect:{x:48,y:8,w:46,h:76,radius:20,borderColor:'#334155',borderWidth:2}}
+    ];
+    for(const pfp of pfPresets){
+      const b=text('button',pfp.label);
+      b.type='button';
+      b.className='pro-preset-pill';
+      b.onclick=()=>applyPhotoFramePreset(pfp.rect,`${pfp.label} 구도로 사진 액자를 변경했습니다.`);
+      pfPresetBar.append(b);
+    }
+
+    freeformBuilderSection.append(fbHead,shapeQuickBar,stickerQuickBar,pfPresetBar);
+
     const styleSheet=document.createElement('div');
     styleSheet.className='pro-prop-sheet';
 
@@ -3469,8 +4023,8 @@ function renderCarouselPreview(){
       return {row,ctrl};
     };
 
-    // === SELECTED OBJECT DIRECT PROPERTY CONTROLS ===
-    const {row:rSelObj,ctrl:cSelObj}=makePropRow('선택된 캔버스 요소','클릭 시 글자 수정');
+    // === SELECTED OBJECT / DECOR BOX DIRECT PROPERTY CONTROLS ===
+    const {row:rSelObj,ctrl:cSelObj}=makePropRow('선택된 캔버스 요소','클릭·드래그·복제·삭제');
     objLabelPill=text('span','메인 헤드라인 제목');
     objLabelPill.id='canva-selected-object-pill';
     objLabelPill.className='wb-role-pill';
@@ -3490,7 +4044,146 @@ function renderCarouselPreview(){
       };
       objQuickSwitchWrap.append(qBtn);
     }
+    const btnLayerFront=text('button','맨 앞으로');
+    btnLayerFront.type='button';
+    btnLayerFront.className='secondary btn-xs';
+    btnLayerFront.title='선택한 텍스트나 도형 박스를 가장 앞 레이어로 올립니다';
+    btnLayerFront.onclick=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      const selDecor=getSelectedDecorBox();
+      if(selDecor&&Array.isArray(activeSlide.custom_decor_boxes)){
+        selDecor.layer='front';
+        const idx=activeSlide.custom_decor_boxes.indexOf(selDecor);
+        if(idx>=0){
+          activeSlide.custom_decor_boxes.splice(idx,1);
+          activeSlide.custom_decor_boxes.push(selDecor);
+        }
+        renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+        scheduleRealtimeSlideSync({},700);
+        return;
+      }
+      const selObj=getSelectedObject();
+      if(selObj){
+        const idx=canvaObjects.indexOf(selObj);
+        if(idx>=0){
+          canvaObjects.splice(idx,1);
+          canvaObjects.push(selObj);
+        }
+        renderAllCanvaObjectNodes();
+        scheduleRealtimeSlideSync({},700);
+      }
+    };
+    const btnLayerBack=text('button','맨 뒤로');
+    btnLayerBack.type='button';
+    btnLayerBack.className='secondary btn-xs';
+    btnLayerBack.title='선택한 텍스트나 도형 박스를 뒤쪽 레이어로 내립니다';
+    btnLayerBack.onclick=()=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      const selDecor=getSelectedDecorBox();
+      if(selDecor&&Array.isArray(activeSlide.custom_decor_boxes)){
+        selDecor.layer='back';
+        const idx=activeSlide.custom_decor_boxes.indexOf(selDecor);
+        if(idx>=0){
+          activeSlide.custom_decor_boxes.splice(idx,1);
+          activeSlide.custom_decor_boxes.unshift(selDecor);
+        }
+        renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+        scheduleRealtimeSlideSync({},700);
+        return;
+      }
+      const selObj=getSelectedObject();
+      if(selObj){
+        const idx=canvaObjects.indexOf(selObj);
+        if(idx>=0){
+          canvaObjects.splice(idx,1);
+          canvaObjects.unshift(selObj);
+        }
+        renderAllCanvaObjectNodes();
+        scheduleRealtimeSlideSync({},700);
+      }
+    };
+    const btnDupSelected=text('button','복제 (Ctrl+D)');
+    btnDupSelected.type='button';
+    btnDupSelected.className='secondary btn-xs';
+    btnDupSelected.onclick=()=>{
+      activeCanvaStageController?.handleShortcutKey?.({key:'d',ctrlKey:true,preventDefault:()=>{}});
+    };
+    const btnDelSelected=text('button','삭제 (Del)');
+    btnDelSelected.type='button';
+    btnDelSelected.className='secondary btn-xs btn-subtle-danger';
+    btnDelSelected.onclick=()=>{
+      activeCanvaStageController?.handleShortcutKey?.({key:'Delete',preventDefault:()=>{}});
+    };
+    objQuickSwitchWrap.append(btnLayerFront,btnLayerBack,btnDupSelected,btnDelSelected);
     cSelObj.append(objLabelPill,objQuickSwitchWrap);
+
+    // Selected Decor Box Style Inspector Row (shown when user clicks a shape/card/banner box on the stage)
+    const {row:rDecorStyle,ctrl:cDecorStyle}=makePropRow('선택 도형 박스 스타일','배경색 · 테두리 · 둥글기');
+    decorInspectorRow=rDecorStyle;
+    decorInspectorRow.id='canva-decor-inspector-row';
+    decorInspectorRow.hidden=true;
+    decorBgColorInput=document.createElement('input');
+    decorBgColorInput.type='color';
+    decorBgColorInput.id='canva-decor-bgcolor-input';
+    decorBgColorInput.className='stroke-color-picker';
+    decorBgColorInput.value='#0f172a';
+    decorBgColorInput.title='도형 박스 채우기 색상';
+    const btnDecorTransparent=text('button','투명 채우기');
+    btnDecorTransparent.type='button';
+    btnDecorTransparent.className='secondary btn-xs';
+    decorBorderColorInput=document.createElement('input');
+    decorBorderColorInput.type='color';
+    decorBorderColorInput.id='canva-decor-bordercolor-input';
+    decorBorderColorInput.className='stroke-color-picker';
+    decorBorderColorInput.value='#facc15';
+    decorBorderColorInput.title='도형 박스 테두리 색상';
+    decorBorderWidthNum=document.createElement('input');
+    decorBorderWidthNum.type='number';
+    decorBorderWidthNum.id='canva-decor-borderwidth-num';
+    decorBorderWidthNum.className='capcut-num-input';
+    decorBorderWidthNum.min='0';
+    decorBorderWidthNum.max='16';
+    decorBorderWidthNum.value='2';
+    decorBorderWidthNum.title='테두리 두께(px)';
+    decorRadiusRange=document.createElement('input');
+    decorRadiusRange.type='range';
+    decorRadiusRange.id='canva-decor-radius-range';
+    decorRadiusRange.min='0';
+    decorRadiusRange.max='48';
+    decorRadiusRange.value='16';
+    decorRadiusRange.style.maxWidth='80px';
+    decorRadiusRange.title='모서리 둥글기';
+    const applySelectedDecorStyle=()=>{
+      const selDecor=getSelectedDecorBox();
+      if(!selDecor)return;
+      selDecor.borderColor=decorBorderColorInput.value||'#facc15';
+      selDecor.borderWidth=Math.max(0,Math.min(16,Number(decorBorderWidthNum.value||0)));
+      selDecor.radius=Math.max(0,Number(decorRadiusRange.value||0));
+      renderTemplateStructureOnStage(activeSlide.layout_preset||activePresetId);
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset,activeSlide.custom_photo_frame,activeSlide.custom_decor_boxes);
+      refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},700);
+    };
+    decorBgColorInput.onpointerdown=()=>pushCanvaUndoSnapshot(activeSlide);
+    decorBgColorInput.oninput=()=>{
+      const selDecor=getSelectedDecorBox();
+      if(!selDecor)return;
+      selDecor.bg=decorBgColorInput.value||'#0f172a';
+      applySelectedDecorStyle();
+    };
+    btnDecorTransparent.onclick=()=>{
+      const selDecor=getSelectedDecorBox();
+      if(!selDecor)return;
+      pushCanvaUndoSnapshot(activeSlide);
+      selDecor.bg='transparent';
+      if(!selDecor.borderWidth)decorBorderWidthNum.value='2';
+      applySelectedDecorStyle();
+    };
+    decorBorderColorInput.onpointerdown=()=>pushCanvaUndoSnapshot(activeSlide);
+    decorBorderColorInput.oninput=applySelectedDecorStyle;
+    decorBorderWidthNum.oninput=applySelectedDecorStyle;
+    decorRadiusRange.oninput=applySelectedDecorStyle;
+    cDecorStyle.append(text('small','채우기:'),decorBgColorInput,btnDecorTransparent,text('small','테두리:'),decorBorderColorInput,decorBorderWidthNum,text('small','둥글기:'),decorRadiusRange);
 
     // Selected Object Font Size + Text Color
     const {row:rObjSize,ctrl:cObjSize}=makePropRow('선택 요소 크기 · 색상','즉시 반영');
@@ -3682,8 +4375,8 @@ function renderCarouselPreview(){
     s2Color.oninput=()=>scheduleRealtimeSlideSync({},800);
     cS2.append(s2Color,s2Range,s2Num,s2Tag);
 
-    styleSheet.append(rSelObj,rObjSize,rObjBg,rHook,rFont,rS1,rS2,roleSelect,tplSelect);
-    tabStylePanel.append(tpl20Section,styleSheet);
+    styleSheet.append(rSelObj,rDecorStyle,rObjSize,rObjBg,rHook,rFont,rS1,rS2,roleSelect,tplSelect);
+    tabStylePanel.append(tpl20Section,freeformBuilderSection,styleSheet);
 
     // =========================================================================
     // TAB 2 PANEL: ② 초고속 영상 캡처 · 배경 사진 교체 · 확대/마그넷 중앙 배치
