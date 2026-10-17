@@ -5646,19 +5646,36 @@ html[data-theme="dark"] .analysis-caption-subitem p {
   pointer-events: none;
   z-index: 1;
   box-sizing: border-box;
+  background: #0f172a;
   transition: left 0.14s ease, top 0.14s ease, width 0.14s ease, height 0.14s ease, border-radius 0.14s ease;
+}
+.canva-photo-frame-box .canva-photo-box-blur-backdrop {
+  position: absolute !important;
+  inset: -8% !important;
+  width: 116% !important;
+  height: 116% !important;
+  object-fit: cover !important;
+  filter: blur(20px) brightness(0.50) !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
 }
 .canva-photo-frame-box #wb-active-slide-big-img.canva-clean-bg-img {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
+  object-fit: contain;
   transform-origin: center center;
   transition: transform 0.05s linear;
   pointer-events: none;
   z-index: 1;
   filter: none !important;
+}
+.canva-photo-frame-box #wb-active-slide-big-img.canva-clean-bg-img.is-fit-contain {
+  object-fit: contain !important;
+}
+.canva-photo-frame-box #wb-active-slide-big-img.canva-clean-bg-img.is-fit-cover {
+  object-fit: cover !important;
 }
 .canva-decor-layer {
   position: absolute;

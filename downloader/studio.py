@@ -5873,15 +5873,9 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
             from PIL import Image, ImageOps
             with Image.open(BytesIO(raw_bytes)) as im:
                 im_rgb = ImageOps.exif_transpose(im).convert('RGB')
-                if aspect == '4:5':
-                    target_sz = (1080, 1350)
-                    fitted = ImageOps.fit(im_rgb, target_sz, method=Image.Resampling.LANCZOS)
-                elif aspect == '1:1':
-                    target_sz = (1080, 1080)
-                    fitted = ImageOps.fit(im_rgb, target_sz, method=Image.Resampling.LANCZOS)
-                else:
-                    im_rgb.thumbnail((1080, 1920), Image.Resampling.LANCZOS)
-                    fitted = im_rgb
+                # Preserve full original aspect ratio without force-cropping so boxed templates show the entire photo!
+                im_rgb.thumbnail((1440, 1920), Image.Resampling.LANCZOS)
+                fitted = im_rgb
                 fname = f'carousel-custom-{int(slide_hint or 1)}-{uuid.uuid4().hex[:8]}.jpg'
                 dest = directory(job_id) / fname
                 fitted.save(str(dest), format='JPEG', quality=94)
@@ -5907,14 +5901,8 @@ def register_studio(app, find_ffmpeg, pinterest_resolver=None):
                 from PIL import Image, ImageOps
                 with Image.open(str(img_src)) as im:
                     im_rgb = ImageOps.exif_transpose(im).convert('RGB')
-                    if aspect == '4:5':
-                        fitted = ImageOps.fit(im_rgb, (1080, 1350), method=Image.Resampling.LANCZOS)
-                    elif aspect == '1:1':
-                        fitted = ImageOps.fit(im_rgb, (1080, 1080), method=Image.Resampling.LANCZOS)
-                    else:
-                        im_rgb.thumbnail((1080, 1920), Image.Resampling.LANCZOS)
-                        fitted = im_rgb
-                    fitted.save(str(raw_frame_dest), format='JPEG', quality=94)
+                    im_rgb.thumbnail((1440, 1920), Image.Resampling.LANCZOS)
+                    im_rgb.save(str(raw_frame_dest), format='JPEG', quality=94)
                 return True
         if not source_media or not source_media.is_file() or not binary:
             return False

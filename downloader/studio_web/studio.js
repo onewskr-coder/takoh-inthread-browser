@@ -1299,6 +1299,8 @@ async function captureInstantVideoFrameToActiveSlide(targetTime=null,{frameFile=
     if(bigImg)bigImg.src=capturedDataUrl;
     const blurBgImg=$('wb-active-slide-blur-bg-img');
     if(blurBgImg)blurBgImg.src=capturedDataUrl;
+    const photoBoxBlurImg=$('wb-active-photo-box-blur-img');
+    if(photoBoxBlurImg)photoBoxBlurImg.src=capturedDataUrl;
     const tsPill=$('wb-active-video-ts-pill');
     if(tsPill&&typeof activeSlide.timestamp==='number'){
       tsPill.textContent=`현재 슬라이드 시점: ${Number(activeSlide.timestamp||0).toFixed(1)}초`;
@@ -1445,7 +1447,7 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     }
   }
 
-  // 2. Draw Photo inside `photoFrame` rect with `bg_transform` pan/zoom
+  // 2. Draw Photo inside `photoFrame` rect with `bg_transform` pan/zoom & fitMode (`contain` prevents cropping inside boxes!)
   if(imgToDraw&&imgToDraw.naturalWidth>0&&imgToDraw.naturalHeight>0){
     const fx=(Number(pFrame.x||0)/100)*W;
     const fy=(Number(pFrame.y||0)/100)*H;
@@ -1453,13 +1455,27 @@ async function renderCanvaSlideObjectsToDataUrl(targetJob,slide,aspect='4:5',tem
     const fh=(Number(pFrame.h||100)/100)*H;
     const frad=Number(pFrame.radius||0)*1.8;
 
+    const iw=imgToDraw.naturalWidth,ih=imgToDraw.naturalHeight;
+    const bgT=slide.bg_transform||{scale:1,x:0,y:0};
+    const fitMode=bgT.fit||(isFullBleedPhoto?'cover':'contain');
+    const userScale=Math.max(0.25,Math.min(3,Number(bgT.scale||1)));
+
     ctx.save();
     drawRoundedRect(fx,fy,fw,fh,frad);
     ctx.clip();
-    const iw=imgToDraw.naturalWidth,ih=imgToDraw.naturalHeight;
-    const bgT=slide.bg_transform||{scale:1,x:0,y:0};
-    const userScale=Math.max(0.5,Math.min(3,Number(bgT.scale||1)));
-    const baseScale=Math.max(fw/iw,fh/ih)*userScale;
+
+    // First draw soft blurred cover backdrop inside the photo box so contain-mode never leaves ugly blank gaps
+    ctx.save();
+    ctx.fillStyle='#0f172a';
+    ctx.fillRect(fx,fy,fw,fh);
+    ctx.filter='blur(20px) brightness(0.52)';
+    const coverBackScale=Math.max(fw/iw,fh/ih)*1.12;
+    const cbw=iw*coverBackScale,cbh=ih*coverBackScale;
+    ctx.drawImage(imgToDraw,fx+(fw-cbw)/2,fy+(fh-cbh)/2,cbw,cbh);
+    ctx.restore();
+
+    // Now draw main photo using contain (uncropped full photo) or cover
+    const baseScale=(fitMode==='contain'?Math.min(fw/iw,fh/ih):Math.max(fw/iw,fh/ih))*userScale;
     const dw=iw*baseScale,dh=ih*baseScale;
     const dx=fx+(fw-dw)/2+(Number(bgT.x||0)/100)*fw;
     const dy=fy+(fh-dh)/2+(Number(bgT.y||0)/100)*fh;
@@ -1793,18 +1809,41 @@ function renderCarouselPreview(){
     photoFrameBox.id='wb-active-photo-frame-box';
     photoFrameBox.className='canva-photo-frame-box';
 
+    // Soft blurred backdrop inside photoFrameBox so `contain` mode shows 100% of the photo without cropping or empty holes!
+    const photoBoxBlurImg=document.createElement('img');
+    photoBoxBlurImg.id='wb-active-photo-box-blur-img';
+    photoBoxBlurImg.className='canva-photo-box-blur-backdrop';
+    photoBoxBlurImg.crossOrigin='anonymous';
+    photoBoxBlurImg.src=cleanBgSrc;
+    photoBoxBlurImg.alt='';
+
     const bigImg=document.createElement('img');
     bigImg.id='wb-active-slide-big-img';
     bigImg.className='canva-clean-bg-img';
     bigImg.crossOrigin='anonymous';
     bigImg.src=cleanBgSrc;
     bigImg.alt=`선택된 슬라이드 #${activeSlide.index} 깨끗한 배경`;
+    const isCurrentTemplateFullBleed=()=>{
+      const pid=activeSlide.layout_preset||wbStage.dataset.layoutPreset||'cover_01_cinema';
+      const t=CAROUSEL_20_TEMPLATES[pid]||CAROUSEL_20_TEMPLATES.cover_01_cinema;
+      const pf=t.photoFrame||{x:0,y:0,w:100,h:100};
+      return pf.x===0&&pf.y===0&&pf.w===100&&pf.h===100;
+    };
+    const getEffectivePhotoFitMode=()=>{
+      const bgT=activeSlide.bg_transform||{scale:1,x:0,y:0};
+      if(bgT.fit==='contain'||bgT.fit==='cover')return bgT.fit;
+      return isCurrentTemplateFullBleed()?'cover':'contain';
+    };
     const applyBgTransformStyle=()=>{
       const bgT=activeSlide.bg_transform||{scale:1,x:0,y:0};
+      const fitMode=getEffectivePhotoFitMode();
+      bigImg.classList.toggle('is-fit-contain',fitMode==='contain');
+      bigImg.classList.toggle('is-fit-cover',fitMode==='cover');
+      bigImg.style.setProperty('object-fit',fitMode,'important');
       bigImg.style.transform=`translate(${Number(bgT.x||0)}%, ${Number(bgT.y||0)}%) scale(${Number(bgT.scale||1)})`;
+      if(typeof updateFitModeButtonsUI==='function')updateFitModeButtonsUI(fitMode);
     };
-    applyBgTransformStyle();
-    photoFrameBox.append(bigImg);
+    photoFrameBox.append(photoBoxBlurImg,bigImg);
 
     if(job.kind!=='image'&&!activeSlide.custom_image&&!activeSlide._cleanBgDataUrl&&!canvaCleanBgMemoryCache.has(`${job.id}_${activeSlide.index}`)){
       bigImg.addEventListener('error',()=>{
@@ -1812,6 +1851,7 @@ function renderCarouselPreview(){
         if(!bigImg.src.includes(fallbackFr)){
           bigImg.src=`${base}${fallbackFr}?t=${tsCache}`;
           blurBgImg.src=bigImg.src;
+          photoBoxBlurImg.src=bigImg.src;
         }
       },{once:true});
     }
@@ -1842,6 +1882,7 @@ function renderCarouselPreview(){
       photoFrameBox.style.height=`${Number(pf.h||100)}%`;
       photoFrameBox.style.borderRadius=pf.radius?`${pf.radius}px`:'0px';
       photoFrameBox.style.border=(pf.borderWidth&&pf.borderColor)?`${pf.borderWidth}px solid ${pf.borderColor}`:'none';
+      applyBgTransformStyle();
 
       if(tpl.scrim&&tpl.scrim!=='none'){
         scrimLayer.hidden=false;
@@ -2380,6 +2421,7 @@ function renderCarouselPreview(){
         canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dataUrl);
         bigImg.src=dataUrl;
         blurBgImg.src=dataUrl;
+        photoBoxBlurImg.src=dataUrl;
         refreshClientThumbInstant();
         scheduleRealtimeSlideSync({image_data_url:dataUrl},800);
       }catch(err){
@@ -2633,6 +2675,7 @@ function renderCarouselPreview(){
         const nextBgUrl=resolveCleanSlideBackgroundUrl(job,restoredSlide,Date.now());
         bigImg.src=nextBgUrl;
         blurBgImg.src=nextBgUrl;
+        photoBoxBlurImg.src=nextBgUrl;
         applyBgTransformStyle();
         updateBgOffsetReadout();
         if(bgZoomRangeRef){
@@ -2772,6 +2815,41 @@ function renderCarouselPreview(){
     btnBgCenterSnap.title='배경 사진을 좌우·상하 정중앙(X: 0%, Y: 0%)에 자석처럼 즉시 맞춥니다';
     btnBgCenterSnap.onclick=()=>snapBackgroundPhotoAxis('both');
 
+    var btnFitContainRef=null;
+    var btnFitCoverRef=null;
+    var updateFitModeButtonsUI=null;
+    const btnBgFitToggle=text('button',getEffectivePhotoFitMode()==='contain'?'사진 전체 맞춤 (잘림없음)':'사진 꽉 채우기');
+    btnBgFitToggle.type='button';
+    btnBgFitToggle.id='btn-canva-bg-fit-toggle';
+    btnBgFitToggle.className='secondary btn-xs';
+    btnBgFitToggle.title='박스 안에서 사진이 잘리지 않도록 전체 맞춤(contain)과 박스 꽉 채우기(cover)를 전환합니다';
+    updateFitModeButtonsUI=(mode)=>{
+      if(btnBgFitToggle)btnBgFitToggle.textContent=mode==='contain'?'사진 전체 맞춤 (잘림없음)':'사진 꽉 채우기';
+      if(btnFitContainRef)btnFitContainRef.classList.toggle('active',mode==='contain');
+      if(btnFitCoverRef)btnFitCoverRef.classList.toggle('active',mode==='cover');
+    };
+    const setPhotoFitMode=(nextFit)=>{
+      pushCanvaUndoSnapshot(activeSlide);
+      activeSlide.bg_transform=activeSlide.bg_transform||{scale:1,x:0,y:0};
+      activeSlide.bg_transform.fit=nextFit;
+      if(nextFit==='contain'){
+        activeSlide.bg_transform.scale=1;
+        activeSlide.bg_transform.x=0;
+        activeSlide.bg_transform.y=0;
+        if(bgZoomRangeRef){bgZoomRangeRef.value='100';if(bgZoomValRef)bgZoomValRef.textContent='100%';}
+        updateBgOffsetReadout();
+      }
+      applyBgTransformStyle();
+      saveCanvaSlideLocalState(job.id,activeSlide.index,canvaObjects,activeSlide.bg_transform,activeSlide._cleanBgDataUrl,activeSlide.layout_preset);
+      refreshClientThumbInstant();
+      scheduleRealtimeSlideSync({},800);
+      message(nextFit==='contain'?'사진이 박스 안에서 잘리지 않도록 전체 맞춤(100% 표시)으로 적용했습니다.':'사진을 박스에 꽉 채우기 모드로 전환했습니다.');
+    };
+    btnBgFitToggle.onclick=()=>{
+      const cur=getEffectivePhotoFitMode();
+      setPhotoFitMode(cur==='contain'?'cover':'contain');
+    };
+
     const btnAddTextObj=text('button','+ 텍스트 추가');
     btnAddTextObj.type='button';
     btnAddTextObj.id='btn-canva-add-text-object';
@@ -2898,7 +2976,7 @@ function renderCarouselPreview(){
       message(`슬라이드 #${activeSlide.index} 이미지를 다운로드했습니다!`);
     };
 
-    canvaToolbar.append(btnCanvaUndo,btnCanvaRedo,btnInstantVideoCap,btnBgCenterSnap,btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
+    canvaToolbar.append(btnCanvaUndo,btnCanvaRedo,btnInstantVideoCap,btnBgFitToggle,btnBgCenterSnap,btnAddTextObj,btnAddStarsOrBadge,btnCanvaBoxHl,btnCanvaColorHl,btnResetObjects,btnCanvaSaveImg,btnCanvaDownloadImg);
 
     // Slide Order & Quick Action Bar right below the Large Preview
     const wbPreviewFooter=document.createElement('div');
@@ -3355,7 +3433,7 @@ function renderCarouselPreview(){
     const bgZoomLbl=text('span','배경 사진 확대/축소:');
     bgZoomLbl.style.cssText='font-size:12px;font-weight:700;';
     const bgZoomRange=document.createElement('input');
-    bgZoomRange.type='range';bgZoomRange.min='100';bgZoomRange.max='220';bgZoomRange.step='5';
+    bgZoomRange.type='range';bgZoomRange.min='40';bgZoomRange.max='220';bgZoomRange.step='5';
     bgZoomRange.value=String(Math.round(Number(activeSlide.bg_transform?.scale||1)*100));
     const bgZoomVal=text('span',`${bgZoomRange.value}%`);
     bgZoomVal.className='pro-unit-tag';
@@ -3374,7 +3452,8 @@ function renderCarouselPreview(){
     };
     btnBgResetPan.onclick=()=>{
       pushCanvaUndoSnapshot(activeSlide);
-      activeSlide.bg_transform={scale:1,x:0,y:0};
+      const curFit=activeSlide.bg_transform?.fit;
+      activeSlide.bg_transform={scale:1,x:0,y:0,...(curFit?{fit:curFit}:{})};
       bgZoomRange.value='100';
       bgZoomVal.textContent='100%';
       applyBgTransformStyle();
@@ -3384,13 +3463,30 @@ function renderCarouselPreview(){
     };
     bgZoomRow.append(bgZoomLbl,bgZoomRange,bgZoomVal,btnBgResetPan);
 
-    // Magnetic Background Centering Quick Bar (좌우 중앙 / 상하 중앙 / 정중앙 자석 정렬)
+    // Magnetic Background Centering & Uncropped Fit Quick Bar (전체 맞춤 잘림없음 / 꽉 채우기 / 좌우·상하 중앙 자석 정렬)
     const bgMagnetBar=document.createElement('div');
     bgMagnetBar.className='canva-bg-magnet-bar';
     bgOffsetReadoutEl=document.createElement('span');
     bgOffsetReadoutEl.id='canva-bg-offset-readout';
     bgOffsetReadoutEl.className='canva-bg-offset-pill';
     updateBgOffsetReadout();
+
+    const fitBtnRow=document.createElement('div');
+    fitBtnRow.className='canva-bg-magnet-btns';
+    const curFitMode=getEffectivePhotoFitMode();
+    const btnFitContain=text('button','사진 전체 맞춤 (잘림 없음)');
+    btnFitContain.type='button';
+    btnFitContain.id='btn-canva-fit-contain';
+    btnFitContain.className='secondary btn-xs pro-preset-pill'+(curFitMode==='contain'?' active':'');
+    btnFitContain.onclick=()=>setPhotoFitMode('contain');
+    const btnFitCover=text('button','박스 꽉 채우기');
+    btnFitCover.type='button';
+    btnFitCover.id='btn-canva-fit-cover';
+    btnFitCover.className='secondary btn-xs pro-preset-pill'+(curFitMode==='cover'?' active':'');
+    btnFitCover.onclick=()=>setPhotoFitMode('cover');
+    btnFitContainRef=btnFitContain;
+    btnFitCoverRef=btnFitCover;
+
     const btnSnapBgX=text('button','좌우 중앙 정렬 (X=0)');
     btnSnapBgX.type='button';
     btnSnapBgX.id='btn-canva-snap-bg-x';
@@ -3406,7 +3502,8 @@ function renderCarouselPreview(){
     btnSnapBgBoth.id='btn-canva-snap-bg-both';
     btnSnapBgBoth.className='secondary btn-xs';
     btnSnapBgBoth.onclick=()=>snapBackgroundPhotoAxis('both');
-    bgMagnetBar.append(bgOffsetReadoutEl,btnSnapBgX,btnSnapBgY,btnSnapBgBoth);
+    fitBtnRow.append(btnFitContain,btnFitCover,btnSnapBgX,btnSnapBgY,btnSnapBgBoth);
+    bgMagnetBar.append(bgOffsetReadoutEl,fitBtnRow);
 
     const photoActionRow=document.createElement('div');
     photoActionRow.className='wb-photo-action-row';
@@ -3428,6 +3525,7 @@ function renderCarouselPreview(){
         canvaCleanBgMemoryCache.set(`${job.id}_${activeSlide.index}`,dataUrl);
         bigImg.src=dataUrl;
         blurBgImg.src=dataUrl;
+        photoBoxBlurImg.src=dataUrl;
         refreshClientThumbInstant();
         scheduleRealtimeSlideSync({image_data_url:dataUrl},800);
         message('클립보드 이미지를 배경에 즉시 적용했습니다!');
@@ -3495,12 +3593,13 @@ function renderCarouselPreview(){
         const restoredUrl=resolveCleanSlideBackgroundUrl(job,activeSlide,Date.now());
         bigImg.src=restoredUrl;
         blurBgImg.src=restoredUrl;
+        photoBoxBlurImg.src=restoredUrl;
         refreshClientThumbInstant();
         scheduleRealtimeSlideSync({clear_custom_image:true},800);
       };
       photoActionRow.append(btnResetFrame);
     }
-    const photoHint=text('p','팁: 사진 영역을 마우스로 드래그하면 구도를 상하좌우로 움직일 수 있으며, 중앙 근처에서 좌우·상하 마그넷 정렬이 자동 작동합니다. 사진을 더블클릭하면 즉시 정중앙(0%, 0%)으로 배치됩니다.');
+    const photoHint=text('p','팁: 박스형 액자 템플릿에서는 사진이 잘리지 않도록 [사진 전체 맞춤 (잘림 없음)]이 기본 적용됩니다. 사진을 마우스로 드래그하면 구도를 움직일 수 있고, 더블클릭 시 정중앙(0%, 0%)으로 자석 배치됩니다.');
     photoHint.className='hint';
     photoBox.append(photoHead,bgZoomRow,bgMagnetBar,photoActionRow,photoHint);
     tabPhotoPanel.prepend(photoBox);
